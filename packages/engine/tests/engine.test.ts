@@ -6,14 +6,13 @@ import {
   BOARD_WIDTH,
   createEngine,
   DEFAULT_MODE_SETTINGS,
-  type EngineState,
   PIECE_KINDS,
   type PieceKind,
-  pieceCells,
   restoreEngine,
   SUBROWS_PER_ROW,
 } from '../src/index';
-import { emptyRows, render, withBoard } from './support/board';
+import { bottomRow } from '../src/pieces';
+import { emptyRows, render, renderLocked, withBoard } from './support/board';
 import { draw } from './support/random';
 
 const SEED = 2026;
@@ -22,22 +21,40 @@ function newEngine(seed = SEED) {
   return createEngine(DEFAULT_MODE_SETTINGS, seed, 0);
 }
 
-/** An engine whose state is a fresh game's, changed by `patch`. */
-function engineWith(patch: (state: EngineState) => EngineState) {
-  return restoreEngine(patch(newEngine().serialize()));
+/**
+ * A fresh game changed to have `board` (a picture, as `withBoard` takes), `active` in play as if it
+ * had just spawned there, and `next` as the next piece in the queue.
+ */
+function game({ board = [], active, next }: GameSetup) {
+  const state = withBoard(newEngine().serialize(), board);
+  if (active) {
+    state.active = active;
+    state.lowestRow = bottomRow(active);
+  }
+  if (next) state.queue[0] = next;
+  return restoreEngine(state);
 }
 
-/** Puts `active` in play as if it had just spawned there. */
-function at(active: ActivePiece) {
-  const lowestRow = Math.min(...pieceCells(active).map(({ row }) => row));
-  return (state: EngineState): EngineState => ({ ...state, active, lowestRow });
+interface GameSetup {
+  board?: readonly string[];
+  active?: ActivePiece;
+  next?: PieceKind;
 }
 
-/** An O out of the way at the left wall, with `kind` next in the queue. */
+/** `kind` next in the queue, with an O in play out of the way at the left wall. */
 function nextPieceIs(kind: PieceKind) {
-  return (state: EngineState): EngineState => ({
-    ...at({ kind: 'O', col: 0, row: 10 })(state),
-    queue: [kind, ...state.queue.slice(1)],
+  return game({ active: { kind: 'O', col: 0, row: 10 }, next: kind });
+}
+
+/**
+ * A stack up to row `top` with a gap at the right, an O in play above the gap, and `kind` next.
+ * A hard drop puts the O in the gap and spawns `kind` above the stack.
+ */
+function stackTo(top: number, kind: PieceKind) {
+  return game({
+    board: ['LLLLLLLL..', ...emptyRows(top - 1)],
+    active: { kind: 'O', col: 8, row: 10 },
+    next: kind,
   });
 }
 
@@ -114,7 +131,7 @@ describe('gravity', () => {
 
 describe('moving', () => {
   test('moveLeft and moveRight shift the active piece one column at their frame', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 10 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
     engine.step(5, [{ frame: 5, type: ActionType.MoveLeft }]);
     expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 10 });
     engine.step(7, [
@@ -125,7 +142,7 @@ describe('moving', () => {
   });
 
   test('several actions in one frame all apply, in order', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 10 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
     engine.step(1, [
       { frame: 1, type: ActionType.MoveLeft },
       { frame: 1, type: ActionType.MoveLeft },
@@ -145,20 +162,20 @@ describe('moving', () => {
   };
 
   test.each(PIECE_KINDS)('%s stops at both walls', (kind) => {
-    const toLeft = engineWith(at({ kind, col: 4, row: 10 }));
+    const toLeft = game({ active: { kind, col: 4, row: 10 } });
     toLeft.step(9, moves(ActionType.MoveLeft, 9));
     expect(render(toLeft.state)[22 - 11]).toBe(walls[kind].left);
 
-    const toRight = engineWith(at({ kind, col: 4, row: 10 }));
+    const toRight = game({ active: { kind, col: 4, row: 10 } });
     toRight.step(9, moves(ActionType.MoveRight, 9));
     expect(render(toRight.state)[22 - 11]).toBe(walls[kind].right);
   });
 
   test('a move into the stack does nothing', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['.......L..', '.......L..', ...emptyRows(10)]),
+    const engine = game({
+      board: ['.......L..', '.......L..', ...emptyRows(10)],
       active: { kind: 'O', col: 4, row: 10 },
-    }));
+    });
     // The stack beside the O's rows leaves room for one move right.
     engine.step(3, [
       { frame: 1, type: ActionType.MoveRight },
@@ -171,17 +188,12 @@ describe('moving', () => {
   test('actions apply before gravity in the same frame', () => {
     // Gravity lands the O on a locked cell under its right column at frame 60, and locks it there
     // at frame 90 unless the move at frame 90 takes it clear first.
-    const board = withBoard(newEngine().serialize(), ['.....L....']).board;
-    const start = (state: EngineState): EngineState => ({
-      ...state,
-      board,
-      active: { kind: 'O', col: 4, row: 2 },
-    });
-    const stays = engineWith(start);
+    const start: GameSetup = { board: ['.....L....'], active: { kind: 'O', col: 4, row: 2 } };
+    const stays = game(start);
     stays.step(90, []);
     expect(stays.state.board[1]?.[4]).toBe('O');
 
-    const escapes = engineWith(start);
+    const escapes = game(start);
     escapes.step(90, [{ frame: 90, type: ActionType.MoveLeft }]);
     expect(escapes.state.active).toEqual({ kind: 'O', col: 3, row: 1 });
   });
@@ -223,23 +235,23 @@ describe('step', () => {
   });
 });
 
-/** `count` of the same move, one per frame from frame 1. */
-function moves(type: ActionType.MoveLeft | ActionType.MoveRight, count: number) {
-  return Array.from({ length: count }, (_, i) => ({ frame: i + 1, type }));
+/** `count` of the same move, one per frame from frame `from`. */
+function moves(type: ActionType.MoveLeft | ActionType.MoveRight, count: number, from = 1) {
+  return Array.from({ length: count }, (_, i) => ({ frame: from + i, type }));
 }
 
 describe('hard drop', () => {
   test('drops the piece to the floor and locks it at its frame', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 15 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 15 } });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
 
   test('lands on the stack', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['.....J....', '.....J....', '.....JJ...']),
+    const engine = game({
+      board: ['.....J....', '.....J....', '.....JJ...'],
       active: { kind: 'O', col: 4, row: 15 },
-    }));
+    });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 5)).toEqual([
       '....OO....',
@@ -262,7 +274,7 @@ describe('hard drop', () => {
   });
 
   test('later actions in the same frame move the next piece', () => {
-    const engine = engineWith(nextPieceIs('T'));
+    const engine = nextPieceIs('T');
     engine.step(1, [
       { frame: 1, type: ActionType.HardDrop },
       { frame: 1, type: ActionType.MoveRight },
@@ -272,71 +284,64 @@ describe('hard drop', () => {
 });
 
 describe('lock delay', () => {
-  /** The locked cells of the bottom `rows` rows, without the active piece. */
-  function locked(engine: ReturnType<typeof newEngine>, rows = 2) {
-    return render({ ...engine.state, active: { kind: 'O', col: 0, row: 30 } }, rows);
-  }
-
   test('locks a landed piece 30 frames after it lands', () => {
     // Gravity lands the T on the floor at frame 60.
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 1 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 1 } });
     engine.step(60, []);
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
     engine.step(89, []);
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
-    expect(locked(engine)).toEqual(emptyRows(2));
+    expect(renderLocked(engine.state, 2)).toEqual(emptyRows(2));
     engine.step(90, []);
-    expect(locked(engine)).toEqual(['....T.....', '...TTT....']);
+    expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
 
   test('a move restarts the 30 frames', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 0 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
     engine.step(49, [{ frame: 20, type: ActionType.MoveLeft }]);
     expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 0 });
     engine.step(50, []);
-    expect(locked(engine)).toEqual(['...T......', '..TTT.....']);
+    expect(renderLocked(engine.state, 2)).toEqual(['...T......', '..TTT.....']);
   });
 
   test('only the first 15 moves restart it', () => {
     // 16 moves, one every 10 frames from frame 10. The 15th, at frame 150, is the last that
     // counts, so the piece locks at frame 180 rather than 190.
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 0 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
     engine.step(179, wiggles(16, 10));
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
     engine.step(180, []);
-    expect(locked(engine)).toEqual(['....T.....', '...TTT....']);
+    expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
 
   test('moves in the air use none of the 15 restarts', () => {
     // The T makes 16 moves in the air, then slides onto a ledge in the same row at frame 19.
     // It still has its restarts there: the move at frame 40 restarts the lock delay.
-    const engine = engineWith((state) =>
-      at({ kind: 'T', col: 7, row: 1 })(withBoard(state, ['LLLL......'])),
-    );
-    const slideOn = [17, 18, 19].map((frame) => ({ frame, type: ActionType.MoveLeft }));
-    engine.step(69, [...wiggles(16, 1), ...slideOn, { frame: 40, type: ActionType.MoveLeft }]);
+    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 7, row: 1 } });
+    engine.step(69, [
+      ...wiggles(16, 1),
+      ...moves(ActionType.MoveLeft, 3, 17),
+      { frame: 40, type: ActionType.MoveLeft },
+    ]);
     expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 1 });
     engine.step(70, []);
-    expect(locked(engine, 3)).toEqual(['...T......', '..TTT.....', 'LLLL......']);
+    expect(renderLocked(engine.state, 3)).toEqual(['...T......', '..TTT.....', 'LLLL......']);
   });
 
   test('reaching a new lowest row gives the piece its 30 frames and 15 resets again', () => {
     // The T rests on a ledge and uses its 15 resets there, then slides off at frame 163 and soft
     // drops to the floor at frame 164. There it gets a fresh lock delay, and its move at frame 190
     // restarts it again, so it locks at frame 220.
-    const engine = engineWith((state) =>
-      at({ kind: 'T', col: 2, row: 1 })(withBoard(state, ['LLLL......'])),
-    );
-    const slideOff = [160, 161, 162, 163].map((frame) => ({ frame, type: ActionType.MoveRight }));
+    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 2, row: 1 } });
     engine.step(219, [
       ...wiggles(15, 10),
-      ...slideOff,
+      ...moves(ActionType.MoveRight, 4, 160),
       { frame: 164, type: ActionType.SoftDrop },
       { frame: 190, type: ActionType.MoveRight },
     ]);
     expect(engine.state.active).toEqual({ kind: 'T', col: 6, row: 0 });
     engine.step(220, []);
-    expect(locked(engine)).toEqual(['......T...', 'LLLL.TTT..']);
+    expect(renderLocked(engine.state, 2)).toEqual(['......T...', 'LLLL.TTT..']);
   });
 });
 
@@ -350,7 +355,7 @@ function wiggles(count: number, every: number) {
 
 describe('soft drop', () => {
   test('moves the active piece down one row at its frame', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 10 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
     engine.step(2, [
       { frame: 1, type: ActionType.SoftDrop },
       { frame: 2, type: ActionType.SoftDrop },
@@ -359,7 +364,7 @@ describe('soft drop', () => {
   });
 
   test('does nothing when the piece is on the stack', () => {
-    const engine = engineWith(at({ kind: 'T', col: 4, row: 0 }));
+    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
     engine.step(1, [{ frame: 1, type: ActionType.SoftDrop }]);
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
     expect(render(engine.state, 2)).toEqual(['....t.....', '...ttt....']);
@@ -417,18 +422,14 @@ describe('spawning', () => {
   };
 
   test.each(PIECE_KINDS)('%s spawns in its guideline columns, one row into view', (kind) => {
-    const engine = engineWith(nextPieceIs(kind));
+    const engine = nextPieceIs(kind);
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     // Rows 22 down to 20: the piece is in rows 20–21, and row 22 is empty.
     expect(render(engine.state).slice(0, 3)).toEqual(['..........', ...spawns[kind]]);
   });
 
   test('a piece with the stack right below its spawn stays in rows 21–22', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['LLLLLLLL..', ...emptyRows(19)]),
-      active: { kind: 'O', col: 8, row: 10 },
-      queue: ['T', ...state.queue.slice(1)],
-    }));
+    const engine = stackTo(20, 'T');
     // The O falls clear of the stack, and the T spawns on top of row 20 and can't drop.
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state).slice(0, 3)).toEqual(['....t.....', '...ttt....', 'LLLLLLLL..']);
@@ -438,28 +439,28 @@ describe('spawning', () => {
 
 describe('line clears', () => {
   test('a full row clears and the rows above move down', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['..S.......', 'ZZZ...ZZZZ']),
+    const engine = game({
+      board: ['..S.......', 'ZZZ...ZZZZ'],
       active: { kind: 'T', col: 4, row: 10 },
-    }));
+    });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 3)).toEqual(['..........', '..........', '..S.T.....']);
   });
 
   test('two full rows clear at once', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['J.........', 'LLLL..LLLL', 'ZZZZ..ZZZZ']),
+    const engine = game({
+      board: ['J.........', 'LLLL..LLLL', 'ZZZZ..ZZZZ'],
       active: { kind: 'O', col: 4, row: 10 },
-    }));
+    });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 3)).toEqual(['..........', '..........', 'J.........']);
   });
 
   test('only full rows clear', () => {
-    const engine = engineWith((state) => ({
-      ...withBoard(state, ['LLLL...LLL', 'ZZZZ...ZZZ']),
+    const engine = game({
+      board: ['LLLL...LLL', 'ZZZZ...ZZZ'],
       active: { kind: 'J', col: 5, row: 10 },
-    }));
+    });
     // The J's flat side completes the bottom row. Its corner goes into the row above, which keeps
     // its gaps and moves down.
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
@@ -470,10 +471,10 @@ describe('line clears', () => {
 describe('block out', () => {
   function blockedEngine() {
     // The stack reaches into the spawn rows, so the next piece can't appear.
-    return engineWith((state) => ({
-      ...withBoard(state, ['....L.....', '....L.....', ...emptyRows(20)]),
+    return game({
+      board: ['....L.....', '....L.....', ...emptyRows(20)],
       active: { kind: 'O', col: 0, row: 10 },
-    }));
+    });
   }
 
   test('a piece spawning onto the stack tops out the player', () => {
@@ -503,15 +504,6 @@ describe('block out', () => {
 });
 
 describe('lock out', () => {
-  /** A stack up to row `top` with a gap at the right, and `kind` about to spawn above it. */
-  function stackTo(top: number, kind: PieceKind) {
-    return engineWith((state) => ({
-      ...withBoard(state, ['LLLLLLLL..', ...emptyRows(top - 1)]),
-      active: { kind: 'O', col: 8, row: 10 },
-      queue: [kind, ...state.queue.slice(1)],
-    }));
-  }
-
   test('a piece that locks entirely above row 20 tops out the player', () => {
     // The O falls clear of the stack, and the T spawns on top of row 20 and locks there.
     const engine = stackTo(20, 'T');
@@ -519,8 +511,7 @@ describe('lock out', () => {
       { frame: 1, type: ActionType.HardDrop },
       { frame: 2, type: ActionType.HardDrop },
     ]);
-    const locked = (row: number) => engine.state.board[row]?.map((cell) => cell ?? '.').join('');
-    expect([locked(21), locked(20)]).toEqual(['....T.....', '...TTT....']);
+    expect(renderLocked(engine.state).slice(0, 2)).toEqual(['....T.....', '...TTT....']);
     expect(engine.state.toppedOut).toBe(true);
     // The game stops at the lock: the T stays the active piece, and no next piece spawns.
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 20 });
@@ -541,7 +532,7 @@ describe('lock out', () => {
       { frame: 1, type: ActionType.HardDrop },
       { frame: 2, type: ActionType.HardDrop },
     ]);
-    expect(engine.state.board[19]?.map((cell) => cell ?? '.').join('')).toBe('...IIII...');
+    expect(renderLocked(engine.state, 20)[0]).toBe('...IIII...');
     expect(engine.state.toppedOut).toBe(false);
   });
 });

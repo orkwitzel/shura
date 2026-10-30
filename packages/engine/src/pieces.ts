@@ -67,6 +67,18 @@ const SPAWN_OFFSETS: Record<PieceKind, readonly (readonly [number, number])[]> =
   ],
 };
 
+/** `piece` shifted by `cols` and `rows`. */
+export function moved(piece: Readonly<ActivePiece>, cols: number, rows: number): ActivePiece {
+  return { kind: piece.kind, col: piece.col + cols, row: piece.row + rows };
+}
+
+/** The lowest board row a piece covers. */
+export function bottomRow(piece: Readonly<ActivePiece>): number {
+  let lowest = Infinity;
+  for (const [, row] of SPAWN_OFFSETS[piece.kind]) lowest = Math.min(lowest, row);
+  return piece.row + lowest;
+}
+
 /** The board cells a piece covers. */
 export function pieceCells(piece: Readonly<ActivePiece>): Cell[] {
   return SPAWN_OFFSETS[piece.kind].map(([col, row]) => ({

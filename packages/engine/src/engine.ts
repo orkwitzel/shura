@@ -1,7 +1,7 @@
 import { assertInteger } from './assert';
 import { type Board, clearLines, collides, createBoard, lockPiece, VISIBLE_ROWS } from './board';
 import { hashText } from './hash';
-import { type ActivePiece, type PieceKind, pieceCells } from './pieces';
+import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
@@ -119,7 +119,7 @@ class Engine {
     let i = 0;
     while (s.frame < frame && !s.toppedOut) {
       s.frame++;
-      if (onStack(s)) s.lockTimer++;
+      countLockFrame(s);
       for (
         let action = actions[i];
         action?.frame === s.frame && !s.toppedOut;
@@ -147,6 +147,7 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
     playerIndex,
     frame: 0,
     board: createBoard(),
+    // `spawn` sets the active piece and its gravity and lock delay.
     active: atSpawn(first),
     hold: null,
     holdUsed: false,
@@ -190,6 +191,11 @@ function applyAction(s: EngineState, type: ActionType): void {
   }
 }
 
+/** A frame that begins with the active piece on the stack counts towards its lock delay. */
+function countLockFrame(s: EngineState): void {
+  if (onStack(s)) s.lockTimer++;
+}
+
 /**
  * A piece in the air falls by the gravity built up. A piece on the stack builds up no gravity, and
  * locks at the end of the `LOCK_DELAY`th frame after the one it landed or restarted its lock delay
@@ -216,9 +222,20 @@ function applyGravity(s: EngineState): void {
  */
 function shift(s: EngineState, cols: number): void {
   const wasOnStack = onStack(s);
-  if (!tryMove(s, cols, 0) || !wasOnStack || s.lockResets >= MAX_LOCK_RESETS) return;
+  if (tryMove(s, cols, 0) && wasOnStack) restartLockDelay(s);
+}
+
+function restartLockDelay(s: EngineState): void {
+  if (s.lockResets >= MAX_LOCK_RESETS) return;
   s.lockResets++;
   s.lockTimer = 0;
+}
+
+/** Gives the active piece a fresh lock delay, with all its restarts, from its current row. */
+function freshLockDelay(s: EngineState): void {
+  s.lowestRow = bottomRow(s.active);
+  s.lockTimer = 0;
+  s.lockResets = 0;
 }
 
 /** Whether the active piece is resting on the stack or the floor. */
@@ -230,19 +247,18 @@ function canMove(s: EngineState, cols: number, rows: number): boolean {
   return !collides(s.board, moved(s.active, cols, rows));
 }
 
-/**
- * Moves the active piece if it fits. Reaching a new lowest row gives the piece a fresh lock delay
- * and all its resets back (design §3).
- */
 function tryMove(s: EngineState, cols: number, rows: number): boolean {
-  if (!canMove(s, cols, rows)) return false;
-  s.active = moved(s.active, cols, rows);
-  const bottom = bottomRow(s.active);
-  if (bottom < s.lowestRow) {
-    s.lowestRow = bottom;
-    s.lockTimer = 0;
-    s.lockResets = 0;
-  }
+  return tryPlace(s, moved(s.active, cols, rows));
+}
+
+/**
+ * Makes `piece` the active piece if it fits. Reaching a new lowest row gives the piece a fresh lock
+ * delay (design §3).
+ */
+function tryPlace(s: EngineState, piece: ActivePiece): boolean {
+  if (collides(s.board, piece)) return false;
+  s.active = piece;
+  if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
   return true;
 }
 
@@ -285,9 +301,7 @@ function nextFromQueue(s: EngineState): PieceKind {
 function spawn(s: EngineState, kind: PieceKind): void {
   s.active = atSpawn(kind);
   s.gravityCounter = 0;
-  s.lockTimer = 0;
-  s.lockResets = 0;
-  s.lowestRow = bottomRow(s.active);
+  freshLockDelay(s);
   if (collides(s.board, s.active)) s.toppedOut = true;
   else tryMove(s, 0, -1);
 }
@@ -319,12 +333,4 @@ function cloneState(state: EngineState): EngineState {
     lowestRow: state.lowestRow,
     toppedOut: state.toppedOut,
   };
-}
-
-function bottomRow(piece: ActivePiece): number {
-  return Math.min(...pieceCells(piece).map((cell) => cell.row));
-}
-
-function moved(piece: ActivePiece, cols: number, rows: number): ActivePiece {
-  return { ...piece, col: piece.col + cols, row: piece.row + rows };
 }
