@@ -12,6 +12,7 @@ import { hashText } from './hash';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 import { srs, turned } from './rotation';
+import { HARD_DROP_POINTS, SOFT_DROP_POINTS, scoreLock } from './scoring';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
 export const SUBROWS_PER_ROW = 3_932_160;
@@ -84,6 +85,19 @@ export interface EngineState {
   /** The lowest board row any cell of the active piece has reached. */
   lowestRow: number;
   toppedOut: boolean;
+  /** The level that multiplies line clear points (design §3). */
+  level: number;
+  score: number;
+  linesCleared: number;
+  /** Pieces locked, including one that locked out. */
+  piecesPlaced: number;
+  /**
+   * The guideline combo counter: one less than the number of locks in a row that cleared lines, so
+   * -1 after a lock that cleared none and 0 after the first clear.
+   */
+  combo: number;
+  /** Whether the last line clear was a Tetris, so the next Tetris scores the back-to-back bonus. */
+  backToBack: boolean;
 }
 
 type DeepReadonly<T> = T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
@@ -169,6 +183,12 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
     lockResets: 0,
     lowestRow: 0,
     toppedOut: false,
+    level: 1,
+    score: 0,
+    linesCleared: 0,
+    piecesPlaced: 0,
+    combo: -1,
+    backToBack: false,
   };
   spawn(state, first);
   return new Engine(state);
@@ -199,10 +219,10 @@ function applyAction(s: EngineState, type: ActionType): void {
       rotate(s, 2);
       break;
     case ActionType.SoftDrop:
-      tryMove(s, 0, -1);
+      if (tryMove(s, 0, -1)) s.score += SOFT_DROP_POINTS;
       break;
     case ActionType.HardDrop:
-      while (tryMove(s, 0, -1));
+      while (tryMove(s, 0, -1)) s.score += HARD_DROP_POINTS;
       lock(s);
       break;
     case ActionType.Hold:
@@ -290,17 +310,18 @@ function tryPlace(s: EngineState, piece: ActivePiece): boolean {
 }
 
 /**
- * Locks the active piece, clears lines and spawns the next piece from the queue. A piece that locks
- * entirely above the visible rows locks out: the player tops out and the game stops there, with
- * that piece left active.
+ * Locks the active piece, clears and scores lines, and spawns the next piece from the queue. A
+ * piece that locks entirely above the visible rows locks out: the player tops out and the game
+ * stops there, with that piece left active.
  */
 function lock(s: EngineState): void {
   lockPiece(s.board, s.active);
+  s.piecesPlaced++;
   if (bottomRow(s.active) >= VISIBLE_ROWS) {
     s.toppedOut = true;
     return;
   }
-  clearLines(s.board);
+  scoreLock(s, clearLines(s.board));
   s.holdUsed = false;
   spawn(s, nextFromQueue(s));
 }
@@ -362,5 +383,11 @@ function cloneState(state: EngineState): EngineState {
     lockResets: state.lockResets,
     lowestRow: state.lowestRow,
     toppedOut: state.toppedOut,
+    level: state.level,
+    score: state.score,
+    linesCleared: state.linesCleared,
+    piecesPlaced: state.piecesPlaced,
+    combo: state.combo,
+    backToBack: state.backToBack,
   };
 }

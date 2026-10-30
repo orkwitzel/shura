@@ -180,6 +180,24 @@ describe('hash', () => {
     'the top-out flag': (s) => {
       s.toppedOut = !s.toppedOut;
     },
+    'the level': (s) => {
+      s.level++;
+    },
+    'the score': (s) => {
+      s.score++;
+    },
+    'the lines cleared': (s) => {
+      s.linesCleared++;
+    },
+    'the pieces placed': (s) => {
+      s.piecesPlaced++;
+    },
+    'the combo': (s) => {
+      s.combo++;
+    },
+    'the back-to-back status': (s) => {
+      s.backToBack = !s.backToBack;
+    },
     'the player index': (s) => {
       s.playerIndex++;
     },

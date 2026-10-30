@@ -32,6 +32,26 @@ _Avoid_: config, ruleset
 The 30 frames a piece can rest on the stack before it locks. Moving or rotating on the stack restarts it, up to 15 times per piece.
 _Avoid_: lock timer (for the rule), grace period
 
+**Line clear**:
+Full rows removed when a piece locks, and the rows above moving down. A single, double, triple or Tetris clears 1, 2, 3 or 4 lines.
+_Avoid_: line break, burn
+
+**Back-to-back**:
+A difficult clear (a Tetris, or a T-spin that clears lines) when the last line clear was one too. It scores and attacks extra. A single, double or triple breaks the chain, and a lock that clears nothing doesn't.
+_Avoid_: B2B (in code), streak
+
+**Combo**:
+Locks in a row that each clear lines. The combo counter is -1 after a lock that clears nothing and goes up by one with each lock that clears, so the first clear is combo 0.
+_Avoid_: chain, ren
+
+**Perfect clear**:
+A line clear that leaves the board empty.
+_Avoid_: all clear, PC (in code)
+
+**Level**:
+The number that multiplies line clear points and, in Marathon, sets gravity.
+_Avoid_: stage, speed
+
 **Attack**:
 The number of garbage lines a clear produces, before cancellation.
 _Avoid_: damage, lines sent (for the pre-cancellation value)
