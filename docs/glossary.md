@@ -88,6 +88,14 @@ _Avoid_: death, game over (for one player in a multiplayer match)
 A player being counted as topped out because their client fell too far behind the server clock or stopped acknowledging garbage.
 _Avoid_: timeout, kick
 
+**Countdown**:
+The "3, 2, 1, Go" before a single-player game starts or resumes: frames −90 to −1, during which keys charge but the engine doesn't step.
+_Avoid_: ready-go, intro
+
+**Personal best**:
+A player's best run of a single-player mode, kept locally with its seed and action log: Sprint's fastest finished time, Ultra's best full 2-minute score, Marathon's best score.
+_Avoid_: high score, PB (in code)
+
 ## Input
 
 **Action**:
@@ -107,6 +115,22 @@ Delayed auto shift: how long a direction key is held before auto-repeat starts.
 
 **ARR**:
 Auto repeat rate: the interval between repeated moves once auto-repeat has started.
+
+**Soft-drop factor**:
+How many times faster than gravity the piece falls while soft drop is held. Part of handling.
+_Avoid_: soft-drop speed (for the setting), SDF (in code)
+
+**Key event**:
+A press or release of a bound key, with the time it arrived. Adapters produce them and the input engine consumes them. The engine never sees them.
+_Avoid_: keypress, input (for the engine's instructions, which are actions)
+
+**Adapter**:
+One UI's translation of raw input (DOM events or terminal bytes) into key events: web, CLI precise or CLI basic.
+_Avoid_: driver, input handler
+
+**Input engine**:
+The client-core state machine that turns key events and handling into actions, reading the board so it emits only actions that take effect.
+_Avoid_: controller, input handler
 
 **Precise input / basic input**:
 The two CLI input modes. Precise has real key-release events. Basic infers releases from the terminal's key-repeat stream.
