@@ -14,7 +14,7 @@ import {
 import { withActive, withBoard } from './board';
 
 /** The seed of every game `newEngine` starts. */
-export const SEED = 9;
+const SEED = 9;
 
 export function newEngine(): Engine {
   return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);

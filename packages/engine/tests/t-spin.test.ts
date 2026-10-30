@@ -2,16 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { ActionType, type ActivePiece, detectTSpin, TSpin, type Turn } from '../src/index';
 import { boardOf } from './support/board';
 import { play } from './support/play';
-import {
-  IN_PLACE,
-  MINI_SLOT,
-  OPEN_TST_SLOT,
-  T_IN_MINI_SLOT,
-  T_IN_TSD_SLOT,
-  T_IN_TST_SLOT,
-  TSD_SLOT,
-  TST_KICK,
-} from './support/t-spin';
+import { IN_PLACE, MINI_SLOT, OPEN_TST_SLOT, TSD_SLOT, TST_KICK } from './support/t-spin';
 
 // The 3-corner rule, the full and mini split and the upgrade after a kick of 1 by 2 are the
 // guideline's, as https://tetris.wiki/T-Spin (revision 25858, "Current rules") gives them: the last
@@ -34,29 +25,29 @@ import {
 // a 180° turn is (±1, 0) or (0, 2): an artifact of its kick indexing, not a rule to copy.)
 
 describe('T-spin detection', () => {
-  const tsdSlot = boardOf(TSD_SLOT);
-  const openTstSlot = boardOf(OPEN_TST_SLOT);
+  const tsdBoard = boardOf(TSD_SLOT.board);
+  const openTstBoard = boardOf(OPEN_TST_SLOT.board);
 
   test('a T turned into a slot with both front corners and a back corner filled is a full T-spin', () => {
-    expect(detectTSpin(tsdSlot, T_IN_TSD_SLOT, IN_PLACE)).toBe(TSpin.Full);
+    expect(detectTSpin(tsdBoard, TSD_SLOT.piece, IN_PLACE)).toBe(TSpin.Full);
   });
 
   test('a T whose last move was not a turn is no T-spin', () => {
-    expect(detectTSpin(tsdSlot, T_IN_TSD_SLOT, null)).toBe(TSpin.None);
+    expect(detectTSpin(tsdBoard, TSD_SLOT.piece, null)).toBe(TSpin.None);
   });
 
   test('only a T spins', () => {
-    expect(detectTSpin(tsdSlot, { ...T_IN_TSD_SLOT, kind: 'J' }, IN_PLACE)).toBe(TSpin.None);
+    expect(detectTSpin(tsdBoard, { ...TSD_SLOT.piece, kind: 'J' }, IN_PLACE)).toBe(TSpin.None);
   });
 
   test('a T with only two corners filled is no T-spin', () => {
     // The overhang is gone, so only the two front corners beside the stem are filled.
     const board = boardOf(['L...LLLLLL', 'LL.LLLLLLL']);
-    expect(detectTSpin(board, T_IN_TSD_SLOT, IN_PLACE)).toBe(TSpin.None);
+    expect(detectTSpin(board, TSD_SLOT.piece, IN_PLACE)).toBe(TSpin.None);
   });
 
   test('one front corner and both back corners make a mini, with the floor filling the back corners', () => {
-    expect(detectTSpin(boardOf(MINI_SLOT), T_IN_MINI_SLOT, IN_PLACE)).toBe(TSpin.Mini);
+    expect(detectTSpin(boardOf(MINI_SLOT.board), MINI_SLOT.piece, IN_PLACE)).toBe(TSpin.Mini);
   });
 
   test('the walls count as filled corners', () => {
@@ -66,12 +57,12 @@ describe('T-spin detection', () => {
   });
 
   test('a mini is a full T-spin after the fifth kick of a quarter turn, which moves the T 1 by 2', () => {
-    expect(detectTSpin(openTstSlot, T_IN_TST_SLOT, IN_PLACE)).toBe(TSpin.Mini);
-    expect(detectTSpin(openTstSlot, T_IN_TST_SLOT, TST_KICK)).toBe(TSpin.Full);
+    expect(detectTSpin(openTstBoard, OPEN_TST_SLOT.piece, IN_PLACE)).toBe(TSpin.Mini);
+    expect(detectTSpin(openTstBoard, OPEN_TST_SLOT.piece, TST_KICK)).toBe(TSpin.Full);
   });
 
   test('so does the mirror image, (1, -2) anticlockwise from 0 to L', () => {
-    const board = boardOf(OPEN_TST_SLOT.map((line) => [...line].reverse().join('')));
+    const board = boardOf(OPEN_TST_SLOT.board.map((line) => [...line].reverse().join('')));
     const t: ActivePiece = { kind: 'T', col: 7, row: 2, rotation: 3 };
     expect(detectTSpin(board, t, IN_PLACE)).toBe(TSpin.Mini);
     expect(detectTSpin(board, t, { quarterTurns: 3, kick: [1, -2] })).toBe(TSpin.Full);
@@ -79,12 +70,12 @@ describe('T-spin detection', () => {
 
   test('a kick of 1 by 2 in a 180° turn leaves a mini a mini', () => {
     const halfTurnKick: Turn = { quarterTurns: 2, kick: [-1, 2] };
-    expect(detectTSpin(openTstSlot, T_IN_TST_SLOT, halfTurnKick)).toBe(TSpin.Mini);
+    expect(detectTSpin(openTstBoard, OPEN_TST_SLOT.piece, halfTurnKick)).toBe(TSpin.Mini);
   });
 
   test('a kick that moves the T less far leaves a mini a mini', () => {
     const fourthKick: Turn = { quarterTurns: 1, kick: [0, -2] };
-    expect(detectTSpin(openTstSlot, T_IN_TST_SLOT, fourthKick)).toBe(TSpin.Mini);
+    expect(detectTSpin(openTstBoard, OPEN_TST_SLOT.piece, fourthKick)).toBe(TSpin.Mini);
   });
 });
 
@@ -115,7 +106,7 @@ describe('T-spins in play', () => {
   test('the T-spin triple kick makes a full T-spin double of what would be a mini double', () => {
     // A full T-spin double scores 1200, a mini double 400.
     const piece: ActivePiece = { kind: 'T', col: 1, row: 4, rotation: 0 };
-    const lock = { board: OPEN_TST_SLOT, piece, actions: [ActionType.RotateCW] };
+    const lock = { board: OPEN_TST_SLOT.board, piece, actions: [ActionType.RotateCW] };
     expect(play([lock]).points).toEqual([1200]);
   });
 });

@@ -3,16 +3,7 @@ import { isEmpty } from '../src/board';
 import { ActionType, type ActivePiece, restoreEngine } from '../src/index';
 import { withActive, withBoard } from './support/board';
 import { type Lock, newEngine, play, type Setup } from './support/play';
-import {
-  IN_PLACE,
-  MINI_SLOT,
-  T_IN_MINI_SLOT,
-  T_IN_TSD_SLOT,
-  T_IN_TST_SLOT,
-  TSD_SLOT,
-  TST_KICK,
-  TST_SLOT,
-} from './support/t-spin';
+import { IN_PLACE, MINI_SLOT, TSD_SLOT, TST_KICK, TST_SLOT } from './support/t-spin';
 
 // The points are the guideline's, as tetris.wiki tabulates them for recent guideline games,
 // including the perfect clear bonuses of Tetris Effect: https://tetris.wiki/Scoring (revision
@@ -219,23 +210,16 @@ describe('pieces placed', () => {
 });
 
 describe('T-spins', () => {
-  /** A T turned in place into a T-spin double slot, `board` or one like it. */
-  function tSpin(board: readonly string[]): Lock {
-    return { board, piece: T_IN_TSD_SLOT, turn: IN_PLACE };
-  }
-
-  /** A T turned in place into a mini T-spin single slot, `board` or one like it. */
-  function mini(board: readonly string[]): Lock {
-    return { board, piece: T_IN_MINI_SLOT, turn: IN_PLACE };
-  }
-
+  const T_SPIN_DOUBLE: Lock = { ...TSD_SLOT, turn: IN_PLACE };
+  const T_SPIN_TRIPLE: Lock = { ...TST_SLOT, turn: TST_KICK };
+  const MINI_SINGLE: Lock = { ...MINI_SLOT, turn: IN_PLACE };
   // The slots with the right-hand column open, so that they clear fewer lines.
-  const T_SPIN_ZERO = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLL.']);
-  const T_SPIN_SINGLE = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLLL']);
-  const T_SPIN_DOUBLE = tSpin(TSD_SLOT);
-  const T_SPIN_TRIPLE: Lock = { board: TST_SLOT, piece: T_IN_TST_SLOT, turn: TST_KICK };
-  const MINI_ZERO = mini(['..L.......', '...LLLLLL.']);
-  const MINI_SINGLE = mini(MINI_SLOT);
+  const T_SPIN_ZERO: Lock = { ...T_SPIN_DOUBLE, board: ['LL........', 'L...LLLLL.', 'LL.LLLLLL.'] };
+  const T_SPIN_SINGLE: Lock = {
+    ...T_SPIN_DOUBLE,
+    board: ['LL........', 'L...LLLLL.', 'LL.LLLLLLL'],
+  };
+  const MINI_ZERO: Lock = { ...MINI_SINGLE, board: ['..L.......', '...LLLLLL.'] };
   /** Pointing right from the left wall: the wall fills its back corners, the stack one front one. */
   const MINI_DOUBLE: Lock = {
     board: ['..L.......', '..LLLLLLLL', '.LLLLLLLLL'],
