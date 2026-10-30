@@ -21,7 +21,7 @@ The rule values a mode fixes (gravity, lock delay, attack table, margin time and
 _Avoid_: config, ruleset
 
 **Lock delay**:
-The 30 frames a piece can rest on the stack before it locks. Moving or rotating restarts it, up to 15 times per piece.
+The 30 frames a piece can rest on the stack before it locks. Moving or rotating on the stack restarts it, up to 15 times per piece.
 _Avoid_: lock timer (for the rule), grace period
 
 **Attack**:

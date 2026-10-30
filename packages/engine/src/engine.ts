@@ -20,8 +20,8 @@ export const PREVIEW_SIZE = 5;
 
 /** Frames a piece can rest on the stack before it locks (design §3). */
 export const LOCK_DELAY = 30;
-/** How many times moving or rotating can restart one piece's lock delay (design §3). */
-export const LOCK_RESETS = 15;
+/** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
+export const MAX_LOCK_RESETS = 15;
 
 /** Pieces spawn with their origin here: rows 21–22 in design numbering. */
 const SPAWN_COL = 4;
@@ -56,7 +56,10 @@ export interface EngineState {
   randomizer: SevenBagState;
   /** Sub-rows of gravity built up towards the active piece's next one-row fall. */
   gravityCounter: number;
-  /** Frames the active piece has started on the stack since it landed or its lock delay restarted. */
+  /**
+   * Frames that began with the active piece on the stack, since it landed or its lock delay
+   * restarted.
+   */
   lockTimer: number;
   /** How many times the active piece's lock delay has restarted. */
   lockResets: number;
@@ -162,10 +165,10 @@ export function restoreEngine(state: EngineState): Engine {
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
     case 'moveLeft':
-      if (tryMove(s, -1, 0)) restartLockDelay(s);
+      shift(s, -1);
       break;
     case 'moveRight':
-      if (tryMove(s, 1, 0)) restartLockDelay(s);
+      shift(s, 1);
       break;
     case 'softDrop':
       tryMove(s, 0, -1);
@@ -200,9 +203,13 @@ function applyGravity(s: EngineState): void {
   }
 }
 
-/** A successful move or rotation restarts the lock delay, while the piece has resets left. */
-function restartLockDelay(s: EngineState): void {
-  if (s.lockResets >= LOCK_RESETS) return;
+/**
+ * Moves the active piece sideways. A successful move from on the stack restarts the lock delay,
+ * while the piece has restarts left. Moves in the air use none.
+ */
+function shift(s: EngineState, cols: number): void {
+  const wasOnStack = onStack(s);
+  if (!tryMove(s, cols, 0) || !wasOnStack || s.lockResets >= MAX_LOCK_RESETS) return;
   s.lockResets++;
   s.lockTimer = 0;
 }

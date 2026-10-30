@@ -7,7 +7,7 @@ export {
   type Engine,
   type EngineState,
   LOCK_DELAY,
-  LOCK_RESETS,
+  MAX_LOCK_RESETS,
   type ModeSettings,
   PREVIEW_SIZE,
   type ReadonlyEngineState,

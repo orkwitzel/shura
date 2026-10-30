@@ -66,7 +66,7 @@ The engine implements these rules. Every value is a field in the **mode settings
 | Hold | One hold slot, usable once per piece and again after the next lock. Holding swaps the active piece with the held one, or with the next piece from the queue if the slot is empty. The piece that comes in spawns as a new piece. |
 | Preview | 5 next pieces. |
 | Ghost | Shown by default (a client setting). |
-| Lock delay | 30 frames (0.5 s). A piece resting on the stack locks at the end of the 30th frame after the one it landed in. Each successful sideways move or rotation restarts the 30 frames, up to 15 times per piece. When the piece reaches a new lowest row, its 30 frames and its 15 restarts start over. |
+| Lock delay | 30 frames (0.5 s). A piece resting on the stack locks at the end of the 30th frame after the one it landed in. Each successful sideways move or rotation made on the stack restarts the 30 frames, up to 15 times per piece; moves in the air use none. When the piece reaches a new lowest row, its 30 frames and its 15 restarts start over. A piece on the stack builds up no gravity, so one that slides off a ledge starts falling from rest. |
 | Gravity | Marathon: the guideline gravity curve by level. Sprint/Ultra: 1 row/s. Versus: starts at 1 row/s and speeds up slowly over the match. |
 | Soft / hard drop | Each `softDrop` action moves the piece down one row if it can. The input engine emits them at the rate the player's soft-drop factor sets (handling, §7.2), so the engine never sees the factor. Hard drop places and locks the piece immediately. |
 | Top-out | Block out (a new piece overlaps the stack when it spawns), lock out (a piece locks entirely above row 20, checked before line clears), or garbage pushes the stack past row 40. |

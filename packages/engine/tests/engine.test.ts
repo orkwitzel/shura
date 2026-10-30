@@ -306,6 +306,19 @@ describe('lock delay', () => {
     expect(locked(engine)).toEqual(['....T.....', '...TTT....']);
   });
 
+  test('moves in the air use none of the 15 restarts', () => {
+    // The T makes 16 moves in the air, then slides onto a ledge in the same row at frame 19.
+    // It still has its restarts there: the move at frame 40 restarts the lock delay.
+    const engine = engineWith((state) =>
+      at({ kind: 'T', col: 7, row: 1 })(withBoard(state, ['LLLL......'])),
+    );
+    const slideOn = [17, 18, 19].map((frame) => ({ frame, type: 'moveLeft' as const }));
+    engine.step(69, [...wiggles(16, 1), ...slideOn, { frame: 40, type: 'moveLeft' }]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 1 });
+    engine.step(70, []);
+    expect(locked(engine, 3)).toEqual(['...T......', '..TTT.....', 'LLLL......']);
+  });
+
   test('reaching a new lowest row gives the piece its 30 frames and 15 resets again', () => {
     // The T rests on a ledge and uses its 15 resets there, then slides off at frame 163 and soft
     // drops to the floor at frame 164. There it gets a fresh lock delay, and its move at frame 190
