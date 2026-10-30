@@ -48,10 +48,9 @@ export interface ScoringState {
 export function scoreLock(s: ScoringState, { lines, tSpin, perfectClear }: LockClear): void {
   const points = CLEAR_POINTS[tSpin][lines];
   if (points === undefined) throw new RangeError(`a ${tSpin} T-spin can't clear ${lines} lines`);
-  let scored = points * s.level;
+  s.score += points * s.level;
   if (lines === 0) {
     s.combo = -1;
-    s.score += scored;
     return;
   }
   s.combo++;
@@ -60,15 +59,14 @@ export function scoreLock(s: ScoringState, { lines, tSpin, perfectClear }: LockC
   const difficult = tetris || tSpin !== TSpin.None;
   const backToBackBonus = difficult && s.backToBack;
   // Every clear's points are a multiple of 100, so half of them is a whole number.
-  if (backToBackBonus) scored += scored >> 1;
-  scored += COMBO_POINTS * s.combo * s.level;
+  if (backToBackBonus) s.score += (points * s.level) >> 1;
+  s.score += COMBO_POINTS * s.combo * s.level;
   if (perfectClear) {
     const bonus =
       backToBackBonus && tetris
         ? BACK_TO_BACK_TETRIS_PERFECT_CLEAR_POINTS
         : PERFECT_CLEAR_POINTS[lines];
-    scored += bonus * s.level;
+    s.score += bonus * s.level;
   }
   s.backToBack = difficult;
-  s.score += scored;
 }

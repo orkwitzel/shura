@@ -270,9 +270,12 @@ function applyGravity(s: EngineState): void {
 function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   const { kind, col, row, rotation } = s.active;
   const to = turned(rotation, quarterTurns);
-  for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
-    const piece: ActivePiece = { kind, col: col + cols, row: row + rows, rotation: to };
-    if (tryPlace(s, piece, { quarterTurns, kick: [cols, rows] })) return;
+  for (const kick of srs.kicks(kind, rotation, to)) {
+    const [cols, rows] = kick;
+    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
+      s.lastTurn = { quarterTurns, kick };
+      return;
+    }
   }
 }
 
@@ -299,20 +302,20 @@ function canMove(s: EngineState, cols: number, rows: number): boolean {
 }
 
 function tryMove(s: EngineState, cols: number, rows: number): boolean {
-  return tryPlace(s, moved(s.active, cols, rows), null);
+  return tryPlace(s, moved(s.active, cols, rows));
 }
 
 /**
- * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3), with `turn` as
- * its last turn for T-spin detection, or `null` if it moved or dropped. Reaching a new lowest row
- * gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts its lock
- * delay while it has restarts left, and a piece in the air uses none.
+ * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3). It has no last
+ * turn until `rotate` records one. Reaching a new lowest row gives the piece a fresh lock delay.
+ * Otherwise, a piece that was on the stack restarts its lock delay while it has restarts left, and
+ * a piece in the air uses none.
  */
-function tryPlace(s: EngineState, piece: ActivePiece, turn: Turn | null): boolean {
+function tryPlace(s: EngineState, piece: ActivePiece): boolean {
   if (collides(s.board, piece)) return false;
   const wasOnStack = onStack(s);
   s.active = piece;
-  s.lastTurn = turn;
+  s.lastTurn = null;
   if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
   else if (wasOnStack) restartLockDelay(s);
   return true;

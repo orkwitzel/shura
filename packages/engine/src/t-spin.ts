@@ -18,18 +18,16 @@ export interface Turn {
   kick: Offset;
 }
 
-type Corners = readonly [Offset, Offset, Offset, Offset];
-
 /**
- * The four cells diagonal to the centre of a T's 3 × 3 box, as offsets from its top-left cell, with
- * the two the T points towards (its front corners) first, for each rotation state.
+ * The four cells diagonal to the centre of a T's 3 × 3 box, as offsets from its top-left cell,
+ * clockwise from the top left. A T in rotation state `r` points towards corners `r` and `r + 1`, its
+ * front corners.
  */
-// biome-ignore format: one rotation state per line
-const T_CORNERS: readonly [Corners, Corners, Corners, Corners] = [
-  [[0,  0], [2,  0], [0, -2], [2, -2]],
-  [[2,  0], [2, -2], [0,  0], [0, -2]],
-  [[0, -2], [2, -2], [0,  0], [2,  0]],
-  [[0,  0], [0, -2], [2,  0], [2, -2]],
+const CORNERS: readonly Offset[] = [
+  [0, 0],
+  [2, 0],
+  [2, -2],
+  [0, -2],
 ];
 
 /**
@@ -44,11 +42,10 @@ export function detectTSpin(
   lastTurn: Readonly<Turn> | null,
 ): TSpin {
   if (piece.kind !== 'T' || lastTurn === null) return TSpin.None;
-  const filled = T_CORNERS[piece.rotation].map(([cols, rows]) =>
-    isFilled(board, piece.col + cols, piece.row + rows),
-  );
+  const filled = CORNERS.map(([cols, rows]) => isFilled(board, piece.col + cols, piece.row + rows));
   if (filled.filter(Boolean).length < 3) return TSpin.None;
-  return (filled[0] && filled[1]) || isLastQuarterTurnKick(lastTurn) ? TSpin.Full : TSpin.Mini;
+  const bothFront = filled[piece.rotation] && filled[(piece.rotation + 1) % 4];
+  return bothFront || isLastQuarterTurnKick(lastTurn) ? TSpin.Full : TSpin.Mini;
 }
 
 /**
