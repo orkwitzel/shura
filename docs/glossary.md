@@ -84,6 +84,10 @@ _Avoid_: overtime, sudden death
 A player losing their board through block out, lock out or garbage overflow.
 _Avoid_: death, game over (for one player in a multiplayer match)
 
+**Finish**:
+A single-player game ending by its mode's end condition rather than a top-out: Marathon's level cap, Sprint's 40 lines or Ultra's 2 minutes.
+_Avoid_: win, complete, game over
+
 **Lag-out**:
 A player being counted as topped out because their client fell too far behind the server clock or stopped acknowledging garbage.
 _Avoid_: timeout, kick

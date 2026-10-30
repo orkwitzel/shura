@@ -10,30 +10,12 @@ import {
   VISIBLE_ROWS,
 } from './board';
 import { hashText } from './hash';
+import { type ModeSettings, SUBROWS_PER_ROW } from './modes';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 import { srs, turned } from './rotation';
 import { HARD_DROP_POINTS, SOFT_DROP_POINTS, scoreLock } from './scoring';
 import { detectTSpin, type Turn } from './t-spin';
-
-/** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
-export const SUBROWS_PER_ROW = 3_932_160;
-
-/** The rule values a mode fixes (design §3, §4). */
-export interface ModeSettings {
-  /** Sub-rows the active piece falls per frame. */
-  gravity: number;
-}
-
-/** Fixed gravity of 1 row per second. */
-export const DEFAULT_MODE_SETTINGS: Readonly<ModeSettings> = { gravity: 65_536 };
-
-export const PREVIEW_SIZE = 5;
-
-/** Frames a piece can rest on the stack before it locks (design §3). */
-export const LOCK_DELAY = 30;
-/** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
-export const MAX_LOCK_RESETS = 15;
 
 /** Pieces spawn with the top row of their box in row 22 in design numbering. */
 const SPAWN_ROW = 21;
@@ -89,6 +71,11 @@ export interface EngineState {
   /** The turn that last moved the active piece, or `null` if its last move wasn't a turn. */
   lastTurn: Turn | null;
   toppedOut: boolean;
+  /**
+   * Whether the game met the mode's end condition (design §4): its line goal or frame limit. Like a
+   * top-out, it stops the game, and the frame stays where it ended.
+   */
+  finished: boolean;
   /** The level that multiplies line clear points (design §3). */
   level: number;
   score: number;
@@ -133,8 +120,9 @@ class Engine {
 
   /**
    * Advances to `frame`. Each frame applies that frame's actions in order, then gravity. Actions
-   * must be in frame order, after the current frame and no later than `frame`. Once the player has
-   * topped out, the engine stops: `step` changes nothing and the frame stays at the top-out.
+   * must be in frame order, after the current frame and no later than `frame`. Once the game is over,
+   * by a top-out or the mode's end condition, the engine stops: `step` changes nothing and the frame
+   * stays where the game ended.
    */
   step(frame: number, actions: readonly Action[]): void {
     const s = this.#state;
@@ -146,18 +134,19 @@ class Engine {
     }
 
     let i = 0;
-    while (s.frame < frame && !s.toppedOut) {
+    while (s.frame < frame && !isOver(s)) {
       s.frame++;
       countLockFrame(s);
       for (
         let action = actions[i];
-        action?.frame === s.frame && !s.toppedOut;
+        action?.frame === s.frame && !isOver(s);
         action = actions[++i]
       ) {
         applyAction(s, action.type);
       }
-      // A hard drop can top out mid-frame, and the game stops there.
-      if (!s.toppedOut) applyGravity(s);
+      // A hard drop can end the game mid-frame, and it stops there.
+      if (!isOver(s)) applyGravity(s);
+      if (!isOver(s) && reachedFrameLimit(s)) s.finished = true;
     }
   }
 }
@@ -165,12 +154,16 @@ class Engine {
 export type { Engine };
 
 /** A new game. */
-export function createEngine(settings: ModeSettings, seed: number, playerIndex: number): Engine {
-  assertInteger('gravity', settings.gravity, 1);
+export function createEngine(
+  settings: Readonly<ModeSettings>,
+  seed: number,
+  playerIndex: number,
+): Engine {
+  assertModeSettings(settings);
   assertInteger('playerIndex', playerIndex, 0);
   const randomizer = sevenBag.create(seed);
   const first = sevenBag.next(randomizer);
-  const queue = Array.from({ length: PREVIEW_SIZE }, () => sevenBag.next(randomizer));
+  const queue = Array.from({ length: settings.previewSize }, () => sevenBag.next(randomizer));
   const state: EngineState = {
     settings,
     playerIndex,
@@ -188,6 +181,7 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
     lowestRow: 0,
     lastTurn: null,
     toppedOut: false,
+    finished: false,
     level: 1,
     score: 0,
     linesCleared: 0,
@@ -199,12 +193,39 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
   return new Engine(state);
 }
 
+/** Throws a RangeError unless every mode setting is a whole number in its range. */
+function assertModeSettings(settings: Readonly<ModeSettings>): void {
+  if (settings.gravity.length === 0) throw new RangeError('gravity must have at least one level');
+  for (const gravity of settings.gravity) assertInteger('gravity', gravity, 1);
+  assertInteger('linesPerLevel', settings.linesPerLevel, 1);
+  if (settings.lineGoal !== null) assertInteger('lineGoal', settings.lineGoal, 1);
+  if (settings.frameLimit !== null) assertInteger('frameLimit', settings.frameLimit, 1);
+  assertInteger('lockDelay', settings.lockDelay, 1);
+  assertInteger('maxLockResets', settings.maxLockResets, 0);
+  assertInteger('previewSize', settings.previewSize, 0);
+}
+
 /** An engine continuing from `state`, which is copied. */
 export function restoreEngine(state: EngineState): Engine {
   return new Engine(state);
 }
 
 // The rules: plain functions over the state, which only an `Engine` calls with its own.
+
+/** Whether the game has ended, by a top-out or the mode's end condition. */
+function isOver(s: EngineState): boolean {
+  return s.toppedOut || s.finished;
+}
+
+/** Whether the game has run for the mode's whole time limit, if it has one. */
+function reachedFrameLimit({ frame, settings: { frameLimit } }: EngineState): boolean {
+  return frameLimit !== null && frame >= frameLimit;
+}
+
+/** Whether the player has cleared the mode's line goal, if it has one. */
+function reachedLineGoal({ linesCleared, settings: { lineGoal } }: EngineState): boolean {
+  return lineGoal !== null && linesCleared >= lineGoal;
+}
 
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
@@ -243,16 +264,16 @@ function countLockFrame(s: EngineState): void {
 
 /**
  * A piece in the air falls by the gravity built up. A piece on the stack builds up no gravity, and
- * locks at the end of the `LOCK_DELAY`th frame after the one it landed or restarted its lock delay
+ * locks at the end of the `lockDelay`th frame after the one it landed or restarted its lock delay
  * in.
  */
 function applyGravity(s: EngineState): void {
   if (onStack(s)) {
     s.gravityCounter = 0;
-    if (s.lockTimer >= LOCK_DELAY) lock(s);
+    if (s.lockTimer >= s.settings.lockDelay) lock(s);
     return;
   }
-  s.gravityCounter += s.settings.gravity;
+  s.gravityCounter += gravityAt(s);
   while (s.gravityCounter >= SUBROWS_PER_ROW) {
     s.gravityCounter -= SUBROWS_PER_ROW;
     if (!tryMove(s, 0, -1)) {
@@ -279,8 +300,14 @@ function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   }
 }
 
+/** The gravity of the current level, or of the level cap above it. */
+function gravityAt({ settings: { gravity }, level }: EngineState): number {
+  // `createEngine` ensures at least one level.
+  return gravity[Math.min(level, gravity.length) - 1] as number;
+}
+
 function restartLockDelay(s: EngineState): void {
-  if (s.lockResets >= MAX_LOCK_RESETS) return;
+  if (s.lockResets >= s.settings.maxLockResets) return;
   s.lockResets++;
   s.lockTimer = 0;
 }
@@ -337,8 +364,22 @@ function lock(s: EngineState): void {
   const lines = clearLines(s.board);
   s.linesCleared += lines;
   scoreLock(s, { lines, tSpin, perfectClear: isEmpty(s.board) });
+  levelUp(s);
   s.holdUsed = false;
+  if (reachedLineGoal(s)) {
+    s.finished = true;
+    return;
+  }
   spawn(s, nextFromQueue(s));
+}
+
+/**
+ * Raises the level by one for each `linesPerLevel` lines cleared, up to the level cap. It runs
+ * after scoring, so a clear scores at the level it was made at.
+ */
+function levelUp(s: EngineState): void {
+  const { gravity, linesPerLevel } = s.settings;
+  while (s.level < gravity.length && s.linesCleared >= s.level * linesPerLevel) s.level++;
 }
 
 /**
@@ -356,7 +397,7 @@ function hold(s: EngineState): void {
 /** Takes the nearest piece from the queue and refills it from the randomizer. */
 function nextFromQueue(s: EngineState): PieceKind {
   s.queue.push(sevenBag.next(s.randomizer));
-  // The queue always holds PREVIEW_SIZE pieces before the push, so it can't be empty here.
+  // The queue always holds `previewSize` pieces before the push, so it can't be empty here.
   return s.queue.shift() as PieceKind;
 }
 
@@ -385,7 +426,15 @@ function atSpawn(kind: PieceKind): ActivePiece {
 function cloneState(state: EngineState): EngineState {
   const { settings, active, lastTurn, randomizer } = state;
   return {
-    settings: { gravity: settings.gravity },
+    settings: {
+      gravity: [...settings.gravity],
+      linesPerLevel: settings.linesPerLevel,
+      lineGoal: settings.lineGoal,
+      frameLimit: settings.frameLimit,
+      lockDelay: settings.lockDelay,
+      maxLockResets: settings.maxLockResets,
+      previewSize: settings.previewSize,
+    },
     playerIndex: state.playerIndex,
     frame: state.frame,
     board: state.board.map((row) => [...row]),
@@ -403,6 +452,7 @@ function cloneState(state: EngineState): EngineState {
       kick: [lastTurn.kick[0], lastTurn.kick[1]],
     },
     toppedOut: state.toppedOut,
+    finished: state.finished,
     level: state.level,
     score: state.score,
     linesCleared: state.linesCleared,

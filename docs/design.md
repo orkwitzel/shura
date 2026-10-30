@@ -67,7 +67,8 @@ The engine implements these rules. Every value is a field in the **mode settings
 | Preview | 5 next pieces. |
 | Ghost | Shown by default (a client setting). |
 | Lock delay | 30 frames (0.5 s). A piece resting on the stack locks at the end of the 30th frame after the one it landed in. Each successful sideways move or rotation made on the stack restarts the 30 frames, up to 15 times per piece; moves in the air use none. When the piece reaches a new lowest row, its 30 frames and its 15 restarts start over. A piece on the stack builds up no gravity, so one that slides off a ledge starts falling from rest. |
-| Gravity | Marathon: the guideline gravity curve by level. Sprint/Ultra: 1 row/s. Versus: starts at 1 row/s and speeds up slowly over the match. |
+| Gravity | Marathon: the guideline gravity curve by level, (0.8 − (level − 1) × 0.007)^(level − 1) seconds per row, from Tetris Worlds (as the Hard Drop wiki's [Tetris Worlds](https://harddrop.com/wiki/Tetris_Worlds) page and TetrisWiki's [Marathon](https://tetris.wiki/Marathon) page give it). Each level's gravity is stored as the nearest whole number of sub-rows per frame (§5.1): 1 row/s at level 1, 0.26 rows per frame at level 10 and 2.36 at level 15. Sprint/Ultra: 1 row/s. Versus: starts at 1 row/s and speeds up slowly over the match. |
+| Levels | Play starts at level 1. In Marathon the level rises by one for every 10 lines cleared (the guideline's fixed goal), up to the level cap of 15. A clear scores at the level it was made at, and the next piece falls at the new level's gravity. Sprint and Ultra stay at level 1. |
 | Soft / hard drop | Each `softDrop` action moves the piece down one row if it can. The input engine emits them at the rate the player's soft-drop factor sets (handling, §7.2), so the engine never sees the factor. Hard drop places and locks the piece immediately. |
 | Top-out | Block out (a new piece overlaps the stack when it spawns), lock out (a piece locks entirely above row 20, checked before line clears), or garbage pushes the stack past row 40. |
 | T-spin detection | 3-corner rule, full or mini. Only the T piece spins in v1. A T is a T-spin when it locks with its last successful move a turn (any later move, drop or fall cancels it) and at least three of the four cells diagonal to its centre filled, with cells outside the board counting as filled. It's a full T-spin if both corners on the side it points towards are filled, and a mini otherwise. A mini still counts as full if the last turn took the fifth and last kick of an SRS quarter turn, which moves the T 1 column and 2 rows. The 180° kicks that move it as far don't count, since the guideline has no 180° turn. A T-spin zero is one that clears no lines. |
@@ -86,13 +87,13 @@ The engine implements these rules. Every value is a field in the **mode settings
 
 | Mode | Players | Where it runs | Ends when | Notes |
 |---|---|---|---|---|
-| Marathon | 1 | client, offline | top-out (or level cap) | Guideline gravity curve, levels every 10 lines |
-| Sprint | 1 | client, offline | 40 lines cleared | Timed. Personal best stored locally |
-| Ultra | 1 | client, offline | 2 minutes elapsed | Score. Personal best stored locally |
+| Marathon | 1 | client, offline | top-out, or the lock that clears level 15's last line (150 lines) | Guideline gravity curve, levels every 10 lines |
+| Sprint | 1 | client, offline | top-out, or the lock that reaches 40 lines | Timed: the frame it finished on. Personal best stored locally |
+| Ultra | 1 | client, offline | top-out, or the end of frame 7,200 (2 minutes) | Score. Personal best stored locally |
 | 1v1 | 2 | online, server-verified | one player tops out | Quick-match or room code |
 | FFA | 3–8 | online, server-verified | one player remains | Room code only. Garbage goes to a random living opponent, chosen by the match RNG |
 
-A mode is a **preset**: a mode settings object (the rule values from §3) plus a small amount of mode-specific logic (end conditions, gravity curve, targeting). Players can't change individual rules. The rotation system and randomizer sit behind interfaces so a classic mode can be added later without restructuring the engine.
+A mode is a **preset**: a mode settings object (the rule values from §3) plus a small amount of mode-specific logic (end conditions, gravity curve, targeting). Players can't change individual rules. `packages/engine` exports the single-player presets as `MARATHON`, `SPRINT` and `ULTRA`. Their `ModeSettings` hold gravity by level (the list's length is the level cap), the lines per level, an optional line goal, an optional frame limit, the lock delay, its restarts and the preview size. A game that meets its line goal or frame limit is **finished**: like a top-out, that stops it, with the frame left where it ended, so Sprint's time is the frame and Ultra's result is the score. A lock that finishes the game spawns no next piece, and leaves the piece that locked as the active piece, as a lock out does. The frame limit ends the game after that frame's actions and gravity. The rotation system and randomizer sit behind interfaces so a classic mode can be added later without restructuring the engine.
 
 FFA targeting lives in one server function (`chooseTarget`). Player-chosen targeting (Tetris 99 style) would add one new action and a different function, with no other protocol change.
 
@@ -109,7 +110,7 @@ These are what make server verification and replay work. They're enforced by tes
 - Fixed tick: the engine advances in **frames** at 60 fps of game time. It never reads wall-clock time.
 - No `Math.random`. All randomness comes from seeded PRNGs carried in engine state (match seed → bag RNG, plus a per-player garbage RNG).
 - No `Date.now`, `performance.now` or timers inside the engine.
-- Integer arithmetic only for game rules. Gravity is expressed as fixed-point sub-row counters, not floats. A row is 60 × 2¹⁶ = 3,932,160 sub-rows, so any whole number of rows per second is a whole number of sub-rows per frame (1 row/s is 65,536).
+- Integer arithmetic only for game rules. Gravity is expressed as fixed-point sub-row counters, not floats. A row is 60 × 2¹⁶ = 3,932,160 sub-rows, so any whole number of rows per second is a whole number of sub-rows per frame (1 row/s is 65,536). Gravity curves are stored as whole sub-rows per frame at every level, so faster gravity stays exact too: 20G is 78,643,200.
 - No dependence on object key order, `Map` iteration order of external input, or locale.
 - The same inputs and seed always produce the same state, bit for bit, on Node and in browsers.
 
@@ -117,9 +118,9 @@ Two checks enforce these mechanically. The engine's `tsconfig.json` loads no Nod
 
 ### 5.2 Shape
 
-- `createEngine(modeSettings, seed, playerIndex) → Engine`
-- `engine.step(frame, actions[])` advances to `frame`, applying the actions that occurred at each frame. Within a frame the engine applies that frame's actions in order, then gravity. Actions must be in frame order and fall after the current frame, or `step` throws and changes nothing. Once the player has topped out, `step` changes nothing and the frame stays at the top-out.
-- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats (level, score, lines cleared, pieces placed, the combo counter and back-to-back status), the last turn (for T-spin detection), and whether the player has topped out. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out it is the piece that locked.
+- `createEngine(modeSettings, seed, playerIndex) → Engine`, with a preset or any other valid `ModeSettings` (every value a whole number in range, or it throws)
+- `engine.step(frame, actions[])` advances to `frame`, applying the actions that occurred at each frame. Within a frame the engine applies that frame's actions in order, then gravity. Actions must be in frame order and fall after the current frame, or `step` throws and changes nothing. Once the game is over, by a top-out or because it finished (§4), `step` changes nothing and the frame stays where the game ended.
+- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats (level, score, lines cleared, pieces placed, the combo counter and back-to-back status), the last turn (for T-spin detection), whether the player has topped out, and whether the game finished by the mode's end condition. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out it is the piece that locked.
 - `engine.serialize() → EngineState` and `restoreEngine(state) → Engine` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
 - `engine.hash()` is a stable hash of the full state, used by the replay-hash tests and for debugging.
 - Pure helpers, exported and unit-tested: SRS kick lookup (`srs.kicks`, behind the `RotationSystem` interface which also gives each piece's cell offsets in each rotation state), T-spin detection (`detectTSpin`, from the board, the T and the last turn with its kick), the attack calculator, garbage cancellation.

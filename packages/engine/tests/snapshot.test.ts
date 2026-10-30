@@ -3,17 +3,17 @@ import {
   type Action,
   ActionType,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
   restoreEngine,
 } from '../src/index';
 import { loadRecordedMatches, replay } from './support/recorded-matches';
+import { TEST_SETTINGS } from './support/settings';
 
 const SEED = 77;
 
 function newEngine(): Engine {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
+  return createEngine(TEST_SETTINGS, SEED, 0);
 }
 
 /**
@@ -103,7 +103,7 @@ describe('serialize and restore', () => {
     copy.queue.length = 0;
     copy.randomizer.bag.length = 0;
     copy.active.col = 0;
-    copy.settings.gravity = 1;
+    copy.settings.lineGoal = 1;
     expect(engine.hash()).toBe(before);
   });
 
@@ -183,6 +183,9 @@ describe('hash', () => {
     'the top-out flag': (s) => {
       s.toppedOut = !s.toppedOut;
     },
+    'the finished flag': (s) => {
+      s.finished = !s.finished;
+    },
     'the level': (s) => {
       s.level++;
     },
@@ -204,8 +207,14 @@ describe('hash', () => {
     'the player index': (s) => {
       s.playerIndex++;
     },
-    'the mode settings': (s) => {
-      s.settings.gravity++;
+    "the mode settings' gravity": (s) => {
+      s.settings.gravity = [...s.settings.gravity, 1];
+    },
+    "the mode settings' end condition": (s) => {
+      s.settings.lineGoal = 40;
+    },
+    "the mode settings' lock delay": (s) => {
+      s.settings.lockDelay++;
     },
   };
 

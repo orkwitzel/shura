@@ -78,11 +78,44 @@ export function recordAll(): { file: string; changed: boolean }[] {
 /** Writes a recorded match with one action per line, so diffs stay readable. */
 export function writeRecordedMatch(file: string, match: RecordedMatch): void {
   const { actions, ...rest } = match;
-  const head = JSON.stringify(rest, null, 2).slice(0, -2);
+  const head = fillNumberArrays(JSON.stringify(rest, null, 2)).slice(0, -2);
   const lines = actions.map((action) => `    ${inlineJson(action)}`).join(',\n');
   writeFileSync(
     new URL(file, RECORDED_MATCHES_DIR),
     `${head},\n  "actions": [\n${lines}\n  ]\n}\n`,
+  );
+}
+
+/** Biome's line width. */
+const LINE_WIDTH = 100;
+
+/**
+ * Lays out each array of numbers in pretty-printed `json` as Biome does: on one line if it fits,
+ * or else as many numbers to a line as fit, indented one level.
+ */
+function fillNumberArrays(json: string): string {
+  return json.replace(
+    /^( *)(.*)\[\n((?: *-?\d+,?\n)+) *\](,?)$/gm,
+    (_, indent: string, key: string, body: string, comma: string) => {
+      const numbers = body.split(/[\s,]+/).filter(Boolean);
+      const oneLine = `${indent}${key}[${numbers.join(', ')}]${comma}`;
+      if (oneLine.length <= LINE_WIDTH) return oneLine;
+      const inner = `${indent}  `;
+      const lines: string[] = [];
+      let line = '';
+      for (const number of numbers) {
+        const next = line ? `${line}, ${number}` : `${inner}${number}`;
+        // Every line but the last ends in a comma.
+        if (line && next.length + 1 > LINE_WIDTH) {
+          lines.push(`${line},`);
+          line = `${inner}${number}`;
+        } else {
+          line = next;
+        }
+      }
+      lines.push(line);
+      return `${indent}${key}[\n${lines.join('\n')}\n${indent}]${comma}`;
+    },
   );
 }
 

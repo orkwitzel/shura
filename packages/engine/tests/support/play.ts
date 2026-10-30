@@ -4,7 +4,6 @@ import {
   type ActionType,
   type ActivePiece,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
   LOCK_DELAY,
@@ -12,12 +11,13 @@ import {
   type Turn,
 } from '../../src/index';
 import { withActive, withBoard } from './board';
+import { TEST_SETTINGS } from './settings';
 
 /** The seed of every game `newEngine` starts. */
 const SEED = 9;
 
 export function newEngine(): Engine {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
+  return createEngine(TEST_SETTINGS, SEED, 0);
 }
 
 /**
