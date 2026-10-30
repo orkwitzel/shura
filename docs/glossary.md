@@ -16,6 +16,10 @@ _Avoid_: block, tetromino (in code), shape
 One of a piece's four orientations: 0 (as it spawns), R (one turn clockwise), 2 (two turns) and L (one turn anticlockwise).
 _Avoid_: orientation (in code), facing
 
+**Turn**:
+A piece rotating from one rotation state to another: a quarter turn clockwise or anticlockwise, or a 180° turn. A successful turn records how far the piece turned and the kick it took.
+_Avoid_: rotation (in code, where `rotation` is the rotation state), spin
+
 **Kick**:
 An offset the rotation system tries when a piece turns, so that it can turn next to a wall, the floor or the stack. A turn takes the first kick where the piece fits.
 _Avoid_: wall kick (for kicks in general), nudge
@@ -37,7 +41,7 @@ Full rows removed when a piece locks, and the rows above moving down. A single, 
 _Avoid_: line break, burn
 
 **T-spin**:
-A T piece that locks right after a rotation with three of the four cells diagonal to its centre filled (the walls and floor count). It's full if both cells on the side it points towards are filled, or if the rotation took the 1-by-2 kick at the end of an SRS quarter turn, and a mini otherwise. A T-spin zero clears no lines.
+A T piece that locks right after a turn with three of the four cells diagonal to its centre filled (the walls and floor count). It's full if both cells on the side it points towards are filled, or if the turn took the 1-by-2 kick at the end of an SRS quarter turn, and a mini otherwise. A T-spin zero clears no lines.
 _Avoid_: twist, spin (alone)
 
 **Back-to-back**:

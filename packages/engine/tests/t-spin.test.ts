@@ -15,7 +15,7 @@ import {
 
 // The 3-corner rule, the full and mini split and the upgrade after a kick of 1 by 2 are the
 // guideline's, as https://tetris.wiki/T-Spin (revision 25858, "Current rules") gives them: the last
-// maneuver of the T must be a rotation and three of the four corners diagonal to its centre must be
+// maneuver of the T must be a turn and three of the four corners diagonal to its centre must be
 // filled. Both front corners and a back one make a full T-spin, and one front corner and both back
 // ones a mini. "However, if the last rotation that kicked the T moves its center 1 by 2 blocks (the
 // last rotation offset of SRS), it is still a proper T-spin."
