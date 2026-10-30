@@ -8,6 +8,15 @@ import {
   SPRINT,
 } from '@shura/engine';
 import type { Clock } from './clock';
+import {
+  type AutoShift,
+  createInputEngine,
+  DEFAULT_HANDLING,
+  type Handling,
+  type InputEngine,
+  type InputSettings,
+  type KeyEvent,
+} from './input-engine';
 import { type Store, StoreState } from './store';
 
 /** The single-player modes a session can play. */
@@ -32,6 +41,10 @@ export interface SoloSessionOptions {
   clock: Clock;
   /** The game's seed, a 32-bit unsigned integer. Without one, the session picks a fresh seed. */
   seed?: number;
+  /** The player's handling. Without it, the defaults (design §7.2). */
+  handling?: Partial<Handling>;
+  /** What moves a held direction. Without it, DAS and ARR (precise input). */
+  autoShift?: AutoShift;
 }
 
 export interface SoloSessionState {
@@ -52,6 +65,16 @@ export interface SoloSession extends Store<SoloSessionState> {
    * starts after `time`, or at the first frame not yet stepped if that is later.
    */
   act(type: PieceActionType, time: number): void;
+  /**
+   * A key event from the UI's adapter, for the input engine. It reaches the input engine at the
+   * first frame that starts after its time, or at the first frame not yet played if that is later.
+   */
+  key(event: KeyEvent): void;
+  /**
+   * Changes how the input engine takes key events, from the next frame: the handling after the
+   * settings screen, or the auto-shift once the CLI knows its adapter. Keys held stay held.
+   */
+  setInput(settings: Partial<InputSettings>): void;
   /**
    * Stops the game, after stepping the frames that have started (unless that is a stall). Actions
    * are ignored while paused.
@@ -98,11 +121,18 @@ class Session implements SoloSession {
   /** Actions waiting for their frame, in frame order. */
   #pending: PieceAction[] = [];
   readonly #log: PieceAction[] = [];
+  readonly #input: InputEngine;
+  /** Key events waiting for the frame the input engine takes them at, in frame order. */
+  #keys: { event: KeyEvent; frame: number }[] = [];
   readonly #mode: SoloMode;
   readonly #seed: number;
 
-  constructor({ mode, clock, seed = freshSeed() }: SoloSessionOptions) {
+  constructor({ mode, clock, seed = freshSeed(), handling, autoShift }: SoloSessionOptions) {
     this.#clock = clock;
+    this.#input = createInputEngine({
+      handling: { ...DEFAULT_HANDLING, ...handling },
+      ...(autoShift && { autoShift }),
+    });
     this.#mode = mode;
     this.#seed = seed;
     this.#engine = createEngine(PRESETS[mode], seed, 0);
@@ -121,6 +151,17 @@ class Session implements SoloSession {
     this.#pending.push({ frame, type });
   };
 
+  key = (event: KeyEvent): void => {
+    if (this.#over()) return;
+    const last = this.#keys.at(-1)?.frame ?? -Infinity;
+    const frame = Math.max(frameAt(event.time - this.#start) + 1, this.#frame + 1, last);
+    this.#keys.push({ event, frame });
+  };
+
+  setInput = (settings: Partial<InputSettings>): void => {
+    this.#input.configure(settings);
+  };
+
   pause = (): void => {
     if (this.#pausedAt !== null || this.#over()) return;
     this.#cancelWake();
@@ -135,6 +176,9 @@ class Session implements SoloSession {
     this.#frame = this.#engine.state.frame - COUNTDOWN_FRAMES;
     this.#start = this.#clock.now() - timeOf(this.#frame) - into;
     this.#pausedAt = null;
+    // Keys pressed or released at the pause or during it reach the input engine as the countdown
+    // starts, so a direction held through it is charged at Go.
+    for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
     this.#store.set(this.#snapshot());
     this.#cancelWake = this.#clock.schedule(this.#wake);
   };
@@ -172,13 +216,22 @@ class Session implements SoloSession {
     return true;
   }
 
-  /** Plays one frame: during the countdown nothing, after it the engine's frame. */
+  /**
+   * Plays one frame: the input engine's, and after the countdown the engine's, with the actions the
+   * input engine makes in it.
+   */
   #playFrame(frame: number): void {
     this.#frame = frame;
-    if (frame <= this.#engine.state.frame) return;
+    let keys = 0;
+    while ((this.#keys[keys]?.frame ?? Infinity) <= frame) keys++;
+    const events = this.#keys.splice(0, keys).map(({ event }) => event);
+    const countdown = frame <= this.#engine.state.frame;
+    const made = this.#input.playFrame(events, countdown ? null : this.#engine.state);
+    if (countdown) return;
     let count = 0;
     while (this.#pending[count]?.frame === frame) count++;
     const actions = this.#pending.splice(0, count);
+    for (const type of made) actions.push({ frame, type });
     this.#engine.step(frame, actions);
     this.#log.push(...actions);
   }

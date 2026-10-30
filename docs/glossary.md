@@ -133,7 +133,7 @@ How many times faster than gravity the piece falls while soft drop is held. Part
 _Avoid_: soft-drop speed (for the setting), SDF (in code)
 
 **Key event**:
-A press or release of a bound key, with the time it arrived. Adapters produce them and the input engine consumes them. The engine never sees them.
+A press, repeat or release of a bound key, with the time it arrived. Only basic input uses repeats. Adapters produce them and the input engine consumes them. The engine never sees them.
 _Avoid_: keypress, input (for the engine's instructions, which are actions)
 
 **Adapter**:
