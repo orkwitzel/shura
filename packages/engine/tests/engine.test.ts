@@ -122,6 +122,19 @@ describe('gravity', () => {
     expect(render(engine.state, 2).join('')).toMatch(new RegExp(kind.toLowerCase()));
   });
 
+  test('builds up nothing on the stack, so a piece that slides off a ledge falls from rest', () => {
+    // The T falls for 30 frames, soft drops onto the ledge at frame 30, and slides off it at
+    // frame 33. It then needs a full 60 frames of gravity to fall a row.
+    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 2, row: 2 } });
+    engine.step(91, [
+      { frame: 30, type: ActionType.SoftDrop },
+      ...moves(ActionType.MoveRight, 3, 31),
+    ]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 1 });
+    engine.step(92, []);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 0 });
+  });
+
   test('step advances the frame counter to the requested frame', () => {
     const engine = newEngine();
     engine.step(10, []);

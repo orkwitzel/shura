@@ -203,6 +203,7 @@ function countLockFrame(s: EngineState): void {
  */
 function applyGravity(s: EngineState): void {
   if (onStack(s)) {
+    s.gravityCounter = 0;
     if (s.lockTimer >= LOCK_DELAY) lock(s);
     return;
   }
