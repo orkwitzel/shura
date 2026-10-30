@@ -271,10 +271,8 @@ function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   const { kind, col, row, rotation } = s.active;
   const to = turned(rotation, quarterTurns);
   for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
-    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
-      s.lastTurn = { quarterTurns, kick: [cols, rows] };
-      return;
-    }
+    const piece: ActivePiece = { kind, col: col + cols, row: row + rows, rotation: to };
+    if (tryPlace(s, piece, { quarterTurns, kick: [cols, rows] })) return;
   }
 }
 
@@ -301,20 +299,20 @@ function canMove(s: EngineState, cols: number, rows: number): boolean {
 }
 
 function tryMove(s: EngineState, cols: number, rows: number): boolean {
-  return tryPlace(s, moved(s.active, cols, rows));
+  return tryPlace(s, moved(s.active, cols, rows), null);
 }
 
 /**
- * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3). Reaching a new
- * lowest row gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts
- * its lock delay while it has restarts left, and a piece in the air uses none. The move is not a
- * turn until `rotate` records it as one.
+ * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3), with `turn` as
+ * its last turn for T-spin detection, or `null` if it moved or dropped. Reaching a new lowest row
+ * gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts its lock
+ * delay while it has restarts left, and a piece in the air uses none.
  */
-function tryPlace(s: EngineState, piece: ActivePiece): boolean {
+function tryPlace(s: EngineState, piece: ActivePiece, turn: Turn | null): boolean {
   if (collides(s.board, piece)) return false;
   const wasOnStack = onStack(s);
   s.active = piece;
-  s.lastTurn = null;
+  s.lastTurn = turn;
   if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
   else if (wasOnStack) restartLockDelay(s);
   return true;

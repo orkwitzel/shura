@@ -22,12 +22,15 @@ function emptyRow(): (PieceKind | null)[] {
   return Array.from({ length: BOARD_WIDTH }, () => null);
 }
 
+/** Whether the cell at `col`, `row` is filled: outside the board, or holding a locked cell. */
+export function isFilled(board: ReadonlyBoard, col: number, row: number): boolean {
+  if (col < 0 || col >= BOARD_WIDTH || row < 0 || row >= BOARD_HEIGHT) return true;
+  return board[row]?.[col] !== null;
+}
+
 /** Whether `piece` leaves the board or overlaps a locked cell. */
 export function collides(board: ReadonlyBoard, piece: Readonly<ActivePiece>): boolean {
-  return pieceCells(piece).some(
-    ({ col, row }) =>
-      col < 0 || col >= BOARD_WIDTH || row < 0 || row >= BOARD_HEIGHT || board[row]?.[col] !== null,
-  );
+  return pieceCells(piece).some(({ col, row }) => isFilled(board, col, row));
 }
 
 /** Writes `piece` into the board as locked cells. */

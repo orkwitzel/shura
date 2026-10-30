@@ -1,8 +1,11 @@
-import { BOARD_HEIGHT, BOARD_WIDTH, type ReadonlyBoard } from './board';
+import { isFilled, type ReadonlyBoard } from './board';
 import type { ActivePiece } from './pieces';
 import type { Offset } from './rotation';
 
-/** Whether a lock is a T-spin, and which kind (design §3). The values are their names on the wire. */
+/**
+ * Whether a lock is a T-spin, and which kind (design §3). The values are words so that they read
+ * as such in error messages and test output. They're never serialized or hashed.
+ */
 export enum TSpin {
   None = 'none',
   Mini = 'mini',
@@ -32,7 +35,8 @@ const T_CORNERS: readonly [Corners, Corners, Corners, Corners] = [
 /**
  * Classifies a T about to lock as a full T-spin, a mini or none, by the 3-corner rule (design §3).
  * `lastTurn` is the turn that last moved it, or `null` if its last move wasn't a turn. Corners
- * outside the board count as filled.
+ * outside the board count as filled. The guideline names only the walls and the floor, but a T with
+ * a corner above the top of the board locks out, so it never scores.
  */
 export function detectTSpin(
   board: ReadonlyBoard,
@@ -49,13 +53,8 @@ export function detectTSpin(
 
 /**
  * Whether `turn` took the last kick of an SRS quarter turn, which moves the T 1 column and 2 rows.
- * After it a mini still counts as a full T-spin. The 180 kicks that move it as far don't count.
+ * After it a mini still counts as a full T-spin. The 180° kicks that move it as far don't count.
  */
 function isLastQuarterTurnKick({ quarterTurns, kick: [cols, rows] }: Readonly<Turn>): boolean {
   return quarterTurns !== 2 && Math.abs(cols) === 1 && Math.abs(rows) === 2;
-}
-
-function isFilled(board: ReadonlyBoard, col: number, row: number): boolean {
-  if (col < 0 || col >= BOARD_WIDTH || row < 0 || row >= BOARD_HEIGHT) return true;
-  return board[row]?.[col] !== null;
 }

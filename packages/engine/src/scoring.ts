@@ -11,7 +11,7 @@ export const HARD_DROP_POINTS = 2;
  * and a full T-spin. A T covers 3 rows at most, and a T that clears 3 fills both of its front
  * corners, so a mini clears at most 2 lines and a full T-spin at most 3.
  */
-const POINTS: Readonly<Record<TSpin, readonly number[]>> = {
+const CLEAR_POINTS: Readonly<Record<TSpin, readonly number[]>> = {
   [TSpin.None]: [0, 100, 300, 500, 800],
   [TSpin.Mini]: [100, 200, 400],
   [TSpin.Full]: [400, 800, 1200, 1600],
@@ -46,7 +46,7 @@ export interface ScoringState {
  * level. A T-spin that clears nothing scores its points but no bonus.
  */
 export function scoreLock(s: ScoringState, { lines, tSpin, perfectClear }: LockClear): void {
-  const points = POINTS[tSpin][lines];
+  const points = CLEAR_POINTS[tSpin][lines];
   if (points === undefined) throw new RangeError(`a ${tSpin} T-spin can't clear ${lines} lines`);
   let scored = points * s.level;
   if (lines === 0) {
@@ -55,15 +55,16 @@ export function scoreLock(s: ScoringState, { lines, tSpin, perfectClear }: LockC
     return;
   }
   s.combo++;
+  const tetris = lines === 4;
   // The difficult clears: a Tetris, and a T-spin that clears lines.
-  const difficult = lines === 4 || tSpin !== TSpin.None;
+  const difficult = tetris || tSpin !== TSpin.None;
   const backToBackBonus = difficult && s.backToBack;
   // Every clear's points are a multiple of 100, so half of them is a whole number.
   if (backToBackBonus) scored += scored >> 1;
   scored += COMBO_POINTS * s.combo * s.level;
   if (perfectClear) {
     const bonus =
-      backToBackBonus && lines === 4
+      backToBackBonus && tetris
         ? BACK_TO_BACK_TETRIS_PERFECT_CLEAR_POINTS
         : PERFECT_CLEAR_POINTS[lines];
     scored += bonus * s.level;
