@@ -3,21 +3,12 @@
   "engineVersion": 1,
   "seed": 4242,
   "playerIndex": 0,
+  "mode": "sprint",
   "settings": {
-    "gravity": [65536],
-    "gravityStep": null,
-    "linesPerLevel": 10,
-    "lineGoal": null,
-    "frameLimit": null,
-    "lockDelay": 30,
-    "maxLockResets": 15,
-    "previewSize": 5,
-    "garbageCap": 8,
-    "marginTimeStart": null,
-    "marginTimeStep": 1800
+    "lineGoal": null
   },
   "lastFrame": 2025,
-  "expectedHash": "5c0b5968312af9fc",
+  "expectedHash": "3f30606957c123a3",
   "actions": [
     { "frame": 1, "type": "rotate180" },
     { "frame": 2, "type": "moveRight" },

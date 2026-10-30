@@ -5,7 +5,6 @@ import {
   createEngine,
   type Engine,
   type EngineState,
-  LOCK_DELAY,
   type PieceActionType,
   restoreEngine,
   type Turn,
@@ -49,7 +48,7 @@ export function play(locks: readonly Lock[], setup: Setup = (state) => state) {
     const before = state.score;
     engine = restoreEngine(state);
     const frames = actions.map((type, index): Action => ({ frame: state.frame + index + 1, type }));
-    engine.step(state.frame + actions.length + LOCK_DELAY, frames);
+    engine.step(state.frame + actions.length + state.settings.lockDelay, frames);
     expect(engine.state.piecesPlaced, 'the piece should have locked').toBe(state.piecesPlaced + 1);
     points.push(engine.state.score - before);
   }

@@ -1,4 +1,4 @@
-export { applyMarginTime, type ClearChain, calculateAttack } from './attack';
+export { applyMarginTime, type ClearHistory, calculateAttack } from './attack';
 export {
   BOARD_HEIGHT,
   BOARD_WIDTH,
@@ -10,7 +10,6 @@ export {
 export {
   type Action,
   ActionType,
-  type Attack,
   createEngine,
   type Engine,
   type EngineState,
@@ -19,18 +18,19 @@ export {
   type PieceActionType,
   type ReadonlyEngineState,
   restoreEngine,
+  type SentGarbage,
   type StepOptions,
   type StepResult,
 } from './engine';
 export { cancelGarbage, type GarbageEntry, holeColumn } from './garbage';
 export {
   FFA,
-  LOCK_DELAY,
+  type GarbageRules,
+  type GravityCurve,
   MARATHON,
-  MAX_LOCK_RESETS,
+  type MarginTime,
   type ModeSettings,
   ONE_VS_ONE,
-  PREVIEW_SIZE,
   SPRINT,
   SUBROWS_PER_ROW,
   ULTRA,

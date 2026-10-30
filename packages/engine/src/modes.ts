@@ -4,140 +4,156 @@ export const SUBROWS_PER_ROW = 3_932_160;
 /** Gravity of 1 row per second, in sub-rows per frame. */
 const ONE_ROW_PER_SECOND = 65_536;
 
-/** Frames a piece can rest on the stack before it locks (design §3). */
-export const LOCK_DELAY = 30;
-/** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
-export const MAX_LOCK_RESETS = 15;
-/** How many next pieces the queue shows (design §3). */
-export const PREVIEW_SIZE = 5;
-
 /**
  * The rule values a mode fixes (design §3, §4), all whole numbers. A game ends at a top-out, or
  * when it meets the mode's line goal or frame limit.
  */
 export interface ModeSettings {
+  readonly gravity: GravityCurve;
   /**
-   * Sub-rows the active piece falls per frame at each level, from level 1. Its length is the level
-   * cap: the level rises no further, and levels above it fall at the last gravity. With
-   * `gravityStep`, the gravity at each step of time instead, from the start of the game.
+   * Lines to clear for each new level: the level is 1 + one per `linesPerLevel` lines, up to the
+   * level cap. `null` keeps the level at 1.
    */
-  gravity: readonly number[];
-  /**
-   * Frames per step of a gravity curve that follows time rather than the level: frame `f` falls at
-   * the `⌊f / gravityStep⌋`th gravity from 0, or the last one past the end. `null` to follow the
-   * level.
-   */
-  gravityStep: number | null;
-  /**
-   * Lines to clear for each new level: the level is 1 + one per `linesPerLevel` lines, to the cap.
-   * `null` keeps the level at 1.
-   */
-  linesPerLevel: number | null;
+  readonly linesPerLevel: number | null;
   /** Lines cleared that end the game, on the lock that reaches them, or `null` for no line goal. */
-  lineGoal: number | null;
+  readonly lineGoal: number | null;
   /** The frame the game ends at, after its actions and gravity, or `null` for no time limit. */
-  frameLimit: number | null;
+  readonly frameLimit: number | null;
   /** Frames a piece can rest on the stack before it locks. */
-  lockDelay: number;
+  readonly lockDelay: number;
   /** How many times moving or rotating on the stack can restart one piece's lock delay. */
-  maxLockResets: number;
+  readonly maxLockResets: number;
   /** How many next pieces the queue shows. */
-  previewSize: number;
-  /** The most garbage lines that land at one lock. The rest stays in the garbage meter. */
-  garbageCap: number;
+  readonly previewSize: number;
   /**
-   * The frame margin time starts at, when attacks are first multiplied by 1.25, or `null` for a
-   * mode without it.
+   * A versus mode's garbage rules, or `null` for a single-player mode, which sends and receives no
+   * garbage.
    */
-  marginTimeStart: number | null;
-  /** Frames between margin time's steps: the multiplier grows by 0.25 at each. */
-  marginTimeStep: number;
+  readonly garbage: GarbageRules | null;
 }
 
+/** How fast the active piece falls: a list of speeds that follows the level or time. */
+export interface GravityCurve {
+  /** Sub-rows the active piece falls per frame at each speed, slowest first. */
+  readonly speeds: readonly number[];
+  /**
+   * `null` for a curve that follows the level: level `n` falls at the `n`th speed, and the curve's
+   * length is the level cap, so the level rises no further. Otherwise the frames between speed-ups
+   * of a curve that follows time: frame `f` falls at the `⌊f / interval⌋`th speed from 0, or the
+   * last one past the end.
+   */
+  readonly interval: number | null;
+}
+
+/** A versus mode's garbage rules (design §3). */
+export interface GarbageRules {
+  /** The most garbage lines that land at one lock. The rest stays in the garbage meter. */
+  readonly cap: number;
+  readonly marginTime: MarginTime;
+}
+
+/** When margin time multiplies attacks (design §3). */
+export interface MarginTime {
+  /** The frame margin time starts at, when attacks are first multiplied by 1.25. */
+  readonly start: number;
+  /** Frames between the multiplier's raises by 0.25. */
+  readonly interval: number;
+}
+
+/** Frames a piece can rest on the stack before it locks (design §3). */
+const LOCK_DELAY = 30;
+/** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
+const MAX_LOCK_RESETS = 15;
+/** How many next pieces the queue shows (design §3). */
+const PREVIEW_SIZE = 5;
 /** Lines to clear for each new level: the guideline fixed goal (design §3). */
 const LINES_PER_LEVEL = 10;
 
-/** The most garbage lines that land at one lock (design §3). */
-const GARBAGE_CAP = 8;
-/** Frames between margin time's steps: 30 s (design §3). */
-const MARGIN_TIME_STEP = 1_800;
-
-/**
- * The guideline's locking and preview values and the garbage values, which every mode shares.
- * Single-player modes never receive garbage, and have no margin time.
- */
-const SHARED = {
+/** The guideline's locking and preview values, which every mode shares. */
+const GUIDELINE = {
   lockDelay: LOCK_DELAY,
   maxLockResets: MAX_LOCK_RESETS,
   previewSize: PREVIEW_SIZE,
-  garbageCap: GARBAGE_CAP,
-  marginTimeStep: MARGIN_TIME_STEP,
 } as const;
 
+/** 1 row/s throughout, at level 1. */
+const ONE_ROW_PER_SECOND_THROUGHOUT: GravityCurve = {
+  speeds: [ONE_ROW_PER_SECOND],
+  interval: null,
+};
+
 /**
- * Marathon (design §4): the guideline gravity curve, a level every 10 lines, and a level cap of
- * 15, so clearing level 15's lines (150 in all) ends the game. The curve is the Tetris Worlds one
- * the guideline keeps, (0.8 − (level − 1) × 0.007) ^ (level − 1) seconds per row, to the nearest
- * sub-row per frame: from 1 row/s at level 1 to 2.36 rows per frame at level 15.
+ * The guideline gravity curve, levels 1 to 15: the Tetris Worlds one the guideline keeps,
+ * (0.8 − (level − 1) × 0.007) ^ (level − 1) seconds per row, to the nearest sub-row per frame, from
+ * 1 row/s at level 1 to 2.36 rows per frame at level 15.
  */
-export const MARATHON: Readonly<ModeSettings> = {
-  gravity: [
+const GUIDELINE_GRAVITY: GravityCurve = {
+  speeds: [
     65_536, 82_643, 106_080, 138_633, 184_506, 250_134, 345_513, 486_408, 698_066, 1_021_580,
     1_524_935, 2_322_516, 3_610_137, 5_729_001, 9_284_539,
   ],
-  gravityStep: null,
+  interval: null,
+};
+
+/**
+ * Marathon (design §4): the guideline gravity curve, a level every 10 lines, and a level cap of
+ * 15, so clearing level 15's lines (150 in all) ends the game.
+ */
+export const MARATHON: ModeSettings = {
+  gravity: GUIDELINE_GRAVITY,
   linesPerLevel: LINES_PER_LEVEL,
-  lineGoal: 150,
+  lineGoal: GUIDELINE_GRAVITY.speeds.length * LINES_PER_LEVEL,
   frameLimit: null,
-  marginTimeStart: null,
-  ...SHARED,
+  ...GUIDELINE,
+  garbage: null,
 };
 
 /** Sprint (design §4): 1 row/s at level 1 throughout, ending on the lock that reaches 40 lines. */
-export const SPRINT: Readonly<ModeSettings> = {
-  gravity: [ONE_ROW_PER_SECOND],
-  gravityStep: null,
-  linesPerLevel: LINES_PER_LEVEL,
+export const SPRINT: ModeSettings = {
+  gravity: ONE_ROW_PER_SECOND_THROUGHOUT,
+  linesPerLevel: null,
   lineGoal: 40,
   frameLimit: null,
-  marginTimeStart: null,
-  ...SHARED,
+  ...GUIDELINE,
+  garbage: null,
 };
 
 /** Ultra (design §4): 1 row/s at level 1 throughout, ending after 2 minutes (7,200 frames). */
-export const ULTRA: Readonly<ModeSettings> = {
-  gravity: [ONE_ROW_PER_SECOND],
-  gravityStep: null,
-  linesPerLevel: LINES_PER_LEVEL,
+export const ULTRA: ModeSettings = {
+  gravity: ONE_ROW_PER_SECOND_THROUGHOUT,
+  linesPerLevel: null,
   lineGoal: null,
   frameLimit: 7_200,
-  marginTimeStart: null,
-  ...SHARED,
+  ...GUIDELINE,
+  garbage: null,
 };
 
-/** The fastest step of the versus gravity curve: 20 rows/s, from 9:30 on. */
+/** The fastest speed of the versus gravity curve: 20 rows/s, from 9:30 on. */
 const VERSUS_TOP_SPEED = 20;
 
 /**
  * The versus modes' rules (design §3, §4). Gravity follows time: 1 row/s at first, 1 row/s faster
  * every 30 s, up to 20 rows/s from 9:30 on. The level stays at 1, garbage lands at most 8 lines a
- * lock, and margin time starts at 2:00 (frame 7,200). Only a top-out ends a player's game.
+ * lock, and margin time starts at 2:00 (frame 7,200) and raises the multiplier every 30 s. Only a
+ * top-out ends a player's game.
  */
-const VERSUS: Readonly<ModeSettings> = {
-  gravity: Array.from({ length: VERSUS_TOP_SPEED }, (_, step) => ONE_ROW_PER_SECOND * (step + 1)),
-  gravityStep: 1_800,
+const VERSUS: ModeSettings = {
+  gravity: {
+    speeds: Array.from({ length: VERSUS_TOP_SPEED }, (_, i) => ONE_ROW_PER_SECOND * (i + 1)),
+    interval: 1_800,
+  },
   linesPerLevel: null,
   lineGoal: null,
   frameLimit: null,
-  marginTimeStart: 7_200,
-  ...SHARED,
+  ...GUIDELINE,
+  garbage: { cap: 8, marginTime: { start: 7_200, interval: 1_800 } },
 };
 
 /** 1v1 (design §4): two players, until one tops out. */
-export const ONE_VS_ONE: Readonly<ModeSettings> = VERSUS;
+export const ONE_VS_ONE: ModeSettings = VERSUS;
 
 /**
  * FFA (design §4): 3 to 8 players, until one remains. The engine plays it by 1v1's rules: who gets
  * the garbage is up to the server.
  */
-export const FFA: Readonly<ModeSettings> = VERSUS;
+export const FFA: ModeSettings = VERSUS;
