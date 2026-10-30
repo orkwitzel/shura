@@ -1,60 +1,22 @@
 import { describe, expect, test } from 'vitest';
 import { isEmpty } from '../src/board';
-import {
-  ActionType,
-  type ActivePiece,
-  createEngine,
-  DEFAULT_MODE_SETTINGS,
-  type Engine,
-  type EngineState,
-  LOCK_DELAY,
-  restoreEngine,
-  type Turn,
-} from '../src/index';
+import { ActionType, type ActivePiece, restoreEngine } from '../src/index';
 import { withActive, withBoard } from './support/board';
+import { type Lock, newEngine, play, type Setup } from './support/play';
+import {
+  IN_PLACE,
+  MINI_SLOT,
+  T_IN_MINI_SLOT,
+  T_IN_TSD_SLOT,
+  T_IN_TST_SLOT,
+  TSD_SLOT,
+  TST_KICK,
+  TST_SLOT,
+} from './support/t-spin';
 
 // The points are the guideline's, as tetris.wiki tabulates them for recent guideline games,
 // including the perfect clear bonuses of Tetris Effect: https://tetris.wiki/Scoring (revision
 // 26268), T-spins included. Combo counting follows https://tetris.wiki/Combo.
-
-const SEED = 9;
-
-function newEngine() {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
-}
-
-/**
- * One lock: `piece` put in play where it rests, on `board` if given, else on the board as it is,
- * and turned into place by `turn` if given.
- */
-interface Lock {
-  board?: readonly string[];
-  piece: ActivePiece;
-  turn?: Turn;
-}
-
-/** Changes the state of a fresh game. */
-type Setup = (state: EngineState) => EngineState;
-
-/**
- * Plays each lock in turn, letting the piece's lock delay run out so it scores no drop points, and
- * returns the points each lock scored. `setup` changes the state of the fresh game first.
- */
-function play(locks: readonly Lock[], setup: Setup = (state) => state) {
-  let engine: Engine = restoreEngine(setup(newEngine().serialize()));
-  const points: number[] = [];
-  for (const { board, piece, turn } of locks) {
-    const current = engine.serialize();
-    const placed = withActive(board ? withBoard(current, board) : current, piece);
-    const state = { ...placed, lastTurn: turn ?? null };
-    const before = state.score;
-    engine = restoreEngine(state);
-    engine.step(state.frame + LOCK_DELAY, []);
-    expect(engine.state.piecesPlaced, 'the piece should have locked').toBe(state.piecesPlaced + 1);
-    points.push(engine.state.score - before);
-  }
-  return { engine, points };
-}
 
 function atLevel(level: number): Setup {
   return (state) => ({ ...state, level });
@@ -257,28 +219,23 @@ describe('pieces placed', () => {
 });
 
 describe('T-spins', () => {
-  const IN_PLACE: Turn = { quarterTurns: 1, kick: [0, 0] };
-
-  /** A T turned in place into a slot: pointing down under an overhang, both front corners filled. */
+  /** A T turned in place into a T-spin double slot, `board` or one like it. */
   function tSpin(board: readonly string[]): Lock {
-    return { board, piece: { kind: 'T', col: 1, row: 2, rotation: 2 }, turn: IN_PLACE };
+    return { board, piece: T_IN_TSD_SLOT, turn: IN_PLACE };
   }
 
-  /** A T turned in place onto the floor at the left wall, only the corner over its right arm filled. */
+  /** A T turned in place into a mini T-spin single slot, `board` or one like it. */
   function mini(board: readonly string[]): Lock {
-    return { board, piece: { kind: 'T', col: 0, row: 1, rotation: 0 }, turn: IN_PLACE };
+    return { board, piece: T_IN_MINI_SLOT, turn: IN_PLACE };
   }
 
+  // The slots with the right-hand column open, so that they clear fewer lines.
   const T_SPIN_ZERO = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLL.']);
   const T_SPIN_SINGLE = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLLL']);
-  const T_SPIN_DOUBLE = tSpin(['LL........', 'L...LLLLLL', 'LL.LLLLLLL']);
-  const T_SPIN_TRIPLE: Lock = {
-    board: ['LL........', 'L.........', 'L.LLLLLLLL', 'L..LLLLLLL', 'L.LLLLLLLL'],
-    piece: { kind: 'T', col: 0, row: 2, rotation: 1 },
-    turn: { quarterTurns: 1, kick: [-1, -2] },
-  };
+  const T_SPIN_DOUBLE = tSpin(TSD_SLOT);
+  const T_SPIN_TRIPLE: Lock = { board: TST_SLOT, piece: T_IN_TST_SLOT, turn: TST_KICK };
   const MINI_ZERO = mini(['..L.......', '...LLLLLL.']);
-  const MINI_SINGLE = mini(['..L.......', '...LLLLLLL']);
+  const MINI_SINGLE = mini(MINI_SLOT);
   /** Pointing right from the left wall: the wall fills its back corners, the stack one front one. */
   const MINI_DOUBLE: Lock = {
     board: ['..L.......', '..LLLLLLLL', '.LLLLLLLLL'],
