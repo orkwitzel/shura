@@ -7,11 +7,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsc && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "record": "tsx scripts/record.ts"
   },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

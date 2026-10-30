@@ -18,7 +18,7 @@ The server re-runs the engine to verify every match, and clients must match it b
 - game rules use integer arithmetic only (fixed-point for gravity);
 - `Math.random`, `Date.now`, `performance.now`, timers and floats in rule logic are never used.
 
-If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the replay-hash fixtures in the same PR. If the replay-hash suite fails, treat that as a real outcome change, never as a flaky test.
+If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the expected hashes of the recorded matches in the same PR (until M1 closes, only the re-record: see `docs/design.md` §5.3). If the replay-hash suite fails, treat that as a real outcome change, never as a flaky test.
 
 ## Protocol (packages/protocol)
 

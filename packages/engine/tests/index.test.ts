@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ENGINE_VERSION } from './index';
+import { ENGINE_VERSION } from '../src/index';
 
 test('ENGINE_VERSION is a positive integer', () => {
   expect(Number.isInteger(ENGINE_VERSION)).toBe(true);
