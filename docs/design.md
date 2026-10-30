@@ -63,13 +63,13 @@ The engine implements these rules. Every value is a field in the **mode settings
 | Spawn | Pieces spawn flat side down in rows 21–22 and drop one row immediately if possible. I and O spawn in the middle columns (I in 4–7, O in 5–6), the rest in the left-middle columns 4–6. |
 | Randomizer | 7-bag, seeded. In versus, every player in a match gets the **same piece sequence** (one seed per match). |
 | Rotation | SRS with the standard kick tables. The 180° rotation uses TETR.IO's SRS+ 180 kick table. |
-| Hold | One hold slot, usable once per piece. |
+| Hold | One hold slot, usable once per piece and again after the next lock. Holding swaps the active piece with the held one, or with the next piece from the queue if the slot is empty. The piece that comes in spawns as a new piece. |
 | Preview | 5 next pieces. |
 | Ghost | Shown by default (a client setting). |
-| Lock delay | 30 frames (0.5 s). Moving or rotating resets it, up to 15 resets per piece. The reset counter clears when the piece reaches a new lowest row. |
+| Lock delay | 30 frames (0.5 s). A piece resting on the stack locks at the end of the 30th frame after the one it landed in. Each successful sideways move or rotation made on the stack restarts the 30 frames, up to 15 times per piece; moves in the air use none. When the piece reaches a new lowest row, its 30 frames and its 15 restarts start over. A piece on the stack builds up no gravity, so one that slides off a ledge starts falling from rest. |
 | Gravity | Marathon: the guideline gravity curve by level. Sprint/Ultra: 1 row/s. Versus: starts at 1 row/s and speeds up slowly over the match. |
-| Soft / hard drop | Soft drop multiplies gravity by the player's soft-drop factor (handling, §7.2). Hard drop places and locks the piece immediately. |
-| Top-out | Block out (a new piece overlaps the stack when it spawns), lock out (a piece locks entirely above row 20), or garbage pushes the stack past row 40. |
+| Soft / hard drop | Each `softDrop` action moves the piece down one row if it can. The input engine emits them at the rate the player's soft-drop factor sets (handling, §7.2), so the engine never sees the factor. Hard drop places and locks the piece immediately. |
+| Top-out | Block out (a new piece overlaps the stack when it spawns), lock out (a piece locks entirely above row 20, checked before line clears), or garbage pushes the stack past row 40. |
 | T-spin detection | 3-corner rule, full or mini. Only the T piece spins in v1. |
 | Scoring (single-player) | Guideline points for clears, T-spins, back-to-back, combos, perfect clears, soft and hard drops. |
 | Attack table | Single 0 · Double 1 · Triple 2 · Tetris 4 · T-spin mini 0 (single 1, by convention) · T-spin single 2 · T-spin double 4 · T-spin triple 6 · back-to-back +1 · perfect clear 10. Combo bonus by combo count: 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5… |
@@ -119,7 +119,7 @@ Two checks enforce these mechanically. The engine's `tsconfig.json` loads no Nod
 
 - `createEngine(modeSettings, seed, playerIndex) → Engine`
 - `engine.step(frame, actions[])` advances to `frame`, applying the actions that occurred at each frame. Within a frame the engine applies that frame's actions in order, then gravity. Actions must be in frame order and fall after the current frame, or `step` throws and changes nothing. Once the player has topped out, `step` changes nothing and the frame stays at the top-out.
-- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats, and whether the player has topped out. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it.
+- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats, and whether the player has topped out. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out it is the piece that locked.
 - `engine.serialize() → EngineState` and `restoreEngine(state) → Engine` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
 - `engine.hash()` is a stable hash of the full state, used by the replay-hash tests and for debugging.
 - Pure helpers, exported and unit-tested: SRS kick lookup, T-spin detection, the attack calculator, garbage cancellation.
@@ -151,9 +151,9 @@ Until M1 closes nothing has shipped, so no client or game pod can disagree about
 
 The engine and the server only see **atomic actions**, each tagged with a frame number. See [ADR 0002](adr/0002-atomic-actions-in-the-input-stream.md).
 
-`moveLeft`, `moveRight`, `rotateCW`, `rotateCCW`, `rotate180`, `hold`, `hardDrop`, `softDropOn`, `softDropOff`, `garbageAccepted{id}`
+`moveLeft`, `moveRight`, `rotateCW`, `rotateCCW`, `rotate180`, `hold`, `softDrop`, `hardDrop`, `garbageAccepted{id}`
 
-Auto-repeat (DAS/ARR) and soft-drop speed are turned into these actions on the client. The server never knows how a player's keys are tuned. The trade-off is accepted: the server can't tell a human from a script sending perfect moves.
+`softDrop` moves the active piece down one row. Auto-repeat (DAS/ARR) and soft-drop speed are turned into these actions on the client: while soft drop is held, the input engine emits `softDrop` at the rate the soft-drop factor sets, several per frame if needed. The server never knows how a player's keys are tuned. The trade-off is accepted: the server can't tell a human from a script sending perfect moves.
 
 ### 7.2 Handling (client settings)
 

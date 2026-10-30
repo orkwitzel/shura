@@ -13,11 +13,15 @@ type Picture = readonly string[];
 
 /**
  * Draws the bottom `rows` rows of the board, top row first. Locked cells show their piece in
- * upper case, the active piece in lower case, and empty cells as `.`.
+ * upper case, the active piece in lower case (unless `withActive` is false), and empty cells as `.`.
  */
-export function render(state: ReadonlyEngineState, rows = 22): string[] {
+export function render(
+  state: ReadonlyEngineState,
+  rows = 22,
+  { withActive = true } = {},
+): string[] {
   const grid: string[][] = state.board.map((row) => row.map((cell) => cell ?? '.'));
-  for (const { col, row } of pieceCells(state.active)) {
+  for (const { col, row } of withActive ? pieceCells(state.active) : []) {
     const line = grid[row];
     if (line) line[col] = state.active.kind.toLowerCase();
   }
@@ -44,6 +48,11 @@ export function withBoard(state: EngineState, picture: Picture): EngineState {
     });
   });
   return { ...state, board };
+}
+
+/** The bottom `rows` rows of locked cells, without the active piece. */
+export function renderLocked(state: ReadonlyEngineState, rows = 22): string[] {
+  return render(state, rows, { withActive: false });
 }
 
 /** An empty board picture of `rows` rows. */

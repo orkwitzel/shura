@@ -1,7 +1,7 @@
 import { assertInteger } from './assert';
-import { type Board, clearLines, collides, createBoard, lockPiece } from './board';
+import { type Board, clearLines, collides, createBoard, lockPiece, VISIBLE_ROWS } from './board';
 import { hashText } from './hash';
-import type { ActivePiece, PieceKind } from './pieces';
+import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
@@ -18,6 +18,11 @@ export const DEFAULT_MODE_SETTINGS: Readonly<ModeSettings> = { gravity: 65_536 }
 
 export const PREVIEW_SIZE = 5;
 
+/** Frames a piece can rest on the stack before it locks (design §3). */
+export const LOCK_DELAY = 30;
+/** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
+export const MAX_LOCK_RESETS = 15;
+
 /** Pieces spawn with their origin here: rows 21–22 in design numbering. */
 const SPAWN_COL = 4;
 const SPAWN_ROW = 20;
@@ -28,7 +33,14 @@ export interface Action {
   type: ActionType;
 }
 
-export type ActionType = 'moveLeft' | 'moveRight' | 'hardDrop';
+/** The kinds of action. The values are the action names on the wire and in recorded matches. */
+export enum ActionType {
+  MoveLeft = 'moveLeft',
+  MoveRight = 'moveRight',
+  SoftDrop = 'softDrop',
+  HardDrop = 'hardDrop',
+  Hold = 'hold',
+}
 
 /** The engine's full state, as plain data. */
 export interface EngineState {
@@ -37,13 +49,29 @@ export interface EngineState {
   /** The last frame simulated. */
   frame: number;
   board: Board;
-  /** The piece under the player's control. After a block out, the piece that could not spawn. */
+  /**
+   * The piece under the player's control. After a block out, the piece that could not spawn; after
+   * a lock out, the piece that locked.
+   */
   active: ActivePiece;
+  /** The piece in the hold slot, if any. */
+  hold: PieceKind | null;
+  /** Whether hold has been used since the last lock. It works once per piece. */
+  holdUsed: boolean;
   /** The next pieces, nearest first. */
   queue: PieceKind[];
   randomizer: SevenBagState;
   /** Sub-rows of gravity built up towards the active piece's next one-row fall. */
   gravityCounter: number;
+  /**
+   * Frames that began with the active piece on the stack, since it landed or its lock delay
+   * restarted.
+   */
+  lockTimer: number;
+  /** How many times the active piece's lock delay has restarted. */
+  lockResets: number;
+  /** The lowest board row any cell of the active piece has reached. */
+  lowestRow: number;
   toppedOut: boolean;
 }
 
@@ -91,6 +119,7 @@ class Engine {
     let i = 0;
     while (s.frame < frame && !s.toppedOut) {
       s.frame++;
+      countLockFrame(s);
       for (
         let action = actions[i];
         action?.frame === s.frame && !s.toppedOut;
@@ -111,20 +140,26 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
   assertInteger('gravity', settings.gravity, 1);
   assertInteger('playerIndex', playerIndex, 0);
   const randomizer = sevenBag.create(seed);
-  const active = atSpawn(sevenBag.next(randomizer));
+  const first = sevenBag.next(randomizer);
   const queue = Array.from({ length: PREVIEW_SIZE }, () => sevenBag.next(randomizer));
   const state: EngineState = {
     settings,
     playerIndex,
     frame: 0,
     board: createBoard(),
-    active,
+    // `spawn` sets the active piece and its gravity and lock delay.
+    active: atSpawn(first),
+    hold: null,
+    holdUsed: false,
     queue,
     randomizer,
     gravityCounter: 0,
+    lockTimer: 0,
+    lockResets: 0,
+    lowestRow: 0,
     toppedOut: false,
   };
-  enter(state);
+  spawn(state, first);
   return new Engine(state);
 }
 
@@ -137,27 +172,76 @@ export function restoreEngine(state: EngineState): Engine {
 
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
-    case 'moveLeft':
-      tryMove(s, -1, 0);
+    case ActionType.MoveLeft:
+      shift(s, -1);
       break;
-    case 'moveRight':
-      tryMove(s, 1, 0);
+    case ActionType.MoveRight:
+      shift(s, 1);
       break;
-    case 'hardDrop':
+    case ActionType.SoftDrop:
+      tryMove(s, 0, -1);
+      break;
+    case ActionType.HardDrop:
       while (tryMove(s, 0, -1));
       lock(s);
+      break;
+    case ActionType.Hold:
+      hold(s);
       break;
   }
 }
 
+/** A frame that begins with the active piece on the stack counts towards its lock delay. */
+function countLockFrame(s: EngineState): void {
+  if (onStack(s)) s.lockTimer++;
+}
+
+/**
+ * A piece in the air falls by the gravity built up. A piece on the stack builds up no gravity, and
+ * locks at the end of the `LOCK_DELAY`th frame after the one it landed or restarted its lock delay
+ * in.
+ */
 function applyGravity(s: EngineState): void {
+  if (onStack(s)) {
+    s.gravityCounter = 0;
+    if (s.lockTimer >= LOCK_DELAY) lock(s);
+    return;
+  }
   s.gravityCounter += s.settings.gravity;
   while (s.gravityCounter >= SUBROWS_PER_ROW) {
     s.gravityCounter -= SUBROWS_PER_ROW;
-    if (!tryMove(s, 0, -1)) break;
+    if (!tryMove(s, 0, -1)) {
+      s.gravityCounter = 0;
+      break;
+    }
   }
-  // Until lock delay arrives (#7), a piece locks as soon as it lands.
-  if (!canMove(s, 0, -1)) lock(s);
+}
+
+/**
+ * Moves the active piece sideways. A successful move from on the stack restarts the lock delay,
+ * while the piece has restarts left. Moves in the air use none.
+ */
+function shift(s: EngineState, cols: number): void {
+  const wasOnStack = onStack(s);
+  if (tryMove(s, cols, 0) && wasOnStack) restartLockDelay(s);
+}
+
+function restartLockDelay(s: EngineState): void {
+  if (s.lockResets >= MAX_LOCK_RESETS) return;
+  s.lockResets++;
+  s.lockTimer = 0;
+}
+
+/** Gives the active piece a fresh lock delay, with all its restarts, from its current row. */
+function freshLockDelay(s: EngineState): void {
+  s.lowestRow = bottomRow(s.active);
+  s.lockTimer = 0;
+  s.lockResets = 0;
+}
+
+/** Whether the active piece is resting on the stack or the floor. */
+function onStack(s: EngineState): boolean {
+  return !canMove(s, 0, -1);
 }
 
 function canMove(s: EngineState, cols: number, rows: number): boolean {
@@ -165,24 +249,60 @@ function canMove(s: EngineState, cols: number, rows: number): boolean {
 }
 
 function tryMove(s: EngineState, cols: number, rows: number): boolean {
-  if (!canMove(s, cols, rows)) return false;
-  s.active = moved(s.active, cols, rows);
+  return tryPlace(s, moved(s.active, cols, rows));
+}
+
+/**
+ * Makes `piece` the active piece if it fits. Reaching a new lowest row gives the piece a fresh lock
+ * delay (design §3).
+ */
+function tryPlace(s: EngineState, piece: ActivePiece): boolean {
+  if (collides(s.board, piece)) return false;
+  s.active = piece;
+  if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
   return true;
 }
 
-/** Locks the active piece, clears lines and spawns the next piece from the queue. */
+/**
+ * Locks the active piece, clears lines and spawns the next piece from the queue. A piece that locks
+ * entirely above the visible rows locks out: the player tops out and the game stops there, with
+ * that piece left active.
+ */
 function lock(s: EngineState): void {
   lockPiece(s.board, s.active);
+  if (bottomRow(s.active) >= VISIBLE_ROWS) {
+    s.toppedOut = true;
+    return;
+  }
   clearLines(s.board);
-  s.queue.push(sevenBag.next(s.randomizer));
-  // The queue always holds PREVIEW_SIZE pieces before the push, so it can't be empty here.
-  s.active = atSpawn(s.queue.shift() as PieceKind);
-  s.gravityCounter = 0;
-  enter(s);
+  s.holdUsed = false;
+  spawn(s, nextFromQueue(s));
 }
 
-/** The active piece has just spawned: it blocks out on the stack, or else drops a row at once. */
-function enter(s: EngineState): void {
+/**
+ * Puts the active piece in the hold slot and spawns the piece that was there, or the next one from
+ * the queue if the slot was empty. Once per piece: it does nothing again until the next lock.
+ */
+function hold(s: EngineState): void {
+  if (s.holdUsed) return;
+  const held = s.hold;
+  s.hold = s.active.kind;
+  s.holdUsed = true;
+  spawn(s, held ?? nextFromQueue(s));
+}
+
+/** Takes the nearest piece from the queue and refills it from the randomizer. */
+function nextFromQueue(s: EngineState): PieceKind {
+  s.queue.push(sevenBag.next(s.randomizer));
+  // The queue always holds PREVIEW_SIZE pieces before the push, so it can't be empty here.
+  return s.queue.shift() as PieceKind;
+}
+
+/** Brings in a new active piece: it blocks out on the stack, or else drops a row at once. */
+function spawn(s: EngineState, kind: PieceKind): void {
+  s.active = atSpawn(kind);
+  s.gravityCounter = 0;
+  freshLockDelay(s);
   if (collides(s.board, s.active)) s.toppedOut = true;
   else tryMove(s, 0, -1);
 }
@@ -204,13 +324,14 @@ function cloneState(state: EngineState): EngineState {
     frame: state.frame,
     board: state.board.map((row) => [...row]),
     active: { kind: active.kind, col: active.col, row: active.row },
+    hold: state.hold,
+    holdUsed: state.holdUsed,
     queue: [...state.queue],
     randomizer: { rng: randomizer.rng, bag: [...randomizer.bag] },
     gravityCounter: state.gravityCounter,
+    lockTimer: state.lockTimer,
+    lockResets: state.lockResets,
+    lowestRow: state.lowestRow,
     toppedOut: state.toppedOut,
   };
-}
-
-function moved(piece: ActivePiece, cols: number, rows: number): ActivePiece {
-  return { ...piece, col: piece.col + cols, row: piece.row + rows };
 }

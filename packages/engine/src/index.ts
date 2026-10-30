@@ -1,11 +1,13 @@
 export { BOARD_HEIGHT, BOARD_WIDTH, type Board, VISIBLE_ROWS } from './board';
 export {
   type Action,
-  type ActionType,
+  ActionType,
   createEngine,
   DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
+  LOCK_DELAY,
+  MAX_LOCK_RESETS,
   type ModeSettings,
   PREVIEW_SIZE,
   type ReadonlyEngineState,
