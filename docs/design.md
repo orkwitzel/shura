@@ -468,7 +468,7 @@ global flags: --server <url>  --name <nickname>  --input precise|basic  --no-col
 | Internal packages | Source-only, no build step. `typecheck` = `tsc --noEmit` per package, cached by Turbo |
 | App builds | `gateway`, `game`, `cli`: esbuild → one unminified JS file + source map, run with `--enable-source-maps`. `web`: Vite |
 | Docker images | `node:26-slim` + the bundle (+ source map). Native optional dependencies such as `bufferutil` are left out of the bundle and installed in the image |
-| Tests | Vitest everywhere, with one workspace config and a project per package. Ink components via `ink-testing-library`, web via Testing Library. Playwright end-to-end tests come later |
+| Tests | Vitest everywhere, with one workspace config and a project per package. Tests live in `tests/` next to `src/` in every app and package, with test-only helpers in `tests/support/`. Ink components via `ink-testing-library`, web via Testing Library. Playwright end-to-end tests come later |
 | Lint / format | Biome (`biome.json` at the root) for code, JSON, YAML and CSS. Markdown is excluded, because Biome's Markdown formatter rewrites YAML frontmatter |
 | Git hooks | lefthook: Biome on staged files before commit. Before push: reject pushes to `main` and branch names that don't match the convention. The allowed types and scopes live in `scripts/conventions.sh`, which both the hook and CI read |
 | Service config | Environment variables validated at startup by a zod schema in each service. `.env.example` is committed |

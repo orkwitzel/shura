@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { parseCommand } from './args';
+import { parseCommand } from '../src/args';
 
 test('--version and -v print the version', () => {
   expect(parseCommand(['--version'])).toEqual({ kind: 'version' });

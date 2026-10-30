@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { createHttpServer } from './server';
+import { createHttpServer } from '../src/server';
 
 const server = createHttpServer();
 let base = '';
