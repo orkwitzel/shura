@@ -14,6 +14,7 @@ import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 import { srs, turned } from './rotation';
 import { HARD_DROP_POINTS, SOFT_DROP_POINTS, scoreLock } from './scoring';
+import { detectTSpin, type Turn } from './t-spin';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
 export const SUBROWS_PER_ROW = 3_932_160;
@@ -85,6 +86,8 @@ export interface EngineState {
   lockResets: number;
   /** The lowest board row any cell of the active piece has reached. */
   lowestRow: number;
+  /** The turn that last moved the active piece, or `null` if its last move wasn't a turn. */
+  lastTurn: Turn | null;
   toppedOut: boolean;
   /** The level that multiplies line clear points (design §3). */
   level: number;
@@ -183,6 +186,7 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
     lockTimer: 0,
     lockResets: 0,
     lowestRow: 0,
+    lastTurn: null,
     toppedOut: false,
     level: 1,
     score: 0,
@@ -260,13 +264,17 @@ function applyGravity(s: EngineState): void {
 
 /**
  * Turns the active piece clockwise by `quarterTurns`, placing it at the first of the rotation
- * system's kicks where it fits. If none fits, it doesn't turn.
+ * system's kicks where it fits, and records the turn for T-spin detection. If none fits, it doesn't
+ * turn.
  */
 function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   const { kind, col, row, rotation } = s.active;
   const to = turned(rotation, quarterTurns);
   for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
-    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) return;
+    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
+      s.lastTurn = { quarterTurns, kick: [cols, rows] };
+      return;
+    }
   }
 }
 
@@ -299,23 +307,26 @@ function tryMove(s: EngineState, cols: number, rows: number): boolean {
 /**
  * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3). Reaching a new
  * lowest row gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts
- * its lock delay while it has restarts left, and a piece in the air uses none.
+ * its lock delay while it has restarts left, and a piece in the air uses none. The move is not a
+ * turn until `rotate` records it as one.
  */
 function tryPlace(s: EngineState, piece: ActivePiece): boolean {
   if (collides(s.board, piece)) return false;
   const wasOnStack = onStack(s);
   s.active = piece;
+  s.lastTurn = null;
   if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
   else if (wasOnStack) restartLockDelay(s);
   return true;
 }
 
 /**
- * Locks the active piece, clears and scores lines, and spawns the next piece from the queue. A
- * piece that locks entirely above the visible rows locks out: the player tops out and the game
- * stops there, with that piece left active.
+ * Locks the active piece, clears and scores lines and T-spins, and spawns the next piece from the
+ * queue. A piece that locks entirely above the visible rows locks out: the player tops out and the
+ * game stops there, with that piece left active.
  */
 function lock(s: EngineState): void {
+  const tSpin = detectTSpin(s.board, s.active, s.lastTurn);
   lockPiece(s.board, s.active);
   s.piecesPlaced++;
   if (bottomRow(s.active) >= VISIBLE_ROWS) {
@@ -324,7 +335,7 @@ function lock(s: EngineState): void {
   }
   const lines = clearLines(s.board);
   s.linesCleared += lines;
-  scoreLock(s, { lines, perfectClear: isEmpty(s.board) });
+  scoreLock(s, { lines, tSpin, perfectClear: isEmpty(s.board) });
   s.holdUsed = false;
   spawn(s, nextFromQueue(s));
 }
@@ -351,6 +362,7 @@ function nextFromQueue(s: EngineState): PieceKind {
 /** Brings in a new active piece: it blocks out on the stack, or else drops a row at once. */
 function spawn(s: EngineState, kind: PieceKind): void {
   s.active = atSpawn(kind);
+  s.lastTurn = null;
   s.gravityCounter = 0;
   freshLockDelay(s);
   if (collides(s.board, s.active)) s.toppedOut = true;
@@ -370,7 +382,7 @@ function atSpawn(kind: PieceKind): ActivePiece {
  * state field left out of here is a type error, and unknown input fields are dropped.
  */
 function cloneState(state: EngineState): EngineState {
-  const { settings, active, randomizer } = state;
+  const { settings, active, lastTurn, randomizer } = state;
   return {
     settings: { gravity: settings.gravity },
     playerIndex: state.playerIndex,
@@ -385,6 +397,10 @@ function cloneState(state: EngineState): EngineState {
     lockTimer: state.lockTimer,
     lockResets: state.lockResets,
     lowestRow: state.lowestRow,
+    lastTurn: lastTurn && {
+      quarterTurns: lastTurn.quarterTurns,
+      kick: [lastTurn.kick[0], lastTurn.kick[1]],
+    },
     toppedOut: state.toppedOut,
     level: state.level,
     score: state.score,

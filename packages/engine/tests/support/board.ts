@@ -2,6 +2,7 @@ import { createBoard } from '../../src/board';
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
+  type Board,
   type EngineState,
   PIECE_KINDS,
   type PieceKind,
@@ -37,6 +38,11 @@ export function render(
  * piece letters are locked cells, and anything else is empty.
  */
 export function withBoard(state: EngineState, picture: Picture): EngineState {
+  return { ...state, board: boardOf(picture) };
+}
+
+/** A board with `picture` at the bottom, read as `withBoard` reads it, and empty above. */
+export function boardOf(picture: Picture): Board {
   if (picture.length > BOARD_HEIGHT) throw new Error('picture is taller than the board');
   const board = createBoard();
   picture.forEach((line, index) => {
@@ -48,7 +54,7 @@ export function withBoard(state: EngineState, picture: Picture): EngineState {
       row[col] = (PIECE_KINDS as readonly string[]).includes(char) ? (char as PieceKind) : null;
     });
   });
-  return { ...state, board };
+  return board;
 }
 
 /** `state` with `piece` in play as if it had just spawned there. */

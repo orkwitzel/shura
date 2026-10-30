@@ -36,6 +36,10 @@ _Avoid_: lock timer (for the rule), grace period
 Full rows removed when a piece locks, and the rows above moving down. A single, double, triple or Tetris clears 1, 2, 3 or 4 lines.
 _Avoid_: line break, burn
 
+**T-spin**:
+A T piece that locks right after a rotation with three of the four cells diagonal to its centre filled (the walls and floor count). It's full if both cells on the side it points towards are filled, or if the rotation took the 1-by-2 kick at the end of an SRS quarter turn, and a mini otherwise. A T-spin zero clears no lines.
+_Avoid_: twist, spin (alone)
+
 **Back-to-back**:
 A difficult clear (a Tetris, or a T-spin that clears lines) when the last line clear was one too. It scores and attacks extra. A single, double or triple breaks the chain, and a lock that clears nothing doesn't.
 _Avoid_: B2B (in code), streak

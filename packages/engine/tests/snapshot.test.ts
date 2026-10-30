@@ -171,6 +171,9 @@ describe('hash', () => {
     'the lowest row': (s) => {
       s.lowestRow--;
     },
+    'the last turn': (s) => {
+      s.lastTurn = s.lastTurn ? null : { quarterTurns: 1, kick: [0, 0] };
+    },
     'the hold': (s) => {
       s.hold = s.hold === 'T' ? 'I' : 'T';
     },
