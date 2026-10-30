@@ -150,6 +150,9 @@ describe('hash', () => {
     'the active piece': (s) => {
       s.active.col++;
     },
+    "the active piece's rotation": (s) => {
+      s.active.rotation = s.active.rotation === 2 ? 0 : 2;
+    },
     'the queue': (s) => {
       s.queue.reverse();
     },

@@ -7,7 +7,7 @@
     "gravity": 65536
   },
   "lastFrame": 2809,
-  "expectedHash": "f89627657dee6d83",
+  "expectedHash": "32fb81acba06983c",
   "actions": [
     { "frame": 1, "type": "moveLeft" },
     { "frame": 2, "type": "moveLeft" },

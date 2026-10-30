@@ -62,7 +62,7 @@ The engine implements these rules. Every value is a field in the **mode settings
 | Board | 10 wide × 40 tall: 20 visible rows plus 20 hidden above. |
 | Spawn | Pieces spawn flat side down in rows 21–22 and drop one row immediately if possible. I and O spawn in the middle columns (I in 4–7, O in 5–6), the rest in the left-middle columns 4–6. |
 | Randomizer | 7-bag, seeded. In versus, every player in a match gets the **same piece sequence** (one seed per match). |
-| Rotation | SRS with the standard kick tables. The 180° rotation uses TETR.IO's SRS+ 180 kick table. |
+| Rotation | SRS: the guideline rotation states and the standard kick tables, one for J, L, S, T and Z and one for I. The 180° rotation uses TETR.IO's SRS+ 180 kick table, which has its own shorter list for I. O turns in place and never kicks. A rotation tries the turn in place, then each kick in order, and takes the first position that fits; if none fits, the piece doesn't turn. |
 | Hold | One hold slot, usable once per piece and again after the next lock. Holding swaps the active piece with the held one, or with the next piece from the queue if the slot is empty. The piece that comes in spawns as a new piece. |
 | Preview | 5 next pieces. |
 | Ghost | Shown by default (a client setting). |
@@ -122,7 +122,7 @@ Two checks enforce these mechanically. The engine's `tsconfig.json` loads no Nod
 - `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats, and whether the player has topped out. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out it is the piece that locked.
 - `engine.serialize() → EngineState` and `restoreEngine(state) → Engine` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
 - `engine.hash()` is a stable hash of the full state, used by the replay-hash tests and for debugging.
-- Pure helpers, exported and unit-tested: SRS kick lookup, T-spin detection, the attack calculator, garbage cancellation.
+- Pure helpers, exported and unit-tested: SRS kick lookup (`srs.kicks`, behind the `RotationSystem` interface which also gives each piece's cell offsets in each rotation state), T-spin detection, the attack calculator, garbage cancellation.
 
 ### 5.3 Replay-hash test suite
 

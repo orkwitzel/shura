@@ -3,6 +3,7 @@ import { type Board, clearLines, collides, createBoard, lockPiece, VISIBLE_ROWS 
 import { hashText } from './hash';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
+import { srs, turned } from './rotation';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
 export const SUBROWS_PER_ROW = 3_932_160;
@@ -37,6 +38,9 @@ export interface Action {
 export enum ActionType {
   MoveLeft = 'moveLeft',
   MoveRight = 'moveRight',
+  RotateCW = 'rotateCW',
+  RotateCCW = 'rotateCCW',
+  Rotate180 = 'rotate180',
   SoftDrop = 'softDrop',
   HardDrop = 'hardDrop',
   Hold = 'hold',
@@ -178,6 +182,15 @@ function applyAction(s: EngineState, type: ActionType): void {
     case ActionType.MoveRight:
       shift(s, 1);
       break;
+    case ActionType.RotateCW:
+      rotate(s, 1);
+      break;
+    case ActionType.RotateCCW:
+      rotate(s, 3);
+      break;
+    case ActionType.Rotate180:
+      rotate(s, 2);
+      break;
     case ActionType.SoftDrop:
       tryMove(s, 0, -1);
       break;
@@ -224,6 +237,25 @@ function applyGravity(s: EngineState): void {
 function shift(s: EngineState, cols: number): void {
   const wasOnStack = onStack(s);
   if (tryMove(s, cols, 0) && wasOnStack) restartLockDelay(s);
+}
+
+/**
+ * Turns the active piece clockwise by `quarterTurns`, placing it at the first of the rotation
+ * system's kicks where it fits; if none fits, it doesn't turn. A successful turn from on the stack
+ * restarts the lock delay, as a move does, and turns in the air use no restarts.
+ */
+function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
+  const { kind, col, row, rotation } = s.active;
+  const to = turned(rotation, quarterTurns);
+  const wasOnStack = onStack(s);
+  const lowestRow = s.lowestRow;
+  for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
+    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
+      // A kick down to a new lowest row has already given the piece a fresh lock delay.
+      if (wasOnStack && s.lowestRow === lowestRow) restartLockDelay(s);
+      return;
+    }
+  }
 }
 
 function restartLockDelay(s: EngineState): void {
@@ -308,7 +340,7 @@ function spawn(s: EngineState, kind: PieceKind): void {
 }
 
 function atSpawn(kind: PieceKind): ActivePiece {
-  return { kind, col: SPAWN_COL, row: SPAWN_ROW };
+  return { kind, col: SPAWN_COL, row: SPAWN_ROW, rotation: 0 };
 }
 
 /**
@@ -323,7 +355,7 @@ function cloneState(state: EngineState): EngineState {
     playerIndex: state.playerIndex,
     frame: state.frame,
     board: state.board.map((row) => [...row]),
-    active: { kind: active.kind, col: active.col, row: active.row },
+    active: { kind: active.kind, col: active.col, row: active.row, rotation: active.rotation },
     hold: state.hold,
     holdUsed: state.holdUsed,
     queue: [...state.queue],

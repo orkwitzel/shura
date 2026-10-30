@@ -12,6 +12,14 @@ _Avoid_: field, matrix, playfield
 One of the seven tetrominoes (I, O, T, S, Z, J, L) under player control or in the queue.
 _Avoid_: block, tetromino (in code), shape
 
+**Rotation state**:
+One of a piece's four orientations: 0 (as it spawns), R (one turn clockwise), 2 (two turns) and L (one turn anticlockwise).
+_Avoid_: orientation (in code), facing
+
+**Kick**:
+An offset the rotation system tries when a piece turns, so that it can turn next to a wall, the floor or the stack. A turn takes the first kick where the piece fits.
+_Avoid_: wall kick (for kicks in general), nudge
+
 **Mode**:
 A named preset of rules and end conditions: Marathon, Sprint, Ultra, 1v1 or FFA.
 _Avoid_: mod, variant, game type

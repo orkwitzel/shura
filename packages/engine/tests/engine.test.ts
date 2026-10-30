@@ -43,7 +43,7 @@ interface GameSetup {
 
 /** `kind` next in the queue, with an O in play out of the way at the left wall. */
 function nextPieceIs(kind: PieceKind) {
-  return game({ active: { kind: 'O', col: 0, row: 10 }, next: kind });
+  return game({ active: { kind: 'O', col: 0, row: 10, rotation: 0 }, next: kind });
 }
 
 /**
@@ -53,7 +53,7 @@ function nextPieceIs(kind: PieceKind) {
 function stackTo(top: number, kind: PieceKind) {
   return game({
     board: ['LLLLLLLL..', ...emptyRows(top - 1)],
-    active: { kind: 'O', col: 8, row: 10 },
+    active: { kind: 'O', col: 8, row: 10, rotation: 0 },
     next: kind,
   });
 }
@@ -125,14 +125,17 @@ describe('gravity', () => {
   test('builds up nothing on the stack, so a piece that slides off a ledge falls from rest', () => {
     // The T falls for 30 frames, soft drops onto the ledge at frame 30, and slides off it at
     // frame 33. It then needs a full 60 frames of gravity to fall a row.
-    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 2, row: 2 } });
+    const engine = game({
+      board: ['LLLL......'],
+      active: { kind: 'T', col: 2, row: 2, rotation: 0 },
+    });
     engine.step(91, [
       { frame: 30, type: ActionType.SoftDrop },
       ...moves(ActionType.MoveRight, 3, 31),
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 1 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 1, rotation: 0 });
     engine.step(92, []);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 0, rotation: 0 });
   });
 
   test('step advances the frame counter to the requested frame', () => {
@@ -144,18 +147,18 @@ describe('gravity', () => {
 
 describe('moving', () => {
   test('moveLeft and moveRight shift the active piece one column at their frame', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 10, rotation: 0 } });
     engine.step(5, [{ frame: 5, type: ActionType.MoveLeft }]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 10 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 10, rotation: 0 });
     engine.step(7, [
       { frame: 6, type: ActionType.MoveRight },
       { frame: 7, type: ActionType.MoveRight },
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 10 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 10, rotation: 0 });
   });
 
   test('several actions in one frame all apply, in order', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 10, rotation: 0 } });
     engine.step(1, [
       { frame: 1, type: ActionType.MoveLeft },
       { frame: 1, type: ActionType.MoveLeft },
@@ -175,11 +178,11 @@ describe('moving', () => {
   };
 
   test.each(PIECE_KINDS)('%s stops at both walls', (kind) => {
-    const toLeft = game({ active: { kind, col: 4, row: 10 } });
+    const toLeft = game({ active: { kind, col: 4, row: 10, rotation: 0 } });
     toLeft.step(9, moves(ActionType.MoveLeft, 9));
     expect(render(toLeft.state)[22 - 11]).toBe(walls[kind].left);
 
-    const toRight = game({ active: { kind, col: 4, row: 10 } });
+    const toRight = game({ active: { kind, col: 4, row: 10, rotation: 0 } });
     toRight.step(9, moves(ActionType.MoveRight, 9));
     expect(render(toRight.state)[22 - 11]).toBe(walls[kind].right);
   });
@@ -187,7 +190,7 @@ describe('moving', () => {
   test('a move into the stack does nothing', () => {
     const engine = game({
       board: ['.......L..', '.......L..', ...emptyRows(10)],
-      active: { kind: 'O', col: 4, row: 10 },
+      active: { kind: 'O', col: 4, row: 10, rotation: 0 },
     });
     // The stack beside the O's rows leaves room for one move right.
     engine.step(3, [
@@ -201,14 +204,17 @@ describe('moving', () => {
   test('actions apply before gravity in the same frame', () => {
     // Gravity lands the O on a locked cell under its right column at frame 60, and locks it there
     // at frame 90 unless the move at frame 90 takes it clear first.
-    const start: GameSetup = { board: ['.....L....'], active: { kind: 'O', col: 4, row: 2 } };
+    const start: GameSetup = {
+      board: ['.....L....'],
+      active: { kind: 'O', col: 4, row: 2, rotation: 0 },
+    };
     const stays = game(start);
     stays.step(90, []);
     expect(stays.state.board[1]?.[4]).toBe('O');
 
     const escapes = game(start);
     escapes.step(90, [{ frame: 90, type: ActionType.MoveLeft }]);
-    expect(escapes.state.active).toEqual({ kind: 'O', col: 3, row: 1 });
+    expect(escapes.state.active).toEqual({ kind: 'O', col: 3, row: 1, rotation: 0 });
   });
 });
 
@@ -255,7 +261,7 @@ function moves(type: ActionType.MoveLeft | ActionType.MoveRight, count: number, 
 
 describe('hard drop', () => {
   test('drops the piece to the floor and locks it at its frame', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 15 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 15, rotation: 0 } });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
@@ -263,7 +269,7 @@ describe('hard drop', () => {
   test('lands on the stack', () => {
     const engine = game({
       board: ['.....J....', '.....J....', '.....JJ...'],
-      active: { kind: 'O', col: 4, row: 15 },
+      active: { kind: 'O', col: 4, row: 15, rotation: 0 },
     });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 5)).toEqual([
@@ -292,27 +298,27 @@ describe('hard drop', () => {
       { frame: 1, type: ActionType.HardDrop },
       { frame: 1, type: ActionType.MoveRight },
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 19 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 5, row: 19, rotation: 0 });
   });
 });
 
 describe('lock delay', () => {
   test('locks a landed piece 30 frames after it lands', () => {
     // Gravity lands the T on the floor at frame 60.
-    const engine = game({ active: { kind: 'T', col: 4, row: 1 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 1, rotation: 0 } });
     engine.step(60, []);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0, rotation: 0 });
     engine.step(89, []);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0, rotation: 0 });
     expect(renderLocked(engine.state, 2)).toEqual(emptyRows(2));
     engine.step(90, []);
     expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
 
   test('a move restarts the 30 frames', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 0, rotation: 0 } });
     engine.step(49, [{ frame: 20, type: ActionType.MoveLeft }]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 0, rotation: 0 });
     engine.step(50, []);
     expect(renderLocked(engine.state, 2)).toEqual(['...T......', '..TTT.....']);
   });
@@ -320,9 +326,9 @@ describe('lock delay', () => {
   test('only the first 15 moves restart it', () => {
     // 16 moves, one every 10 frames from frame 10. The 15th, at frame 150, is the last that
     // counts, so the piece locks at frame 180 rather than 190.
-    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 0, rotation: 0 } });
     engine.step(179, wiggles(16, 10));
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0, rotation: 0 });
     engine.step(180, []);
     expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
   });
@@ -330,13 +336,16 @@ describe('lock delay', () => {
   test('moves in the air use none of the 15 restarts', () => {
     // The T makes 16 moves in the air, then slides onto a ledge in the same row at frame 19.
     // It still has its restarts there: the move at frame 40 restarts the lock delay.
-    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 7, row: 1 } });
+    const engine = game({
+      board: ['LLLL......'],
+      active: { kind: 'T', col: 7, row: 1, rotation: 0 },
+    });
     engine.step(69, [
       ...wiggles(16, 1),
       ...moves(ActionType.MoveLeft, 3, 17),
       { frame: 40, type: ActionType.MoveLeft },
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 1 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 3, row: 1, rotation: 0 });
     engine.step(70, []);
     expect(renderLocked(engine.state, 3)).toEqual(['...T......', '..TTT.....', 'LLLL......']);
   });
@@ -345,14 +354,17 @@ describe('lock delay', () => {
     // The T rests on a ledge and uses its 15 resets there, then slides off at frame 163 and soft
     // drops to the floor at frame 164. There it gets a fresh lock delay, and its move at frame 190
     // restarts it again, so it locks at frame 220.
-    const engine = game({ board: ['LLLL......'], active: { kind: 'T', col: 2, row: 1 } });
+    const engine = game({
+      board: ['LLLL......'],
+      active: { kind: 'T', col: 2, row: 1, rotation: 0 },
+    });
     engine.step(219, [
       ...wiggles(15, 10),
       ...moves(ActionType.MoveRight, 4, 160),
       { frame: 164, type: ActionType.SoftDrop },
       { frame: 190, type: ActionType.MoveRight },
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 6, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 6, row: 0, rotation: 0 });
     engine.step(220, []);
     expect(renderLocked(engine.state, 2)).toEqual(['......T...', 'LLLL.TTT..']);
   });
@@ -366,20 +378,69 @@ function wiggles(count: number, every: number) {
   }));
 }
 
+describe('lock delay with rotation', () => {
+  /** A T resting on the floor in state 2, which turns between states 2 and L without kicks. */
+  function restingT() {
+    return game({ active: { kind: 'T', col: 4, row: 1, rotation: 2 } });
+  }
+
+  test('a turn on the stack restarts the 30 frames', () => {
+    const engine = restingT();
+    engine.step(49, [{ frame: 20, type: ActionType.RotateCW }]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 1, rotation: 3 });
+    engine.step(50, []);
+    expect(renderLocked(engine.state, 3)).toEqual(['....T.....', '...TT.....', '....T.....']);
+  });
+
+  test('turns and moves share the 15 restarts', () => {
+    // 8 turns and 8 moves, one every 10 frames from frame 10. The 15th, at frame 150, is the last
+    // that counts, so the piece locks at frame 180 rather than 190.
+    const engine = restingT();
+    const turnsAndMoves = Array.from({ length: 16 }, (_, i) => ({
+      frame: (i + 1) * 10,
+      type: [ActionType.RotateCW, ActionType.MoveLeft, ActionType.RotateCCW, ActionType.MoveRight][
+        i % 4
+      ] as ActionType,
+    }));
+    engine.step(179, turnsAndMoves);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 1, rotation: 2 });
+    engine.step(180, []);
+    expect(renderLocked(engine.state, 2)).toEqual(['...TTT....', '....T.....']);
+  });
+
+  test('a kick down to a new lowest row gives a fresh lock delay with all 15 restarts', () => {
+    // The T uses 3 restarts on the stack, then kicks down into a T-spin triple slot.
+    const engine = game({
+      board: ['LL........', 'L.........', 'L.LLLLLLLL', 'L..LLLLLLL', 'L.LLLLLLLL'],
+      active: { kind: 'T', col: 2, row: 3, rotation: 0 },
+    });
+    engine.step(40, [
+      { frame: 10, type: ActionType.MoveRight },
+      { frame: 20, type: ActionType.MoveLeft },
+      { frame: 30, type: ActionType.MoveRight },
+      { frame: 31, type: ActionType.MoveLeft },
+      { frame: 40, type: ActionType.RotateCW },
+    ]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 1, row: 1, rotation: 1 });
+    expect(engine.state.lockResets).toBe(0);
+    expect(engine.state.lockTimer).toBe(0);
+  });
+});
+
 describe('soft drop', () => {
   test('moves the active piece down one row at its frame', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 10 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 10, rotation: 0 } });
     engine.step(2, [
       { frame: 1, type: ActionType.SoftDrop },
       { frame: 2, type: ActionType.SoftDrop },
     ]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 8 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 8, rotation: 0 });
   });
 
   test('does nothing when the piece is on the stack', () => {
-    const engine = game({ active: { kind: 'T', col: 4, row: 0 } });
+    const engine = game({ active: { kind: 'T', col: 4, row: 0, rotation: 0 } });
     engine.step(1, [{ frame: 1, type: ActionType.SoftDrop }]);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 0, rotation: 0 });
     expect(render(engine.state, 2)).toEqual(['....t.....', '...ttt....']);
   });
 });
@@ -394,7 +455,7 @@ describe('hold', () => {
     const engine = newEngine();
     engine.step(1, [{ frame: 1, type: ActionType.Hold }]);
     expect(engine.state.hold).toBe(sequence[0]);
-    expect(engine.state.active).toMatchObject({ kind: sequence[1], col: 4, row: 19 });
+    expect(engine.state.active).toMatchObject({ kind: sequence[1], col: 4, row: 19, rotation: 0 });
     expect(engine.state.queue).toEqual(sequence.slice(2, 7));
   });
 
@@ -418,8 +479,137 @@ describe('hold', () => {
       { frame: 3, type: ActionType.Hold },
     ]);
     expect(engine.state.hold).toBe(sequence[2]);
-    expect(engine.state.active).toMatchObject({ kind: sequence[0], col: 4, row: 19 });
+    expect(engine.state.active).toMatchObject({ kind: sequence[0], col: 4, row: 19, rotation: 0 });
     expect(engine.state.queue).toEqual(sequence.slice(3, 8));
+  });
+});
+
+describe('rotation', () => {
+  /**
+   * The SRS rotation states, as the guideline draws them in each piece's 3 × 3 or 4 × 4 box: spawn
+   * (0), one turn clockwise (R), two turns (2) and one turn anticlockwise (L).
+   */
+  const SRS_STATES: Record<PieceKind, [string[], string[], string[], string[]]> = {
+    I: [
+      ['....', 'iiii', '....', '....'],
+      ['..i.', '..i.', '..i.', '..i.'],
+      ['....', '....', 'iiii', '....'],
+      ['.i..', '.i..', '.i..', '.i..'],
+    ],
+    O: [
+      ['.oo.', '.oo.', '....', '....'],
+      ['.oo.', '.oo.', '....', '....'],
+      ['.oo.', '.oo.', '....', '....'],
+      ['.oo.', '.oo.', '....', '....'],
+    ],
+    T: [
+      ['.t..', 'ttt.', '....', '....'],
+      ['.t..', '.tt.', '.t..', '....'],
+      ['....', 'ttt.', '.t..', '....'],
+      ['.t..', 'tt..', '.t..', '....'],
+    ],
+    S: [
+      ['.ss.', 'ss..', '....', '....'],
+      ['.s..', '.ss.', '..s.', '....'],
+      ['....', '.ss.', 'ss..', '....'],
+      ['s...', 'ss..', '.s..', '....'],
+    ],
+    Z: [
+      ['zz..', '.zz.', '....', '....'],
+      ['..z.', '.zz.', '.z..', '....'],
+      ['....', 'zz..', '.zz.', '....'],
+      ['.z..', 'zz..', 'z...', '....'],
+    ],
+    J: [
+      ['j...', 'jjj.', '....', '....'],
+      ['.jj.', '.j..', '.j..', '....'],
+      ['....', 'jjj.', '..j.', '....'],
+      ['.j..', '.j..', 'jj..', '....'],
+    ],
+    L: [
+      ['..l.', 'lll.', '....', '....'],
+      ['.l..', '.l..', '.ll.', '....'],
+      ['....', 'lll.', 'l...', '....'],
+      ['ll..', '.l..', '.l..', '....'],
+    ],
+  };
+
+  /** The piece's box: columns 3–6 of rows 12 down to 9 (board rows 11 to 8), around an origin at column 4, row 10. */
+  function box(engine: ReturnType<typeof game>): string[] {
+    return render(engine.state)
+      .slice(10, 14)
+      .map((line) => line.slice(3, 7));
+  }
+
+  function inTheAir(kind: PieceKind) {
+    return game({ active: { kind, col: 4, row: 10, rotation: 0 } });
+  }
+
+  test.each(PIECE_KINDS)(
+    '%s spawns in SRS state 0 and turns clockwise through R, 2 and L',
+    (kind) => {
+      const engine = inTheAir(kind);
+      expect(box(engine)).toEqual(SRS_STATES[kind][0]);
+      for (const state of [1, 2, 3, 0] as const) {
+        engine.step(engine.state.frame + 1, [
+          { frame: engine.state.frame + 1, type: ActionType.RotateCW },
+        ]);
+        expect(box(engine)).toEqual(SRS_STATES[kind][state]);
+        expect(engine.state.active.rotation).toBe(state);
+      }
+    },
+  );
+
+  test.each(PIECE_KINDS)('%s turns anticlockwise to L and by 180° to 2', (kind) => {
+    const ccw = inTheAir(kind);
+    ccw.step(1, [{ frame: 1, type: ActionType.RotateCCW }]);
+    expect(box(ccw)).toEqual(SRS_STATES[kind][3]);
+    expect(ccw.state.active.rotation).toBe(3);
+
+    const half = inTheAir(kind);
+    half.step(1, [{ frame: 1, type: ActionType.Rotate180 }]);
+    expect(box(half)).toEqual(SRS_STATES[kind][2]);
+    expect(half.state.active.rotation).toBe(2);
+  });
+
+  test('a T-spin triple: the T kicks one column left and two rows down into the slot', () => {
+    // The T rests in state 0 above the slot. Turning clockwise in place or by the first three
+    // kicks is blocked, and the fifth kick, (-1, -2), drops it into the slot under the overhang.
+    const engine = game({
+      board: ['LL........', 'L.........', 'L.LLLLLLLL', 'L..LLLLLLL', 'L.LLLLLLLL'],
+      active: { kind: 'T', col: 2, row: 3, rotation: 0 },
+    });
+    engine.step(1, [{ frame: 1, type: ActionType.RotateCW }]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 1, row: 1, rotation: 1 });
+    engine.step(2, [{ frame: 2, type: ActionType.HardDrop }]);
+    expect(renderLocked(engine.state, 3)).toEqual(['..........', 'LL........', 'L.........']);
+  });
+
+  test('an I kicks off the left wall', () => {
+    // Vertical against the wall, the I can't turn flat in place or one column left. The second
+    // kick, (+2, 0), fits.
+    const engine = game({ active: { kind: 'I', col: -1, row: 10, rotation: 1 } });
+    engine.step(1, [{ frame: 1, type: ActionType.RotateCW }]);
+    expect(engine.state.active).toEqual({ kind: 'I', col: 1, row: 10, rotation: 2 });
+    expect(render(engine.state)[21 - 9]).toBe('iiii......');
+  });
+
+  test('a T on the floor kicks up a row to turn by 180°', () => {
+    const engine = game({ active: { kind: 'T', col: 4, row: 0, rotation: 0 } });
+    engine.step(1, [{ frame: 1, type: ActionType.Rotate180 }]);
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 1, rotation: 2 });
+    expect(render(engine.state, 2)).toEqual(['...ttt....', '....t.....']);
+  });
+
+  test('a turn that no kick fits does nothing', () => {
+    // The T sits in a hole of its own shape, and the stack blocks the half turn and every kick.
+    const engine = game({
+      board: ['LLLL.LLLLL', 'LLL...LLLL', 'LLLLLLLLL.'],
+      active: { kind: 'T', col: 4, row: 1, rotation: 0 },
+    });
+    const before = engine.state.active;
+    engine.step(1, [{ frame: 1, type: ActionType.Rotate180 }]);
+    expect(engine.state.active).toEqual(before);
   });
 });
 
@@ -454,7 +644,7 @@ describe('line clears', () => {
   test('a full row clears and the rows above move down', () => {
     const engine = game({
       board: ['..S.......', 'ZZZ...ZZZZ'],
-      active: { kind: 'T', col: 4, row: 10 },
+      active: { kind: 'T', col: 4, row: 10, rotation: 0 },
     });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 3)).toEqual(['..........', '..........', '..S.T.....']);
@@ -463,7 +653,7 @@ describe('line clears', () => {
   test('two full rows clear at once', () => {
     const engine = game({
       board: ['J.........', 'LLLL..LLLL', 'ZZZZ..ZZZZ'],
-      active: { kind: 'O', col: 4, row: 10 },
+      active: { kind: 'O', col: 4, row: 10, rotation: 0 },
     });
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(render(engine.state, 3)).toEqual(['..........', '..........', 'J.........']);
@@ -472,7 +662,7 @@ describe('line clears', () => {
   test('only full rows clear', () => {
     const engine = game({
       board: ['LLLL...LLL', 'ZZZZ...ZZZ'],
-      active: { kind: 'J', col: 5, row: 10 },
+      active: { kind: 'J', col: 5, row: 10, rotation: 0 },
     });
     // The J's flat side completes the bottom row. Its corner goes into the row above, which keeps
     // its gaps and moves down.
@@ -486,7 +676,7 @@ describe('block out', () => {
     // The stack reaches into the spawn rows, so the next piece can't appear.
     return game({
       board: ['....L.....', '....L.....', ...emptyRows(20)],
-      active: { kind: 'O', col: 0, row: 10 },
+      active: { kind: 'O', col: 0, row: 10, rotation: 0 },
     });
   }
 
@@ -527,14 +717,14 @@ describe('lock out', () => {
     expect(renderLocked(engine.state).slice(0, 2)).toEqual(['....T.....', '...TTT....']);
     expect(engine.state.toppedOut).toBe(true);
     // The game stops at the lock: the T stays the active piece, and no next piece spawns.
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 20 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 20, rotation: 0 });
   });
 
   test('also when the lock delay runs out', () => {
     const engine = stackTo(20, 'T');
     engine.step(100, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(engine.state.toppedOut).toBe(true);
-    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 20 });
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 20, rotation: 0 });
     expect(engine.state.frame).toBe(31);
   });
 
