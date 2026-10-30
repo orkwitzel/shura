@@ -5,8 +5,10 @@ pre-commit:
       run: pnpm biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
       stage_fixed: true
 
+# A script, not a command: lefthook skips pre-push commands when the pushed commits
+# change no files, which would let an empty commit through on a badly named branch.
 pre-push:
-  commands:
-    branch-rules:
-      run: scripts/pre-push.sh
+  scripts:
+    branch-rules.sh:
+      runner: sh
       use_stdin: true
