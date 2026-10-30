@@ -6,7 +6,7 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
+  type ModeSettings,
   PIECE_KINDS,
   type PieceKind,
   restoreEngine,
@@ -14,11 +14,12 @@ import {
 } from '../src/index';
 import { emptyRows, render, renderLocked, withActive, withBoard } from './support/board';
 import { draw } from './support/random';
+import { TEST_SETTINGS } from './support/settings';
 
 const SEED = 2026;
 
 function newEngine(seed = SEED) {
-  return createEngine(DEFAULT_MODE_SETTINGS, seed, 0);
+  return createEngine(TEST_SETTINGS, seed, 0);
 }
 
 /**
@@ -69,10 +70,11 @@ describe('a new engine', () => {
     expect([active.kind, ...queue]).toEqual(expected);
   });
 
-  test('starts at frame 0, not topped out', () => {
-    const { frame, toppedOut } = newEngine().state;
+  test('starts at frame 0, not topped out or finished', () => {
+    const { frame, toppedOut, finished } = newEngine().state;
     expect(frame).toBe(0);
     expect(toppedOut).toBe(false);
+    expect(finished).toBe(false);
   });
 
   test('spawns its first piece in rows 21–22 and drops it into rows 20–21', () => {
@@ -101,7 +103,7 @@ describe('gravity', () => {
   });
 
   test('follows the mode settings', () => {
-    const engine = createEngine({ gravity: 2 * 65_536 }, SEED, 0);
+    const engine = createEngine({ ...TEST_SETTINGS, gravity: [2 * 65_536] }, SEED, 0);
     const start = engine.state.active.row;
     engine.step(29, []);
     expect(engine.state.active.row).toBe(start);
@@ -110,7 +112,7 @@ describe('gravity', () => {
   });
 
   test('can move a piece several rows in one frame (20G)', () => {
-    const engine = createEngine({ gravity: 20 * SUBROWS_PER_ROW }, SEED, 0);
+    const engine = createEngine({ ...TEST_SETTINGS, gravity: [20 * SUBROWS_PER_ROW] }, SEED, 0);
     const kind = engine.state.active.kind;
     engine.step(1, []);
     // The piece fell from row 20 to the floor in one frame.
@@ -752,13 +754,50 @@ describe('lock out', () => {
 describe('createEngine', () => {
   test('rejects gravity that is not a positive whole number of sub-rows', () => {
     for (const gravity of [0, -65_536, 0.5, Number.NaN]) {
-      expect(() => createEngine({ gravity }, SEED, 0)).toThrow(RangeError);
+      expect(() => createEngine({ ...TEST_SETTINGS, gravity: [gravity] }, SEED, 0)).toThrow(
+        RangeError,
+      );
     }
+  });
+
+  test('rejects gravity with no levels', () => {
+    expect(() => createEngine({ ...TEST_SETTINGS, gravity: [] }, SEED, 0)).toThrow(RangeError);
+  });
+
+  test.each<[string, Partial<ModeSettings>]>([
+    ['lines per level of 0', { linesPerLevel: 0 }],
+    ['a line goal of 0', { lineGoal: 0 }],
+    ['a fractional frame limit', { frameLimit: 7_200.5 }],
+    ['a lock delay of 0', { lockDelay: 0 }],
+    ['negative lock resets', { maxLockResets: -1 }],
+    ['a negative preview size', { previewSize: -1 }],
+  ])('rejects %s', (_, change) => {
+    expect(() => createEngine({ ...TEST_SETTINGS, ...change }, SEED, 0)).toThrow(RangeError);
+  });
+
+  test('takes the lock delay and its restarts from the mode settings', () => {
+    // A 10-frame lock delay with 1 restart: the move at frame 5 restarts it, the one at frame 10
+    // doesn't, so the T locks at frame 15.
+    const settings = { ...TEST_SETTINGS, lockDelay: 10, maxLockResets: 1 };
+    const fresh = createEngine(settings, SEED, 0).serialize();
+    const engine = restoreEngine(withActive(fresh, { kind: 'T', col: 3, row: 1, rotation: 0 }));
+    engine.step(14, [
+      { frame: 5, type: ActionType.MoveLeft },
+      { frame: 10, type: ActionType.MoveRight },
+    ]);
+    expect(renderLocked(engine.state, 2)).toEqual(emptyRows(2));
+    engine.step(15, []);
+    expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
+  });
+
+  test('takes the preview size from the mode settings', () => {
+    const engine = createEngine({ ...TEST_SETTINGS, previewSize: 3 }, SEED, 0);
+    expect(engine.state.queue).toEqual(draw(SEED, 4).slice(1));
   });
 
   test('rejects a player index that is not a non-negative integer', () => {
     for (const playerIndex of [-1, 1.5]) {
-      expect(() => createEngine(DEFAULT_MODE_SETTINGS, SEED, playerIndex)).toThrow(RangeError);
+      expect(() => createEngine(TEST_SETTINGS, SEED, playerIndex)).toThrow(RangeError);
     }
   });
 });

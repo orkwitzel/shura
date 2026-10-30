@@ -3,17 +3,21 @@ export {
   type Action,
   ActionType,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
+  type ReadonlyEngineState,
+  restoreEngine,
+} from './engine';
+export {
   LOCK_DELAY,
+  MARATHON,
   MAX_LOCK_RESETS,
   type ModeSettings,
   PREVIEW_SIZE,
-  type ReadonlyEngineState,
-  restoreEngine,
+  SPRINT,
   SUBROWS_PER_ROW,
-} from './engine';
+  ULTRA,
+} from './modes';
 export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } from './pieces';
 export { type Randomizer, type SevenBagState, sevenBag } from './random';
 export { type Offset, type Rotation, type RotationSystem, srs } from './rotation';
