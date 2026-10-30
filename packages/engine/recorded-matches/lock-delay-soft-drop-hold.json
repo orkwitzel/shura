@@ -5,15 +5,19 @@
   "playerIndex": 0,
   "settings": {
     "gravity": [65536],
+    "gravityStep": null,
     "linesPerLevel": 10,
     "lineGoal": null,
     "frameLimit": null,
     "lockDelay": 30,
     "maxLockResets": 15,
-    "previewSize": 5
+    "previewSize": 5,
+    "garbageCap": 8,
+    "marginTimeStart": null,
+    "marginTimeStep": 1800
   },
   "lastFrame": 2809,
-  "expectedHash": "9b8fc11506c6ce04",
+  "expectedHash": "03b4be7f52477035",
   "actions": [
     { "frame": 1, "type": "moveLeft" },
     { "frame": 2, "type": "moveLeft" },

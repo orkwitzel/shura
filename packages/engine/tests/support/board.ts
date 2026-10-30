@@ -3,15 +3,19 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   type Board,
+  type BoardCell,
   type EngineState,
+  GARBAGE,
   PIECE_KINDS,
-  type PieceKind,
   pieceCells,
   type ReadonlyEngineState,
 } from '../../src/index';
 import { type ActivePiece, bottomRow } from '../../src/pieces';
 
 type Picture = readonly string[];
+
+/** The letters of filled cells in a picture: the pieces' and garbage. */
+const FILLED = [...PIECE_KINDS, GARBAGE];
 
 /**
  * Draws the bottom `rows` rows of the board, top row first. Locked cells show their piece in
@@ -35,7 +39,7 @@ export function render(
 
 /**
  * Replaces the bottom of the board with `picture` (top row first, as `render` draws it). Upper-case
- * piece letters are locked cells, and anything else is empty.
+ * piece letters are locked cells, `G` is garbage, and anything else is empty.
  */
 export function withBoard(state: EngineState, picture: Picture): EngineState {
   return { ...state, board: boardOf(picture) };
@@ -49,9 +53,9 @@ export function boardOf(picture: Picture): Board {
     if (line.length !== BOARD_WIDTH) {
       throw new Error(`picture row "${line}" is not ${BOARD_WIDTH} wide`);
     }
-    const row = board[picture.length - 1 - index] as (PieceKind | null)[];
+    const row = board[picture.length - 1 - index] as BoardCell[];
     [...line].forEach((char, col) => {
-      row[col] = (PIECE_KINDS as readonly string[]).includes(char) ? (char as PieceKind) : null;
+      row[col] = (FILLED as readonly string[]).includes(char) ? (char as BoardCell) : null;
     });
   });
   return board;

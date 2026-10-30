@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import {
+  type Action,
   ActionType,
   type ActivePiece,
   createEngine,
+  FFA,
   MARATHON,
   type ModeSettings,
+  ONE_VS_ONE,
   restoreEngine,
   SPRINT,
   SUBROWS_PER_ROW,
@@ -71,7 +74,7 @@ function clearingAt(settings: Readonly<ModeSettings>, linesCleared: number, line
   });
 }
 
-const HARD_DROP_AT_1 = [{ frame: 1, type: ActionType.HardDrop }];
+const HARD_DROP_AT_1: Action[] = [{ frame: 1, type: ActionType.HardDrop }];
 
 describe('Marathon', () => {
   describe('gravity', () => {
@@ -276,4 +279,76 @@ describe('Ultra', () => {
     expect(engine.state.score).toBe(800);
     expect(engine.hash()).toBe(ended);
   });
+});
+
+describe.each([
+  { name: '1v1', settings: ONE_VS_ONE },
+  { name: 'FFA', settings: FFA },
+])('$name', ({ settings }) => {
+  /** A game of `settings` at `frame`, with a piece just spawned. */
+  function atFrame(frame: number) {
+    return restoreEngine({ ...gameOf(settings).serialize(), frame });
+  }
+
+  // The proposed versus curve (design §3): 1 row/s at first, 1 row/s faster every 30 s (1,800
+  // frames), and 20 rows/s from 9:30 (frame 34,200) on.
+  test.each([
+    { frame: 0, rowsPerSecond: 1 },
+    { frame: 1_800, rowsPerSecond: 2 },
+    { frame: 7_200, rowsPerSecond: 5 },
+    { frame: 18_000, rowsPerSecond: 11 },
+    { frame: 32_400, rowsPerSecond: 19 },
+    { frame: 34_200, rowsPerSecond: 20 },
+    { frame: 200_000, rowsPerSecond: 20 },
+  ])('falls at $rowsPerSecond rows/s from frame $frame', ({ frame, rowsPerSecond }) => {
+    const engine = atFrame(frame);
+    const spawnRow = engine.state.active.row;
+    // The first row takes 60 / rowsPerSecond frames, rounded up.
+    const framesPerRow = Math.ceil(60 / rowsPerSecond);
+    engine.step(frame + framesPerRow - 1, []);
+    expect(engine.state.active.row).toBe(spawnRow);
+    engine.step(frame + framesPerRow, []);
+    expect(engine.state.active.row).toBe(spawnRow - 1);
+  });
+
+  test('speeds up at 30 s, frame 1,800', () => {
+    // From frame 1,770: 29 frames at 1 row/s, then 2 rows/s from frame 1,800, make a row at 1,815.
+    const engine = atFrame(1_770);
+    const spawnRow = engine.state.active.row;
+    engine.step(1_814, []);
+    expect(engine.state.active.row).toBe(spawnRow);
+    engine.step(1_815, []);
+    expect(engine.state.active.row).toBe(spawnRow - 1);
+  });
+
+  test('stays at level 1 whatever lines are cleared', () => {
+    const board = ['L.........', ...well(4)];
+    const engine = gameOf(settings, { board, piece: I_IN_WELL, linesCleared: 39 });
+    engine.step(1, HARD_DROP_AT_1);
+    expect(engine.state.level).toBe(1);
+    expect(engine.state.score).toBe(800);
+  });
+
+  test('has no line goal or frame limit: only a top-out ends it', () => {
+    expect(settings.lineGoal).toBeNull();
+    expect(settings.frameLimit).toBeNull();
+  });
+
+  test('lands at most 8 garbage lines a lock, with margin time from 2:00 in 30 s steps', () => {
+    expect(settings.garbageCap).toBe(8);
+    expect(settings.marginTimeStart).toBe(7_200);
+    expect(settings.marginTimeStep).toBe(1_800);
+  });
+});
+
+test('1v1 and FFA play by the same rules', () => {
+  expect(FFA).toEqual(ONE_VS_ONE);
+});
+
+test.each([
+  { name: 'Marathon', settings: MARATHON },
+  { name: 'Sprint', settings: SPRINT },
+  { name: 'Ultra', settings: ULTRA },
+])('$name has no margin time', ({ settings }) => {
+  expect(settings.marginTimeStart).toBeNull();
 });

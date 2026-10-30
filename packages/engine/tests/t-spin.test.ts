@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'vitest';
-import { ActionType, type ActivePiece, detectTSpin, TSpin, type Turn } from '../src/index';
+import {
+  ActionType,
+  type ActivePiece,
+  detectTSpin,
+  type PieceActionType,
+  TSpin,
+  type Turn,
+} from '../src/index';
 import { boardOf } from './support/board';
-import { play } from './support/play';
+import { type Lock, play } from './support/play';
 import { IN_PLACE, MINI_SLOT, OPEN_TST_SLOT, TSD_SLOT, TST_KICK } from './support/t-spin';
 
 // The 3-corner rule, the full and mini split and the upgrade after a kick of 1 by 2 are the
@@ -89,24 +96,32 @@ describe('T-spins in play', () => {
   const ON_THE_FLOOR: ActivePiece = { kind: 'T', col: 0, row: 1, rotation: 0 };
 
   test('a T turned into place last is a T-spin: a mini T-spin zero scores 100', () => {
-    const lock = { board: UNDER_OVERHANG, piece: BESIDE, actions: [ActionType.RotateCCW] };
+    const lock: Lock = { board: UNDER_OVERHANG, piece: BESIDE, actions: [ActionType.RotateCCW] };
     expect(play([lock]).points).toEqual([100]);
   });
 
   test('a T moved into place is no T-spin', () => {
-    const lock = { board: UNDER_OVERHANG, piece: ON_THE_FLOOR, actions: [ActionType.MoveRight] };
+    const lock: Lock = {
+      board: UNDER_OVERHANG,
+      piece: ON_THE_FLOOR,
+      actions: [ActionType.MoveRight],
+    };
     expect(play([lock]).points).toEqual([0]);
   });
 
   test('a T that moves after turning is no T-spin, even if it moves back', () => {
-    const actions = [ActionType.RotateCCW, ActionType.MoveLeft, ActionType.MoveRight];
+    const actions: PieceActionType[] = [
+      ActionType.RotateCCW,
+      ActionType.MoveLeft,
+      ActionType.MoveRight,
+    ];
     expect(play([{ board: UNDER_OVERHANG, piece: BESIDE, actions }]).points).toEqual([0]);
   });
 
   test('the T-spin triple kick makes a full T-spin double of what would be a mini double', () => {
     // A full T-spin double scores 1200, a mini double 400.
     const piece: ActivePiece = { kind: 'T', col: 1, row: 4, rotation: 0 };
-    const lock = { board: OPEN_TST_SLOT.board, piece, actions: [ActionType.RotateCW] };
+    const lock: Lock = { board: OPEN_TST_SLOT.board, piece, actions: [ActionType.RotateCW] };
     expect(play([lock]).points).toEqual([1200]);
   });
 });

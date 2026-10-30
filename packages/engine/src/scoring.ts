@@ -41,6 +41,14 @@ export interface ScoringState {
 }
 
 /**
+ * Whether a lock is a difficult clear, which chains back-to-back: a Tetris, or a T-spin or mini that
+ * clears lines.
+ */
+export function isDifficult({ lines, tSpin }: Pick<LockClear, 'lines' | 'tSpin'>): boolean {
+  return lines === 4 || (lines > 0 && tSpin !== TSpin.None);
+}
+
+/**
  * Scores a lock (design §3). Points are the guideline's: the clear or T-spin, half as much again
  * for a back-to-back difficult clear, the combo bonus, and the perfect clear bonus, all times the
  * level. A T-spin that clears nothing scores its points but no bonus.
@@ -55,8 +63,7 @@ export function scoreLock(s: ScoringState, { lines, tSpin, perfectClear }: LockC
   }
   s.combo++;
   const tetris = lines === 4;
-  // The difficult clears: a Tetris, and a T-spin that clears lines.
-  const difficult = tetris || tSpin !== TSpin.None;
+  const difficult = isDifficult({ lines, tSpin });
   const backToBackBonus = difficult && s.backToBack;
   // Every clear's points are a multiple of 100, so half of them is a whole number.
   if (backToBackBonus) s.score += (points * s.level) >> 1;

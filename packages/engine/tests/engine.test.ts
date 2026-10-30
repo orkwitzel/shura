@@ -8,6 +8,7 @@ import {
   createEngine,
   type ModeSettings,
   PIECE_KINDS,
+  type PieceActionType,
   type PieceKind,
   restoreEngine,
   SUBROWS_PER_ROW,
@@ -252,7 +253,7 @@ describe('step', () => {
 });
 
 /** `count` of the same action, one per frame from frame `from`. */
-function moves(type: ActionType, count: number, from = 1) {
+function moves(type: PieceActionType, count: number, from = 1) {
   return Array.from({ length: count }, (_, i) => ({ frame: from + i, type }));
 }
 
@@ -371,11 +372,11 @@ describe('lock delay', () => {
 function wiggles(
   count: number,
   every: number,
-  cycle: readonly ActionType[] = [ActionType.MoveLeft, ActionType.MoveRight],
+  cycle: readonly PieceActionType[] = [ActionType.MoveLeft, ActionType.MoveRight],
 ) {
   return Array.from({ length: count }, (_, i) => ({
     frame: (i + 1) * every,
-    type: cycle[i % cycle.length] as ActionType,
+    type: cycle[i % cycle.length] as PieceActionType,
   }));
 }
 

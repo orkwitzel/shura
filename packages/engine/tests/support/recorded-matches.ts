@@ -1,21 +1,49 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { type Action, createEngine, ENGINE_VERSION, type ModeSettings } from '../../src/index';
+import {
+  type Action,
+  createEngine,
+  ENGINE_VERSION,
+  type ModeSettings,
+  restoreEngine,
+} from '../../src/index';
+import { byFrame, VersusMatch } from './versus';
 
-/**
- * A recorded match (design §5.3): everything needed to replay one player's game, and the hash it
- * must end on.
- */
-export interface RecordedMatch {
+/** What every recorded match holds besides its players' actions and hashes. */
+interface MatchSetup {
   description: string;
-  /** The `ENGINE_VERSION` the expected hash was recorded with. */
+  /** The `ENGINE_VERSION` the expected hashes were recorded with. */
   engineVersion: number;
   seed: number;
-  playerIndex: number;
   settings: ModeSettings;
   /** The frame the replay steps to. */
   lastFrame: number;
-  actions: Action[];
+}
+
+/**
+ * A recorded match (design §5.3): everything needed to replay a game, and the hash each player's
+ * game must end on. It is either one player's game or a 1v1 match.
+ */
+export type RecordedMatch = SoloMatch | VersusRecordedMatch;
+
+/** One player's game. */
+export interface SoloMatch extends MatchSetup {
+  playerIndex: number;
   expectedHash: string;
+  actions: Action[];
+}
+
+/**
+ * A 1v1 match: player `i`'s game is `players[i]`. The replay plays the server's part as
+ * `VersusMatch` does, so the garbage queued on each player comes from the other's attacks, and lands
+ * where their `garbageAccepted` actions say.
+ */
+export interface VersusRecordedMatch extends MatchSetup {
+  players: RecordedPlayer[];
+}
+
+export interface RecordedPlayer {
+  expectedHash: string;
+  actions: Action[];
 }
 
 const RECORDED_MATCHES_DIR = new URL('../../recorded-matches/', import.meta.url);
@@ -32,26 +60,77 @@ export function loadRecordedMatches(): { file: string; match: RecordedMatch }[] 
     }));
 }
 
-/** Plays a recorded match through and returns the final hash. */
-export function replay(match: RecordedMatch): string {
+/** The hash each player's game must end on, by player. */
+export function expectedHashes(match: RecordedMatch): string[] {
+  return 'players' in match
+    ? match.players.map(({ expectedHash }) => expectedHash)
+    : [match.expectedHash];
+}
+
+/** `match` with the expected hashes `hashes`, by player. */
+export function withHashes(match: RecordedMatch, hashes: readonly string[]): RecordedMatch {
+  const hash = (player: number) => hashes[player] ?? '';
+  if ('players' in match) {
+    const players = match.players.map((player, index) => ({
+      ...player,
+      expectedHash: hash(index),
+    }));
+    return { ...match, players };
+  }
+  return { ...match, expectedHash: hash(0) };
+}
+
+/**
+ * Plays a recorded match through and returns the final hash of each player's game. With `restoreAt`,
+ * every engine is serialized and restored at that frame on the way.
+ */
+export function replay(match: RecordedMatch, { restoreAt = -1 } = {}): string[] {
+  if ('players' in match) return replayVersus(match, restoreAt);
+  const { actions, lastFrame } = match;
   const engine = createEngine(match.settings, match.seed, match.playerIndex);
-  engine.step(match.lastFrame, match.actions);
-  return engine.hash();
+  if (restoreAt < 0) {
+    engine.step(lastFrame, actions);
+    return [engine.hash()];
+  }
+  engine.step(
+    restoreAt,
+    actions.filter((action) => action.frame <= restoreAt),
+  );
+  const restored = restoreEngine(engine.serialize());
+  restored.step(
+    lastFrame,
+    actions.filter((action) => action.frame > restoreAt),
+  );
+  return [restored.hash()];
+}
+
+function replayVersus(match: VersusRecordedMatch, restoreAt: number): string[] {
+  const game = new VersusMatch(match.settings, match.seed, match.players.length);
+  const frames = match.players.map(({ actions }) => byFrame(actions, match.lastFrame));
+  for (let frame = 1; frame <= match.lastFrame; frame++) {
+    if (frame - 1 === restoreAt) game.restore();
+    game.playFrame(
+      frame,
+      frames.map((actions) => actions[frame] ?? []),
+    );
+  }
+  return game.engines.map((engine) => engine.hash());
 }
 
 /** Replays a recorded match twice. Returns why it fails, or `null` if both runs match the record. */
 export function checkRecordedMatch(file: string, match: RecordedMatch): string | null {
-  const first = replay(match);
-  const second = replay(match);
+  const first = replay(match).join(', ');
+  const second = replay(match).join(', ');
   if (first !== second) {
     return `${file} ended on ${first}, then on ${second}, from the same input. The engine is no longer deterministic: find what reads state outside the engine (docs/design.md §5.1).`;
   }
   if (match.engineVersion !== ENGINE_VERSION) {
     return `${file} was recorded with engine version ${match.engineVersion}, but ENGINE_VERSION is ${ENGINE_VERSION}. Re-record it: ${RECORD_COMMAND}`;
   }
-  if (first !== match.expectedHash) {
+  const expected = expectedHashes(match).join(', ');
+  if (first !== expected) {
     return [
-      `${file} ended on hash ${first}, but ${match.expectedHash} was recorded. Game outcomes changed.`,
+      `${file} ended on hash ${first}, but ${expected} was recorded. Game outcomes changed.`,
       'If the change is unintended, it is a bug: fix it rather than re-recording.',
       `If it is intended, bump ENGINE_VERSION in packages/engine/src/version.ts and re-record in the same PR: ${RECORD_COMMAND}`,
       '(During M1, before any release, ENGINE_VERSION stays at 1 and only the re-record is needed.)',
@@ -60,30 +139,47 @@ export function checkRecordedMatch(file: string, match: RecordedMatch): string |
   return null;
 }
 
-/** Rewrites every recorded match with the hash and engine version of the current engine. */
+/** Rewrites every recorded match with the hashes and engine version of the current engine. */
 export function recordAll(): { file: string; changed: boolean }[] {
   return loadRecordedMatches().map(({ file, match }) => {
-    const updated = {
-      ...match,
-      engineVersion: ENGINE_VERSION,
-      expectedHash: replay(match),
-    };
+    const hashes = replay(match);
     const changed =
-      updated.expectedHash !== match.expectedHash || updated.engineVersion !== match.engineVersion;
-    if (changed) writeRecordedMatch(file, updated);
+      hashes.join() !== expectedHashes(match).join() || match.engineVersion !== ENGINE_VERSION;
+    if (changed) {
+      writeRecordedMatch(file, { ...withHashes(match, hashes), engineVersion: ENGINE_VERSION });
+    }
     return { file, changed };
   });
 }
 
 /** Writes a recorded match with one action per line, so diffs stay readable. */
 export function writeRecordedMatch(file: string, match: RecordedMatch): void {
-  const { actions, ...rest } = match;
-  const head = fillNumberArrays(JSON.stringify(rest, null, 2)).slice(0, -2);
-  const lines = actions.map((action) => `    ${inlineJson(action)}`).join(',\n');
-  writeFileSync(
-    new URL(file, RECORDED_MATCHES_DIR),
-    `${head},\n  "actions": [\n${lines}\n  ]\n}\n`,
-  );
+  let head: string;
+  let body: string;
+  if ('players' in match) {
+    const { players, ...rest } = match;
+    head = headOf(rest);
+    const objects = players.map(
+      ({ expectedHash, actions }) =>
+        `    {\n      "expectedHash": ${JSON.stringify(expectedHash)},\n      "actions": [\n${actionLines(actions, 8)}\n      ]\n    }`,
+    );
+    body = `  "players": [\n${objects.join(',\n')}\n  ]`;
+  } else {
+    const { actions, ...rest } = match;
+    head = headOf(rest);
+    body = `  "actions": [\n${actionLines(actions, 4)}\n  ]`;
+  }
+  writeFileSync(new URL(file, RECORDED_MATCHES_DIR), `${head},\n${body}\n}\n`);
+}
+
+/** The fields of `rest` as the start of a pretty-printed object, without its closing brace. */
+function headOf(rest: object): string {
+  return fillNumberArrays(JSON.stringify(rest, null, 2)).slice(0, -2);
+}
+
+/** `actions` one to a line, indented by `indent` spaces. */
+function actionLines(actions: readonly Action[], indent: number): string {
+  return actions.map((action) => `${' '.repeat(indent)}${inlineJson(action)}`).join(',\n');
 }
 
 /** Biome's line width. */
