@@ -35,3 +35,17 @@ If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the replay
 ## Commands
 
 `pnpm dev` (Valkey + services + web), `pnpm cli` (the terminal client, in its own TTY), `pnpm check` (lint + typecheck + test, the same as CI). Run `pnpm check` before declaring work done.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `orkwitzel/shura`, via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles, each label named after its role. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `docs/glossary.md` plus `docs/adr/`. See `docs/agents/domain.md`.
