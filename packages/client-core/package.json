@@ -10,6 +10,9 @@
     "typecheck": "tsc",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "@shura/engine": "workspace:*"
+  },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
     "typescript": "catalog:",
