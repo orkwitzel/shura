@@ -408,8 +408,18 @@ describe('lock delay with rotation', () => {
     expect(renderLocked(engine.state, 2)).toEqual(['...TTT....', '....T.....']);
   });
 
+  test('turns in the air use none of the 15 restarts', () => {
+    const engine = game({ active: { kind: 'T', col: 4, row: 10, rotation: 0 } });
+    engine.step(
+      16,
+      Array.from({ length: 16 }, (_, i) => ({ frame: i + 1, type: ActionType.RotateCW })),
+    );
+    expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 10, rotation: 0 });
+    expect(engine.state.lockResets).toBe(0);
+  });
+
   test('a kick down to a new lowest row gives a fresh lock delay with all 15 restarts', () => {
-    // The T uses 3 restarts on the stack, then kicks down into a T-spin triple slot.
+    // The T uses 4 restarts on the stack, then kicks down into a T-spin triple slot.
     const engine = game({
       board: ['LL........', 'L.........', 'L.LLLLLLLL', 'L..LLLLLLL', 'L.LLLLLLLL'],
       active: { kind: 'T', col: 2, row: 3, rotation: 0 },

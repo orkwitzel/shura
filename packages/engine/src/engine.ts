@@ -251,7 +251,7 @@ function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   const lowestRow = s.lowestRow;
   for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
     if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
-      // A kick down to a new lowest row has already given the piece a fresh lock delay.
+      // A turn down to a new lowest row has already given the piece a fresh lock delay.
       if (wasOnStack && s.lowestRow === lowestRow) restartLockDelay(s);
       return;
     }

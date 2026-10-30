@@ -27,7 +27,7 @@ export function turned(rotation: Rotation, quarterTurns: 1 | 2 | 3): Rotation {
 }
 
 /**
- * Cell offsets from the origin in spawn orientation. Every piece spawns flat side down with its
+ * Cell offsets from the origin in rotation state 0. Every piece spawns flat side down with its
  * origin in column 4, so I and O sit in the middle columns and the rest in the left-middle columns.
  */
 const SPAWN_OFFSETS: Record<PieceKind, readonly Offset[]> = {
@@ -116,7 +116,7 @@ const SRS_OFFSETS: Record<PieceKind, readonly (readonly Offset[])[]> = {
 type KickTable = Partial<Record<`${Rotation}${Rotation}`, readonly Offset[]>>;
 
 /** Kicks written as the SRS references write them, e.g. `(0,0) (-1,0) (-1,+1)`. */
-function kicks(text: string): Offset[] {
+function parseKicks(text: string): Offset[] {
   return [...text.matchAll(/\(([-+]?\d),([-+]?\d)\)/g)].map(([, x, y]) => [Number(x), Number(y)]);
 }
 
@@ -125,34 +125,34 @@ function kicks(text: string): Offset[] {
  * from-state then to-state. The tests cite the sources.
  */
 const JLSTZ_KICKS: KickTable = {
-  '01': kicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
-  '10': kicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
-  '12': kicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
-  '21': kicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
-  '23': kicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
-  '32': kicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
-  '30': kicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
-  '03': kicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
-  '02': kicks('(0,0) (0,+1) (+1,+1) (-1,+1) (+1,0) (-1,0)'),
-  '13': kicks('(0,0) (+1,0) (+1,+2) (+1,+1) (0,+2) (0,+1)'),
-  '20': kicks('(0,0) (0,-1) (-1,-1) (+1,-1) (-1,0) (+1,0)'),
-  '31': kicks('(0,0) (-1,0) (-1,+2) (-1,+1) (0,+2) (0,+1)'),
+  '01': parseKicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
+  '10': parseKicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
+  '12': parseKicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
+  '21': parseKicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
+  '23': parseKicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
+  '32': parseKicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
+  '30': parseKicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
+  '03': parseKicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
+  '02': parseKicks('(0,0) (0,+1) (+1,+1) (-1,+1) (+1,0) (-1,0)'),
+  '13': parseKicks('(0,0) (+1,0) (+1,+2) (+1,+1) (0,+2) (0,+1)'),
+  '20': parseKicks('(0,0) (0,-1) (-1,-1) (+1,-1) (-1,0) (+1,0)'),
+  '31': parseKicks('(0,0) (-1,0) (-1,+2) (-1,+1) (0,+2) (0,+1)'),
 };
 
 /** The guideline SRS kicks for I, and TETR.IO's SRS+ 180 kicks for I. */
 const I_KICKS: KickTable = {
-  '01': kicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
-  '10': kicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
-  '12': kicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
-  '21': kicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
-  '23': kicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
-  '32': kicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
-  '30': kicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
-  '03': kicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
-  '02': kicks('(0,0) (0,+1)'),
-  '13': kicks('(0,0) (+1,0)'),
-  '20': kicks('(0,0) (0,-1)'),
-  '31': kicks('(0,0) (-1,0)'),
+  '01': parseKicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
+  '10': parseKicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
+  '12': parseKicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
+  '21': parseKicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
+  '23': parseKicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
+  '32': parseKicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
+  '30': parseKicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
+  '03': parseKicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
+  '02': parseKicks('(0,0) (0,+1)'),
+  '13': parseKicks('(0,0) (+1,0)'),
+  '20': parseKicks('(0,0) (0,-1)'),
+  '31': parseKicks('(0,0) (-1,0)'),
 };
 
 /** O turns only in place. */
