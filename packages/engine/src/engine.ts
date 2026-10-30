@@ -33,7 +33,14 @@ export interface Action {
   type: ActionType;
 }
 
-export type ActionType = 'moveLeft' | 'moveRight' | 'softDrop' | 'hardDrop' | 'hold';
+/** The kinds of action. The values are the action names on the wire and in recorded matches. */
+export enum ActionType {
+  MoveLeft = 'moveLeft',
+  MoveRight = 'moveRight',
+  SoftDrop = 'softDrop',
+  HardDrop = 'hardDrop',
+  Hold = 'hold',
+}
 
 /** The engine's full state, as plain data. */
 export interface EngineState {
@@ -164,20 +171,20 @@ export function restoreEngine(state: EngineState): Engine {
 
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
-    case 'moveLeft':
+    case ActionType.MoveLeft:
       shift(s, -1);
       break;
-    case 'moveRight':
+    case ActionType.MoveRight:
       shift(s, 1);
       break;
-    case 'softDrop':
+    case ActionType.SoftDrop:
       tryMove(s, 0, -1);
       break;
-    case 'hardDrop':
+    case ActionType.HardDrop:
       while (tryMove(s, 0, -1));
       lock(s);
       break;
-    case 'hold':
+    case ActionType.Hold:
       hold(s);
       break;
   }

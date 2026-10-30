@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   type Action,
+  ActionType,
   createEngine,
   DEFAULT_MODE_SETTINGS,
   type Engine,
@@ -27,10 +28,13 @@ function scriptedGame(): { actions: Action[]; lastFrame: number } {
     const shift = (piece % 9) - 4;
     const placement: Action[] = [];
     for (let i = 0; i < Math.abs(shift); i++) {
-      placement.push({ frame: ++frame, type: shift < 0 ? 'moveLeft' : 'moveRight' });
+      placement.push({
+        frame: ++frame,
+        type: shift < 0 ? ActionType.MoveLeft : ActionType.MoveRight,
+      });
     }
     frame += 1 + (piece % 5) * 13;
-    placement.push({ frame, type: 'hardDrop' });
+    placement.push({ frame, type: ActionType.HardDrop });
     engine.step(frame, placement);
     actions.push(...placement);
   }
