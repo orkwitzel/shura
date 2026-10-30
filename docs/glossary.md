@@ -20,6 +20,10 @@ _Avoid_: mod, variant, game type
 The rule values a mode fixes (gravity, lock delay, attack table, margin time and so on). Players can't change them individually.
 _Avoid_: config, ruleset
 
+**Lock delay**:
+The 30 frames a piece can rest on the stack before it locks. Moving or rotating restarts it, up to 15 times per piece.
+_Avoid_: lock timer (for the rule), grace period
+
 **Attack**:
 The number of garbage lines a clear produces, before cancellation.
 _Avoid_: damage, lines sent (for the pre-cancellation value)
@@ -51,7 +55,7 @@ _Avoid_: timeout, kick
 ## Input
 
 **Action**:
-One atomic engine instruction (move, rotate, hold, drop, soft drop on/off, garbage accepted) at a specific frame.
+One atomic engine instruction (move, rotate, hold, soft drop, hard drop, garbage accepted) at a specific frame.
 _Avoid_: command, keypress, event
 
 **Frame**:

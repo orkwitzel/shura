@@ -155,6 +155,21 @@ describe('hash', () => {
     'the gravity counter': (s) => {
       s.gravityCounter++;
     },
+    'the lock timer': (s) => {
+      s.lockTimer++;
+    },
+    'the lock resets': (s) => {
+      s.lockResets++;
+    },
+    'the lowest row': (s) => {
+      s.lowestRow--;
+    },
+    'the hold': (s) => {
+      s.hold = s.hold === 'T' ? 'I' : 'T';
+    },
+    'the hold-used flag': (s) => {
+      s.holdUsed = !s.holdUsed;
+    },
     'the top-out flag': (s) => {
       s.toppedOut = !s.toppedOut;
     },

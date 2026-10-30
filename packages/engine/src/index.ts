@@ -6,6 +6,8 @@ export {
   DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
+  LOCK_DELAY,
+  LOCK_RESETS,
   type ModeSettings,
   PREVIEW_SIZE,
   type ReadonlyEngineState,
