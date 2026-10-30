@@ -23,7 +23,7 @@ _Online multiplayer falling-block battles, in your browser or your terminal._
 - **Modern rules**: SRS rotation with 180° kicks, 7-bag, hold, 5-piece preview, ghost piece, T-spins, back-to-back, combos and perfect clears.
 - **Garbage battles**: attacks cancel incoming garbage first, and margin time ramps up the damage so long matches end.
 - **Fair online play**: every match is re-simulated by the server from your inputs, so outcomes can't be faked by a modified client.
-- **Two clients, one game**: a React + canvas web client and an [Ink](https://github.com/vadimdemedes/ink) terminal client share the same engine and connect to the same servers.
+- **Two clients, one game**: a React + PixiJS web client and an [Ink](https://github.com/vadimdemedes/ink) terminal client share the same engine and connect to the same servers.
 - **No sign-up**: pick a nickname and play. Share a 4-character room code or join the 1v1 quick-match queue.
 - **Tunable handling**: DAS, ARR and soft-drop speed are client settings, with precise key-release input in terminals that support it.
 - **Built to scale**: stateless gateways, game servers that each host many rooms, and Valkey for coordination.

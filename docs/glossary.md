@@ -148,6 +148,28 @@ _Avoid_: controller, input handler
 The two CLI input modes. Precise has real key-release events. Basic infers releases from the terminal's key-repeat stream.
 _Avoid_: kitty mode, fallback mode
 
+## Clients
+
+**Engine event**:
+Something that happened during an engine step (a lock and what it cleared, a hold, a turn, a hard drop, a level-up, a top-out), reported to clients for sound, effects and callouts. Output only: never part of the engine state or its hash.
+_Avoid_: action (actions go into the engine, events come out), signal
+
+**Callout**:
+A short on-screen label for a notable lock, worked out from engine events: "T-SPIN DOUBLE", "BACK-TO-BACK", "COMBO 3", "PERFECT CLEAR".
+_Avoid_: popup, toast, announcement
+
+**Effect**:
+A visual overlay driven by engine events, such as particles on a line clear or a hard-drop trail. Effects never delay play.
+_Avoid_: animation (for the setting), juice, VFX (in code)
+
+**Theme**:
+A designed set of colours shared by the web and the CLI: the piece colours, ghost and garbage, and the UI chrome around them.
+_Avoid_: palette (for the whole set), color scheme
+
+**Skin**:
+How a cell is drawn, separately from its colour: on the canvas and as two terminal characters. Flat, Outlined or Bevelled.
+_Avoid_: block style, tile set, theme (for this)
+
 ## Online play
 
 **Room**:
