@@ -1,17 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import {
-  type Action,
   ActionType,
   FFA,
   MARATHON,
   type ModeSettings,
   ONE_VS_ONE,
-  restoreEngine,
   SPRINT,
   SUBROWS_PER_ROW,
   ULTRA,
 } from '../src/index';
-import { gameOf, I_IN_WELL, well } from './support/game';
+import { clearing, gameOf, HARD_DROP_AT_1, I_IN_WELL } from './support/game';
 
 /**
  * The guideline gravity curve, in seconds per row: (0.8 − (level − 1) × 0.007) ^ (level − 1). It
@@ -39,15 +37,8 @@ function subrowsPerFrame(secondsPerRow: number): number {
 /** A game of `settings` at `linesCleared` lines, with an I set to clear `lines` lines at frame 1. */
 function clearingAt(settings: ModeSettings, linesCleared: number, lines: number) {
   const level = Math.min(1 + Math.floor(linesCleared / 10), settings.gravity.speeds.length);
-  return gameOf(settings, {
-    board: ['L.........', ...well(lines)],
-    piece: I_IN_WELL,
-    linesCleared,
-    level,
-  });
+  return gameOf(settings, { ...clearing(lines), linesCleared, level });
 }
-
-const HARD_DROP_AT_1: Action[] = [{ frame: 1, type: ActionType.HardDrop }];
 
 describe('Marathon', () => {
   describe('gravity', () => {
@@ -245,7 +236,7 @@ describe('Ultra', () => {
 
   test('keeps the final score once it has ended', () => {
     // The Tetris at frame 7,101 scores 800, and the game ends 99 frames later.
-    const engine = restoreEngine({ ...clearingAt(ULTRA, 0, 4).serialize(), frame: 7_100 });
+    const engine = gameOf(ULTRA, { ...clearing(4), frame: 7_100 });
     engine.step(7_200, [{ frame: 7_101, type: ActionType.HardDrop }]);
     expect(engine.state).toMatchObject({ finished: true, toppedOut: false, score: 800 });
     const ended = engine.hash();
@@ -261,7 +252,7 @@ describe.each([
 ])('$name', ({ settings }) => {
   /** A game of `settings` at `frame`, with a piece just spawned. */
   function atFrame(frame: number) {
-    return restoreEngine({ ...gameOf(settings).serialize(), frame });
+    return gameOf(settings, { frame });
   }
 
   // The proposed versus curve (design §3): 1 row/s at first, 1 row/s faster every 30 s (1,800
@@ -296,8 +287,7 @@ describe.each([
   });
 
   test('stays at level 1 whatever lines are cleared', () => {
-    const board = ['L.........', ...well(4)];
-    const engine = gameOf(settings, { board, piece: I_IN_WELL, linesCleared: 39 });
+    const engine = gameOf(settings, { ...clearing(4), linesCleared: 39 });
     engine.step(1, HARD_DROP_AT_1);
     expect(engine.state.level).toBe(1);
     expect(engine.state.score).toBe(800);

@@ -1,19 +1,18 @@
 import { assertInteger } from './assert';
-import { applyMarginTime, calculateAttack } from './attack';
+import { calculateAttack } from './attack';
 import {
   BOARD_WIDTH,
   type Board,
   clearLines,
   collides,
   createBoard,
-  insertGarbage,
   isEmpty,
   lockPiece,
   VISIBLE_ROWS,
 } from './board';
-import { cancelGarbage, type GarbageEntry, holeColumn } from './garbage';
+import { addToMeter, type GarbageEntry, type LastHole, landGarbage, sendAttack } from './garbage';
 import { hashText } from './hash';
-import { type GarbageRules, type ModeSettings, SUBROWS_PER_ROW } from './modes';
+import { assertModeSettings, type ModeSettings, SUBROWS_PER_ROW } from './modes';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 import { srs, turned } from './rotation';
@@ -122,7 +121,7 @@ export interface EngineState {
    * the garbage cap cut short keeps its column, and the next attack's hole moves (design §3).
    * `null` until garbage first lands.
    */
-  lastHole: { id: number; column: number } | null;
+  lastHole: LastHole | null;
 }
 
 /**
@@ -211,40 +210,29 @@ class Engine {
   ): StepResult {
     assertInteger('step frame', frame, this.#state.frame);
     let previous = this.#state.frame + 1;
+    let landsAccepted = false;
     for (const action of actions) {
       assertInteger('action frame', action.frame, previous, frame);
       previous = action.frame;
+      if (action.type === ActionType.GarbageAccepted) {
+        if (acceptGarbage) {
+          throw new RangeError('a step that accepts garbage records garbageAccepted itself');
+        }
+        assertInteger('garbageAccepted id', action.id, 0);
+        landsAccepted = true;
+      }
     }
-    const { moves, accepted } = partitionActions(actions);
-    if (acceptGarbage && accepted.length > 0) {
-      throw new RangeError('a step that accepts garbage records garbageAccepted itself');
-    }
-    for (const { id } of accepted) assertInteger('garbageAccepted id', id, 0);
 
-    // Steps a copy, so that a step that throws changes nothing.
-    const s = cloneState(this.#state);
+    // Only a `garbageAccepted` can throw once the step is under way, so only then does it step a
+    // copy, so that a step that throws changes nothing.
+    const s = landsAccepted ? cloneState(this.#state) : this.#state;
     const context: LockContext = { out: { sent: [], accepted: [] }, acceptGarbage, toLand: [] };
-    let move = 0;
-    let accept = 0;
+    let next = 0;
     while (s.frame < frame && !isOver(s)) {
       s.frame++;
-      const movesEnd = endOfFrame(moves, move, s.frame);
-      const acceptedEnd = endOfFrame(accepted, accept, s.frame);
-      context.toLand = accepted.slice(accept, acceptedEnd).map(({ id }) => id);
-      accept = acceptedEnd;
-      countLockFrame(s);
-      for (; move < movesEnd && !isOver(s); move++) {
-        applyAction(s, context, (moves[move] as PieceAction).type);
-      }
-      move = movesEnd;
-      // A hard drop can end the game mid-frame, and it stops there.
-      if (!isOver(s)) applyGravity(s, context);
-      if (!isOver(s) && context.toLand.length > 0) {
-        throw new RangeError(
-          `garbageAccepted{${context.toLand[0]}} at frame ${s.frame} has no lock that clears nothing left to land at`,
-        );
-      }
-      if (!isOver(s) && reachedFrameLimit(s)) s.finished = true;
+      const end = endOfFrame(actions, next, s.frame);
+      playFrame(s, context, actions.slice(next, end));
+      next = end;
     }
     this.#state = s;
     return context.out;
@@ -256,17 +244,10 @@ class Engine {
    * and its hole seed must be a 32-bit unsigned integer.
    */
   queueGarbage(entry: Readonly<GarbageEntry>): void {
-    const meter = this.#state.garbageMeter;
     if (this.#state.settings.garbage === null) {
       throw new RangeError('a single-player mode has no garbage');
     }
-    assertInteger('garbage id', entry.id, 0);
-    if (meter.some(({ id }) => id === entry.id)) {
-      throw new RangeError(`garbage ${entry.id} is already in the meter`);
-    }
-    assertInteger('garbage lines', entry.lines, 1);
-    assertInteger('holeSeed', entry.holeSeed, 0, 0xffffffff);
-    meter.push({ id: entry.id, lines: entry.lines, holeSeed: entry.holeSeed });
+    addToMeter(this.#state.garbageMeter, entry);
   }
 }
 
@@ -311,28 +292,6 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
   return new Engine(state);
 }
 
-/** Throws a RangeError unless every mode setting is a whole number in its range. */
-function assertModeSettings(settings: ModeSettings): void {
-  const { speeds, interval } = settings.gravity;
-  if (speeds.length === 0) throw new RangeError('gravity must have at least one speed');
-  for (const speed of speeds) assertInteger('gravity speed', speed, 1);
-  if (interval !== null) assertInteger('gravity interval', interval, 1);
-  if (settings.linesPerLevel !== null) {
-    assertInteger('linesPerLevel', settings.linesPerLevel, 1);
-  }
-  if (settings.lineGoal !== null) assertInteger('lineGoal', settings.lineGoal, 1);
-  if (settings.frameLimit !== null) assertInteger('frameLimit', settings.frameLimit, 1);
-  assertInteger('lockDelay', settings.lockDelay, 1);
-  assertInteger('maxLockResets', settings.maxLockResets, 0);
-  assertInteger('previewSize', settings.previewSize, 0);
-  if (settings.garbage !== null) {
-    const { cap, marginTime } = settings.garbage;
-    assertInteger('garbage cap', cap, 1);
-    assertInteger('margin time start', marginTime.start, 1);
-    assertInteger('margin time interval', marginTime.interval, 1);
-  }
-}
-
 /** An engine continuing from `state`, which is copied. */
 export function restoreEngine(state: EngineState): Engine {
   return new Engine(state);
@@ -353,6 +312,29 @@ function reachedFrameLimit({ frame, settings: { frameLimit } }: EngineState): bo
 /** Whether the player has cleared the mode's line goal, if it has one. */
 function reachedLineGoal({ linesCleared, settings: { lineGoal } }: EngineState): boolean {
   return lineGoal !== null && linesCleared >= lineGoal;
+}
+
+/**
+ * Plays the frame `s.frame` as `step` says: its piece actions in order, then gravity, then the
+ * frame limit, with its `garbageAccepted` actions naming the garbage its locks land. A hard drop
+ * can end the game mid-frame, and the frame stops there.
+ */
+function playFrame(s: EngineState, context: LockContext, actions: readonly Action[]): void {
+  const { moves, accepted } = partitionActions(actions);
+  context.toLand = accepted.map(({ id }) => id);
+  countLockFrame(s);
+  for (const { type } of moves) {
+    applyAction(s, context, type);
+    if (isOver(s)) return;
+  }
+  applyGravity(s, context);
+  if (isOver(s)) return;
+  if (context.toLand.length > 0) {
+    throw new RangeError(
+      `garbageAccepted{${context.toLand[0]}} at frame ${s.frame} has no lock that clears nothing left to land at`,
+    );
+  }
+  if (reachedFrameLimit(s)) s.finished = true;
 }
 
 function applyAction(s: EngineState, context: LockContext, type: PieceActionType): void {
@@ -501,7 +483,10 @@ function lock(s: EngineState, context: LockContext): void {
   const clear: LockClear = { lines, tSpin, perfectClear: isEmpty(s.board) };
   const { garbage } = s.settings;
   // Before scoring, which moves the combo and back-to-back status on past this lock.
-  if (garbage) sendAttack(s, context, garbage, calculateAttack(s, clear));
+  if (garbage && lines > 0) {
+    const sent = sendAttack(s, garbage, calculateAttack(s, clear));
+    if (sent > 0) context.out.sent.push({ frame: s.frame, lines: sent });
+  }
   scoreLock(s, clear);
   levelUp(s);
   s.holdUsed = false;
@@ -509,74 +494,37 @@ function lock(s: EngineState, context: LockContext): void {
     s.finished = true;
     return;
   }
-  if (garbage && lines === 0) landGarbage(s, context, garbage);
+  if (garbage && lines === 0) {
+    landGarbage(s, garbage, (oldest): oldest is GarbageEntry => lands(s, context, oldest));
+  }
   if (s.toppedOut) return;
   spawn(s, nextFromQueue(s));
 }
 
 /**
- * Sends a lock's attack (design §3): multiplies it for margin time, adding the carry from the last
- * attack's rounding, then cancels the whole lines against the garbage meter there and then, so a
- * later lock in the same frame can't land what it cancelled, and reports the rest as sent.
+ * Whether a lock that cleared nothing lands lines of `oldest`, the oldest attack in the garbage
+ * meter (design §8.5). Accepting garbage, it lands whatever the meter holds, and records a
+ * `garbageAccepted` for each attack it lands lines of. Otherwise it lands the attacks the frame's
+ * `garbageAccepted` actions name, in order, each of which must be the oldest.
  */
-function sendAttack(
+function lands(
   s: EngineState,
   context: LockContext,
-  { marginTime }: GarbageRules,
-  attack: number,
-): void {
-  const multiplied = applyMarginTime(attack, s.frame, marginTime, s.marginCarry);
-  s.marginCarry = multiplied.carry;
-  const { meter, remainder } = cancelGarbage(s.garbageMeter, multiplied.lines);
-  s.garbageMeter = meter;
-  if (remainder > 0) context.out.sent.push({ frame: s.frame, lines: remainder });
-}
-
-/**
- * Lands garbage at a lock that cleared nothing (design §3, §8.5): the oldest attacks in the meter,
- * up to the mode's garbage cap, splitting an attack the cap cuts short. Accepting garbage, it lands
- * what the meter holds and records a `garbageAccepted` for each attack it lands lines of. Otherwise
- * it lands the attacks the frame's `garbageAccepted` name, in order. Garbage that pushes the stack
- * past the top of the board tops the player out.
- */
-function landGarbage(s: EngineState, context: LockContext, { cap }: GarbageRules): void {
-  let room = cap;
-  while (room > 0 && !s.toppedOut) {
-    const entry = s.garbageMeter[0];
-    if (context.acceptGarbage) {
-      if (!entry) return;
-      context.out.accepted.push({
-        frame: s.frame,
-        type: ActionType.GarbageAccepted,
-        id: entry.id,
-      });
-    } else {
-      const id = context.toLand.shift();
-      if (id === undefined) return;
-      if (entry?.id !== id) {
-        throw new RangeError(
-          `garbageAccepted{${id}} at frame ${s.frame} isn't the oldest garbage in the meter`,
-        );
-      }
-    }
-    const lines = Math.min(room, entry.lines);
-    room -= lines;
-    entry.lines -= lines;
-    if (entry.lines === 0) s.garbageMeter.shift();
-    if (insertGarbage(s.board, lines, landingHole(s, entry))) s.toppedOut = true;
+  oldest: GarbageEntry | undefined,
+): oldest is GarbageEntry {
+  if (context.acceptGarbage) {
+    if (!oldest) return false;
+    context.out.accepted.push({ frame: s.frame, type: ActionType.GarbageAccepted, id: oldest.id });
+    return true;
   }
-}
-
-/**
- * The column of the hole in the lines of `entry` landing now: the column it started landing in if
- * the garbage cap cut it short, or else a new column its hole seed picks away from the last hole.
- */
-function landingHole(s: EngineState, entry: Readonly<GarbageEntry>): number {
-  const { lastHole } = s;
-  if (lastHole?.id !== entry.id) {
-    s.lastHole = { id: entry.id, column: holeColumn(entry.holeSeed, lastHole?.column ?? null) };
+  const id = context.toLand.shift();
+  if (id === undefined) return false;
+  if (oldest?.id !== id) {
+    throw new RangeError(
+      `garbageAccepted{${id}} at frame ${s.frame} isn't the oldest garbage in the meter`,
+    );
   }
-  return (s.lastHole as { column: number }).column;
+  return true;
 }
 
 /** The player's own actions, and the `garbageAccepted` actions apart, each in their order. */

@@ -10,11 +10,9 @@ import {
   restoreEngine,
 } from '../src/index';
 import { loadRecordedMatches, replay } from './support/recorded-matches';
-import { TEST_SETTINGS } from './support/settings';
+import { TEST_SETTINGS, VERSUS_GARBAGE } from './support/settings';
 
 const SEED = 77;
-
-const VERSUS_GARBAGE = ONE_VS_ONE.garbage as GarbageRules;
 
 function newEngine(): Engine {
   return createEngine(TEST_SETTINGS, SEED, 0);
@@ -76,17 +74,9 @@ describe('serialize and restore', () => {
   });
 
   test.each(loadRecordedMatches())(
-    'restoring partway through $file gives the same hash',
+    'restoring before every frame of $file gives the same hashes',
     ({ match }) => {
-      const expected = replay(match).join();
-      // Every 97th frame, as the gravity-only match is too long to restore at every frame, and 25
-      // frames through a versus match, which replays frame by frame.
-      const every = 'players' in match ? Math.ceil(match.lastFrame / 25) : 97;
-      for (let frame = 0; frame <= match.lastFrame; frame += every) {
-        if (replay(match, { restoreAt: frame }).join() !== expected) {
-          expect.fail(`restoring at frame ${frame} changed the outcome`);
-        }
-      }
+      expect(replay(match, { restoring: true }).hashes).toEqual(replay(match).hashes);
     },
   );
 

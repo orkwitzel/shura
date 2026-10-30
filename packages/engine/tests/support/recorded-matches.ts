@@ -1,17 +1,17 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   type Action,
-  createEngine,
+  ActionType,
   ENGINE_VERSION,
   FFA,
+  type GarbageAcceptedAction,
   MARATHON,
   type ModeSettings,
   ONE_VS_ONE,
-  restoreEngine,
   SPRINT,
   ULTRA,
 } from '../../src/index';
-import { byFrame, VersusMatch } from './versus';
+import { byFrame, Match } from './match';
 
 /** The presets, by the name a recorded match gives its mode. */
 export const PRESETS = {
@@ -24,8 +24,13 @@ export const PRESETS = {
 
 export type PresetName = keyof typeof PRESETS;
 
-/** What every recorded match holds besides its players' actions and hashes. */
-interface MatchSetup {
+/**
+ * A recorded match (design §5.3): everything needed to replay a game, and the hash each player's
+ * game must end on. A single-player mode's has one player; a 1v1's has two, and the replay plays
+ * the server's part as `Match` does, so the garbage queued on each player comes from the other's
+ * attacks, and lands where their `garbageAccepted` actions say.
+ */
+export interface RecordedMatch {
   description: string;
   /** The `ENGINE_VERSION` the expected hashes were recorded with. */
   engineVersion: number;
@@ -39,6 +44,8 @@ interface MatchSetup {
   settings?: Partial<ModeSettings>;
   /** The frame the replay steps to. */
   lastFrame: number;
+  /** Each player's game, by player index. */
+  players: RecordedPlayer[];
 }
 
 /**
@@ -48,32 +55,10 @@ interface MatchSetup {
 export function settingsOf({
   mode,
   settings,
-}: Pick<MatchSetup, 'mode' | 'settings'>): ModeSettings {
+}: Pick<RecordedMatch, 'mode' | 'settings'>): ModeSettings {
   const preset: ModeSettings | undefined = PRESETS[mode];
   if (!preset) throw new Error(`no preset is named ${JSON.stringify(mode)}`);
   return settings ? { ...preset, ...settings } : preset;
-}
-
-/**
- * A recorded match (design §5.3): everything needed to replay a game, and the hash each player's
- * game must end on. It is either one player's game or a 1v1 match.
- */
-export type RecordedMatch = SoloMatch | VersusRecordedMatch;
-
-/** One player's game. */
-export interface SoloMatch extends MatchSetup {
-  playerIndex: number;
-  expectedHash: string;
-  actions: Action[];
-}
-
-/**
- * A 1v1 match: player `i`'s game is `players[i]`. The replay plays the server's part as
- * `VersusMatch` does, so the garbage queued on each player comes from the other's attacks, and lands
- * where their `garbageAccepted` actions say.
- */
-export interface VersusRecordedMatch extends MatchSetup {
-  players: RecordedPlayer[];
 }
 
 export interface RecordedPlayer {
@@ -97,65 +82,63 @@ export function loadRecordedMatches(): { file: string; match: RecordedMatch }[] 
 
 /** The hash each player's game must end on, by player. */
 export function expectedHashes(match: RecordedMatch): string[] {
-  return 'players' in match
-    ? match.players.map(({ expectedHash }) => expectedHash)
-    : [match.expectedHash];
+  return match.players.map(({ expectedHash }) => expectedHash);
 }
 
 /** `match` with the expected hashes `hashes`, by player. */
 export function withHashes(match: RecordedMatch, hashes: readonly string[]): RecordedMatch {
-  const hash = (player: number) => hashes[player] ?? '';
-  if ('players' in match) {
-    const players = match.players.map((player, index) => ({
-      ...player,
-      expectedHash: hash(index),
-    }));
-    return { ...match, players };
-  }
-  return { ...match, expectedHash: hash(0) };
+  const players = match.players.map((player, index) => ({
+    ...player,
+    expectedHash: hashes[index] ?? '',
+  }));
+  return { ...match, players };
+}
+
+export interface ReplayOptions {
+  /** Serialize and restore every engine before every frame, as a reconnect would. */
+  restoring?: boolean;
+  /**
+   * Play as the players' clients do: leave out the recorded `garbageAccepted` actions and let each
+   * engine land garbage itself, recording where it did.
+   */
+  acceptGarbage?: boolean;
 }
 
 /**
- * Plays a recorded match through and returns the final hash of each player's game. With `restoreAt`,
- * every engine is serialized and restored at that frame on the way.
+ * Plays a recorded match through, frame by frame. Returns the final hash of each player's game, and
+ * the `garbageAccepted` actions each player's engine recorded if it accepted garbage.
  */
-export function replay(match: RecordedMatch, { restoreAt = -1 } = {}): string[] {
-  if ('players' in match) return replayVersus(match, restoreAt);
-  const { actions, lastFrame } = match;
-  const engine = createEngine(settingsOf(match), match.seed, match.playerIndex);
-  if (restoreAt < 0) {
-    engine.step(lastFrame, actions);
-    return [engine.hash()];
-  }
-  engine.step(
-    restoreAt,
-    actions.filter((action) => action.frame <= restoreAt),
+export function replay(
+  match: RecordedMatch,
+  { restoring = false, acceptGarbage = false }: ReplayOptions = {},
+): { hashes: string[]; accepted: GarbageAcceptedAction[][] } {
+  const { players, lastFrame } = match;
+  const game = new Match(settingsOf(match), match.seed, players.length);
+  const frames = players.map(({ actions }) =>
+    byFrame(
+      acceptGarbage
+        ? actions.filter((action) => action.type !== ActionType.GarbageAccepted)
+        : actions,
+      lastFrame,
+    ),
   );
-  const restored = restoreEngine(engine.serialize());
-  restored.step(
-    lastFrame,
-    actions.filter((action) => action.frame > restoreAt),
-  );
-  return [restored.hash()];
-}
-
-function replayVersus(match: VersusRecordedMatch, restoreAt: number): string[] {
-  const game = new VersusMatch(settingsOf(match), match.seed);
-  const frames = match.players.map(({ actions }) => byFrame(actions, match.lastFrame));
-  for (let frame = 1; frame <= match.lastFrame; frame++) {
-    if (frame - 1 === restoreAt) game.restore();
-    game.playFrame(
+  const accepted: GarbageAcceptedAction[][] = players.map(() => []);
+  for (let frame = 1; frame <= lastFrame; frame++) {
+    if (restoring) game.restore();
+    const landed = game.playFrame(
       frame,
       frames.map((actions) => actions[frame] ?? []),
+      { acceptGarbage },
     );
+    for (const [player, actions] of landed.entries()) accepted[player]?.push(...actions);
   }
-  return game.engines.map((engine) => engine.hash());
+  return { hashes: game.engines.map((engine) => engine.hash()), accepted };
 }
 
 /** Replays a recorded match twice. Returns why it fails, or `null` if both runs match the record. */
 export function checkRecordedMatch(file: string, match: RecordedMatch): string | null {
-  const first = replay(match).join(', ');
-  const second = replay(match).join(', ');
+  const first = replay(match).hashes.join(', ');
+  const second = replay(match).hashes.join(', ');
   if (first !== second) {
     return `${file} ended on ${first}, then on ${second}, from the same input. The engine is no longer deterministic: find what reads state outside the engine (docs/design.md §5.1).`;
   }
@@ -177,7 +160,7 @@ export function checkRecordedMatch(file: string, match: RecordedMatch): string |
 /** Rewrites every recorded match with the hashes and engine version of the current engine. */
 export function recordAll(): { file: string; changed: boolean }[] {
   return loadRecordedMatches().map(({ file, match }) => {
-    const hashes = replay(match);
+    const { hashes } = replay(match);
     const changed =
       hashes.join() !== expectedHashes(match).join() || match.engineVersion !== ENGINE_VERSION;
     if (changed) {
@@ -189,22 +172,13 @@ export function recordAll(): { file: string; changed: boolean }[] {
 
 /** Writes a recorded match with one action per line, so diffs stay readable. */
 export function writeRecordedMatch(file: string, match: RecordedMatch): void {
-  let head: string;
-  let body: string;
-  if ('players' in match) {
-    const { players, ...rest } = match;
-    head = headOf(rest);
-    const objects = players.map(
-      ({ expectedHash, actions }) =>
-        `    {\n      "expectedHash": ${JSON.stringify(expectedHash)},\n      "actions": [\n${actionLines(actions, 8)}\n      ]\n    }`,
-    );
-    body = `  "players": [\n${objects.join(',\n')}\n  ]`;
-  } else {
-    const { actions, ...rest } = match;
-    head = headOf(rest);
-    body = `  "actions": [\n${actionLines(actions, 4)}\n  ]`;
-  }
-  writeFileSync(new URL(file, RECORDED_MATCHES_DIR), `${head},\n${body}\n}\n`);
+  const { players, ...rest } = match;
+  const objects = players.map(
+    ({ expectedHash, actions }) =>
+      `    {\n      "expectedHash": ${JSON.stringify(expectedHash)},\n      "actions": [\n${actionLines(actions, 8)}\n      ]\n    }`,
+  );
+  const body = `  "players": [\n${objects.join(',\n')}\n  ]`;
+  writeFileSync(new URL(file, RECORDED_MATCHES_DIR), `${headOf(rest)},\n${body}\n}\n`);
 }
 
 /** The fields of `rest` as the start of a pretty-printed object, without its closing brace. */

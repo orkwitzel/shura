@@ -3,15 +3,15 @@ import {
   type Action,
   ActionType,
   type ActivePiece,
+  GARBAGE,
   type GarbageAcceptedAction,
   type GarbageEntry,
   holeColumn,
   ONE_VS_ONE,
   type ReadonlyEngineState,
-  restoreEngine,
 } from '../src/index';
 import { renderLocked } from './support/board';
-import { type GameSetup, gameOf as gameOfMode, I_IN_WELL, well } from './support/game';
+import { clearing, type GameSetup, gameOf as gameOfMode, HARD_DROP_AT_1 } from './support/game';
 import { TEST_SETTINGS } from './support/settings';
 
 /** A 1v1 game changed by `setup`. */
@@ -48,7 +48,7 @@ describe('the garbage meter', () => {
 function holesOf(state: ReadonlyEngineState): number[] {
   const holes: number[] = [];
   for (const row of state.board) {
-    if (!row.includes('G')) break;
+    if (!row.includes(GARBAGE)) break;
     expect(
       row.filter((cell) => cell === null),
       'a garbage row has one hole',
@@ -57,8 +57,6 @@ function holesOf(state: ReadonlyEngineState): number[] {
   }
   return holes;
 }
-
-const HARD_DROP_AT_1: Action[] = [{ frame: 1, type: ActionType.HardDrop }];
 
 describe('garbage landing, accepting garbage as it comes', () => {
   test('lands queued garbage at a lock that clears nothing, recording garbageAccepted then', () => {
@@ -72,7 +70,7 @@ describe('garbage landing, accepting garbage as it comes', () => {
   });
 
   test("doesn't land at a lock that clears lines", () => {
-    const engine = gameOf({ board: ['L.........', ...well(1)], piece: I_IN_WELL, garbage: [A] });
+    const engine = gameOf({ ...clearing(1), garbage: [A] });
     const { accepted } = engine.step(1, HARD_DROP_AT_1, { acceptGarbage: true });
     expect(accepted).toEqual([]);
     expect(engine.state.garbageMeter).toEqual([A]);
@@ -261,15 +259,12 @@ describe('garbage landing, replaying garbageAccepted', () => {
 
 describe('sending garbage', () => {
   test('a single-player mode sends none and takes none', () => {
-    const engine = gameOfMode(TEST_SETTINGS, {
-      board: ['L.........', ...well(4)],
-      piece: I_IN_WELL,
-    });
+    const engine = gameOfMode(TEST_SETTINGS, clearing(4));
     expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
     expect(() => engine.queueGarbage(A)).toThrow(RangeError);
   });
 
-  const TETRIS_READY = { board: ['L.........', ...well(4)], piece: I_IN_WELL };
+  const TETRIS_READY = clearing(4);
   const TWO_HARD_DROPS_AT_1: Action[] = [...HARD_DROP_AT_1, ...HARD_DROP_AT_1];
 
   test('step reports the lines each lock sends, at its frame', () => {
@@ -279,7 +274,7 @@ describe('sending garbage', () => {
   });
 
   test('a lock that sends nothing reports nothing', () => {
-    const engine = gameOf({ board: ['L.........', ...well(1)], piece: I_IN_WELL });
+    const engine = gameOf(clearing(1));
     expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
   });
 
@@ -334,11 +329,9 @@ describe('sending garbage', () => {
 
   /** A double at frame 9,000, at ×1.5: an attack of 1, so 6 quarter-lines with nothing carried. */
   function doubleAt9000(marginCarry: number, garbage: readonly GarbageEntry[] = []) {
-    const board = ['L.........', ...well(2)];
-    const engine = gameOf({ board, piece: I_IN_WELL, frame: 8_999, garbage });
-    const restored = restoreEngine({ ...engine.serialize(), marginCarry });
-    const { sent } = restored.step(9_000, [{ frame: 9_000, type: ActionType.HardDrop }]);
-    return { engine: restored, sent };
+    const engine = gameOf({ ...clearing(2), frame: 8_999, marginCarry, garbage });
+    const { sent } = engine.step(9_000, [{ frame: 9_000, type: ActionType.HardDrop }]);
+    return { engine, sent };
   }
 
   test("carries margin time's fraction of a line in the state to the next attack", () => {

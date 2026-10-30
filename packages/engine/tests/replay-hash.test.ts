@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { type Action, ActionType, ENGINE_VERSION, MARATHON, SPRINT } from '../src/index';
+import { ActionType, ENGINE_VERSION, MARATHON, SPRINT } from '../src/index';
 import {
   checkRecordedMatch,
   expectedHashes,
@@ -7,16 +7,13 @@ import {
   PRESETS,
   RECORD_COMMAND,
   type RecordedMatch,
+  replay,
   settingsOf,
-  type VersusRecordedMatch,
   withHashes,
 } from './support/recorded-matches';
-import { byFrame, VersusMatch } from './support/versus';
 
 const matches = loadRecordedMatches();
-const versusMatches = matches.flatMap(({ file, match }) =>
-  'players' in match ? [{ file, match }] : [],
-);
+const versusMatches = matches.filter(({ match }) => match.players.length === 2);
 
 describe('replay-hash suite', () => {
   test('has recorded matches', () => {
@@ -24,7 +21,7 @@ describe('replay-hash suite', () => {
   });
 
   test('has a recorded 2-player match', () => {
-    expect(versusMatches.map(({ match }) => match.players.length)).toContain(2);
+    expect(versusMatches.length).toBeGreaterThan(0);
   });
 
   test.each(matches)('$file replays to its recorded hash', ({ file, match }) => {
@@ -50,33 +47,9 @@ describe('a recorded match', () => {
   });
 });
 
-/**
- * Plays `match` as the players' clients would: their engines land garbage themselves, from the
- * actions without `garbageAccepted`, and record where it landed.
- */
-function playAccepting(match: VersusRecordedMatch) {
-  const { seed, players, lastFrame } = match;
-  const game = new VersusMatch(settingsOf(match), seed);
-  const frames = players.map(({ actions }) =>
-    byFrame(
-      actions.filter((action) => action.type !== ActionType.GarbageAccepted),
-      lastFrame,
-    ),
-  );
-  const accepted: Action[][] = players.map(() => []);
-  for (let frame = 1; frame <= lastFrame; frame++) {
-    const landed = game.playFrame(
-      frame,
-      frames.map((actions) => actions[frame] ?? []),
-      { acceptGarbage: true },
-    );
-    for (const [player, actions] of landed.entries()) accepted[player]?.push(...actions);
-  }
-  return { accepted, hashes: game.engines.map((engine) => engine.hash()) };
-}
-
 describe.each(versusMatches)('the 2-player match $file', ({ match }) => {
-  const { accepted, hashes } = playAccepting(match);
+  // As the players' clients play it: their engines land garbage themselves and record where.
+  const { accepted, hashes } = replay(match, { acceptGarbage: true });
 
   test('lands garbage on both players', () => {
     for (const actions of accepted) expect(actions.length).toBeGreaterThan(0);

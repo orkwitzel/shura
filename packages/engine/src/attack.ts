@@ -1,5 +1,5 @@
 import type { MarginTime } from './modes';
-import { isDifficult, type LockClear } from './scoring';
+import { isDifficult, type LockClear, type ScoringState } from './scoring';
 import { TSpin } from './t-spin';
 
 /**
@@ -19,15 +19,10 @@ const COMBO_ATTACK = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5] as const;
 const PERFECT_CLEAR_ATTACK = 10;
 
 /**
- * What the locks before a lock leave its attack: the combo counter and back-to-back status, as the
- * fields of `EngineState` hold them before the lock.
+ * What the locks before a lock leave its attack: the combo counter and back-to-back status, as
+ * scoring keeps them before the lock.
  */
-export interface ClearHistory {
-  /** The combo counter: -1 after a lock that cleared nothing. */
-  combo: number;
-  /** Whether the last line clear was a difficult clear. */
-  backToBack: boolean;
-}
+export type ClearHistory = Pick<ScoringState, 'combo' | 'backToBack'>;
 
 /**
  * Multiplies an attack made at `frame` for margin time (design §3): by 1.25 from the frame margin

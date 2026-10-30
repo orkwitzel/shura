@@ -1,3 +1,5 @@
+import { assertInteger } from './assert';
+
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
 export const SUBROWS_PER_ROW = 3_932_160;
 
@@ -58,6 +60,28 @@ export interface MarginTime {
   readonly start: number;
   /** Frames between the multiplier's raises by 0.25. */
   readonly interval: number;
+}
+
+/** Throws a RangeError unless every mode setting is a whole number in its range. */
+export function assertModeSettings(settings: ModeSettings): void {
+  const { speeds, interval } = settings.gravity;
+  if (speeds.length === 0) throw new RangeError('gravity must have at least one speed');
+  for (const speed of speeds) assertInteger('gravity speed', speed, 1);
+  if (interval !== null) assertInteger('gravity interval', interval, 1);
+  if (settings.linesPerLevel !== null) {
+    assertInteger('linesPerLevel', settings.linesPerLevel, 1);
+  }
+  if (settings.lineGoal !== null) assertInteger('lineGoal', settings.lineGoal, 1);
+  if (settings.frameLimit !== null) assertInteger('frameLimit', settings.frameLimit, 1);
+  assertInteger('lockDelay', settings.lockDelay, 1);
+  assertInteger('maxLockResets', settings.maxLockResets, 0);
+  assertInteger('previewSize', settings.previewSize, 0);
+  if (settings.garbage !== null) {
+    const { cap, marginTime } = settings.garbage;
+    assertInteger('garbage cap', cap, 1);
+    assertInteger('margin time start', marginTime.start, 1);
+    assertInteger('margin time interval', marginTime.interval, 1);
+  }
 }
 
 /** Frames a piece can rest on the stack before it locks (design §3). */

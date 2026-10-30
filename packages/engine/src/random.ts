@@ -12,6 +12,13 @@ export function nextRandom(state: number): [value: number, state: number] {
   return [(t ^ (t >>> 14)) >>> 0, next];
 }
 
+/** The next value of a generator whose whole state is `state.rng`, which it advances in place. */
+function draw(state: { rng: number }): number {
+  const [value, rng] = nextRandom(state.rng);
+  state.rng = rng;
+  return value;
+}
+
 /**
  * Produces the piece sequence (design §4). The state is plain data owned by the engine state, and
  * `next` advances it in place, so a copied state continues the same sequence.
@@ -42,9 +49,7 @@ export const holeSeeds = {
 
   /** The next hole seed: a 32-bit unsigned integer. */
   next(state: HoleSeedsState): number {
-    const [value, rng] = nextRandom(state.rng);
-    state.rng = rng;
-    return value;
+    return draw(state);
   },
 };
 
@@ -66,9 +71,7 @@ export const sevenBag: Randomizer<SevenBagState> = {
       const bag: PieceKind[] = [...PIECE_KINDS];
       // Fisher–Yates. `% (i + 1)` is biased by under 2^-29, which is irrelevant here.
       for (let i = bag.length - 1; i > 0; i--) {
-        const [value, rng] = nextRandom(state.rng);
-        state.rng = rng;
-        const j = value % (i + 1);
+        const j = draw(state) % (i + 1);
         [bag[i], bag[j]] = [bag[j] as PieceKind, bag[i] as PieceKind];
       }
       state.bag = bag;

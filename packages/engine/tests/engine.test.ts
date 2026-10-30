@@ -6,9 +6,7 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   createEngine,
-  type GarbageRules,
   type ModeSettings,
-  ONE_VS_ONE,
   PIECE_KINDS,
   type PieceActionType,
   type PieceKind,
@@ -16,8 +14,9 @@ import {
   SUBROWS_PER_ROW,
 } from '../src/index';
 import { emptyRows, render, renderLocked, withActive, withBoard } from './support/board';
+import { gameOf } from './support/game';
 import { draw } from './support/random';
-import { TEST_SETTINGS } from './support/settings';
+import { TEST_SETTINGS, VERSUS_GARBAGE } from './support/settings';
 
 const SEED = 2026;
 
@@ -25,8 +24,6 @@ const SEED = 2026;
 function withGravity(speed: number): ModeSettings {
   return { ...TEST_SETTINGS, gravity: { speeds: [speed], interval: null } };
 }
-
-const VERSUS_GARBAGE = ONE_VS_ONE.garbage as GarbageRules;
 
 function newEngine(seed = SEED) {
   return createEngine(TEST_SETTINGS, seed, 0);
@@ -798,8 +795,7 @@ describe('createEngine', () => {
     // A 10-frame lock delay with 1 restart: the move at frame 5 restarts it, the one at frame 10
     // doesn't, so the T locks at frame 15.
     const settings = { ...TEST_SETTINGS, lockDelay: 10, maxLockResets: 1 };
-    const fresh = createEngine(settings, SEED, 0).serialize();
-    const engine = restoreEngine(withActive(fresh, { kind: 'T', col: 3, row: 1, rotation: 0 }));
+    const engine = gameOf(settings, { piece: { kind: 'T', col: 3, row: 1, rotation: 0 } });
     engine.step(14, [
       { frame: 5, type: ActionType.MoveLeft },
       { frame: 10, type: ActionType.MoveRight },
