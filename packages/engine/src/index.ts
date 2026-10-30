@@ -17,4 +17,5 @@ export {
 export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } from './pieces';
 export { type Randomizer, type SevenBagState, sevenBag } from './random';
 export { type Offset, type Rotation, type RotationSystem, srs } from './rotation';
+export { detectTSpin, TSpin, type Turn } from './t-spin';
 export { ENGINE_VERSION } from './version';

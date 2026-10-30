@@ -1,54 +1,22 @@
 import { describe, expect, test } from 'vitest';
 import { isEmpty } from '../src/board';
-import {
-  ActionType,
-  type ActivePiece,
-  createEngine,
-  DEFAULT_MODE_SETTINGS,
-  type Engine,
-  type EngineState,
-  LOCK_DELAY,
-  restoreEngine,
-} from '../src/index';
+import { ActionType, type ActivePiece, restoreEngine } from '../src/index';
 import { withActive, withBoard } from './support/board';
+import { type Lock, newEngine, play, type Setup } from './support/play';
+import {
+  IN_PLACE,
+  MINI_SLOT,
+  T_IN_MINI_SLOT,
+  T_IN_TSD_SLOT,
+  T_IN_TST_SLOT,
+  TSD_SLOT,
+  TST_KICK,
+  TST_SLOT,
+} from './support/t-spin';
 
 // The points are the guideline's, as tetris.wiki tabulates them for recent guideline games,
 // including the perfect clear bonuses of Tetris Effect: https://tetris.wiki/Scoring (revision
-// 26268). Combo counting follows https://tetris.wiki/Combo.
-
-const SEED = 9;
-
-function newEngine() {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
-}
-
-/** One lock: `piece` put in play where it rests, on `board` if given, else on the board as it is. */
-interface Lock {
-  board?: readonly string[];
-  piece: ActivePiece;
-}
-
-/** Changes the state of a fresh game. */
-type Setup = (state: EngineState) => EngineState;
-
-/**
- * Plays each lock in turn, letting the piece's lock delay run out so it scores no drop points, and
- * returns the points each lock scored. `setup` changes the state of the fresh game first.
- */
-function play(locks: readonly Lock[], setup: Setup = (state) => state) {
-  let engine: Engine = restoreEngine(setup(newEngine().serialize()));
-  const points: number[] = [];
-  for (const { board, piece } of locks) {
-    const current = engine.serialize();
-    const state = withActive(board ? withBoard(current, board) : current, piece);
-    const before = state.score;
-    engine = restoreEngine(state);
-    engine.step(state.frame + LOCK_DELAY, []);
-    expect(engine.state.piecesPlaced, 'the piece should have locked').toBe(state.piecesPlaced + 1);
-    points.push(engine.state.score - before);
-  }
-  return { engine, points };
-}
+// 26268), T-spins included. Combo counting follows https://tetris.wiki/Combo.
 
 function atLevel(level: number): Setup {
   return (state) => ({ ...state, level });
@@ -247,5 +215,98 @@ describe('pieces placed', () => {
       { frame: 3, type: ActionType.HardDrop },
     ]);
     expect(engine.state.piecesPlaced).toBe(2);
+  });
+});
+
+describe('T-spins', () => {
+  /** A T turned in place into a T-spin double slot, `board` or one like it. */
+  function tSpin(board: readonly string[]): Lock {
+    return { board, piece: T_IN_TSD_SLOT, turn: IN_PLACE };
+  }
+
+  /** A T turned in place into a mini T-spin single slot, `board` or one like it. */
+  function mini(board: readonly string[]): Lock {
+    return { board, piece: T_IN_MINI_SLOT, turn: IN_PLACE };
+  }
+
+  // The slots with the right-hand column open, so that they clear fewer lines.
+  const T_SPIN_ZERO = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLL.']);
+  const T_SPIN_SINGLE = tSpin(['LL........', 'L...LLLLL.', 'LL.LLLLLLL']);
+  const T_SPIN_DOUBLE = tSpin(TSD_SLOT);
+  const T_SPIN_TRIPLE: Lock = { board: TST_SLOT, piece: T_IN_TST_SLOT, turn: TST_KICK };
+  const MINI_ZERO = mini(['..L.......', '...LLLLLL.']);
+  const MINI_SINGLE = mini(MINI_SLOT);
+  /** Pointing right from the left wall: the wall fills its back corners, the stack one front one. */
+  const MINI_DOUBLE: Lock = {
+    board: ['..L.......', '..LLLLLLLL', '.LLLLLLLLL'],
+    piece: { kind: 'T', col: -1, row: 2, rotation: 1 },
+    turn: IN_PLACE,
+  };
+
+  test.each([
+    { name: 'mini T-spin zero', lock: MINI_ZERO, lines: 0, points: 100 },
+    { name: 'mini T-spin single', lock: MINI_SINGLE, lines: 1, points: 200 },
+    { name: 'mini T-spin double', lock: MINI_DOUBLE, lines: 2, points: 400 },
+    { name: 'T-spin zero', lock: T_SPIN_ZERO, lines: 0, points: 400 },
+    { name: 'T-spin single', lock: T_SPIN_SINGLE, lines: 1, points: 800 },
+    { name: 'T-spin double', lock: T_SPIN_DOUBLE, lines: 2, points: 1200 },
+    { name: 'T-spin triple', lock: T_SPIN_TRIPLE, lines: 3, points: 1600 },
+  ])('a $name scores $points at level 1', ({ lock, lines, points }) => {
+    const { engine, points: scored } = play([lock]);
+    expect(scored).toEqual([points]);
+    expect(engine.state.linesCleared).toBe(lines);
+  });
+
+  test('score their points times the level', () => {
+    expect(play([T_SPIN_ZERO], atLevel(2)).points).toEqual([800]);
+    expect(play([T_SPIN_DOUBLE], atLevel(2)).points).toEqual([2400]);
+  });
+
+  test('the same T placed without a turn scores as a plain clear', () => {
+    expect(play([{ ...T_SPIN_DOUBLE, turn: undefined }]).points).toEqual([300]);
+  });
+
+  test('a T-spin zero ends the combo', () => {
+    const { engine, points } = play([SINGLE, T_SPIN_ZERO, SINGLE]);
+    expect(points).toEqual([100, 400, 100]);
+    expect(engine.state.combo).toBe(0);
+  });
+
+  describe('back-to-back', () => {
+    test('a T-spin clear after a T-spin clear scores half as much again', () => {
+      expect(play([T_SPIN_DOUBLE, NO_CLEAR, T_SPIN_DOUBLE]).points).toEqual([1200, 0, 1800]);
+    });
+
+    test('carries from a Tetris to a T-spin clear and back', () => {
+      const { points } = play([TETRIS, NO_CLEAR, T_SPIN_SINGLE, NO_CLEAR, TETRIS]);
+      expect(points).toEqual([800, 0, 1200, 0, 1200]);
+    });
+
+    test('a mini T-spin clear is a difficult clear too', () => {
+      expect(play([MINI_SINGLE, NO_CLEAR, TETRIS]).points).toEqual([200, 0, 1200]);
+      expect(play([TETRIS, NO_CLEAR, MINI_DOUBLE]).points).toEqual([800, 0, 600]);
+    });
+
+    test('a single, double or triple breaks the chain between T-spin clears', () => {
+      const { engine, points } = play([T_SPIN_DOUBLE, NO_CLEAR, SINGLE, NO_CLEAR, T_SPIN_DOUBLE]);
+      expect(points).toEqual([1200, 0, 100, 0, 1200]);
+      expect(engine.state.backToBack).toBe(true);
+    });
+
+    test('a T-spin zero neither breaks the chain nor scores the bonus', () => {
+      const { engine, points } = play([TETRIS, T_SPIN_ZERO, MINI_ZERO, TETRIS]);
+      expect(points).toEqual([800, 400, 100, 1200]);
+      expect(engine.state.backToBack).toBe(true);
+    });
+  });
+
+  test('a back-to-back T-spin triple perfect clear scores the triple perfect clear bonus', () => {
+    const TST_PERFECT_CLEAR: Lock = {
+      ...T_SPIN_TRIPLE,
+      board: ['L.LLLLLLLL', 'L..LLLLLLL', 'L.LLLLLLLL'],
+    };
+    const { engine, points } = play([TETRIS, NO_CLEAR, TST_PERFECT_CLEAR]);
+    expect(points).toEqual([800, 0, 2400 + 1800]);
+    expect(isEmpty(engine.state.board)).toBe(true);
   });
 });
