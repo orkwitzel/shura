@@ -6,19 +6,27 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
+  type ModeSettings,
   PIECE_KINDS,
+  type PieceActionType,
   type PieceKind,
   restoreEngine,
   SUBROWS_PER_ROW,
 } from '../src/index';
 import { emptyRows, render, renderLocked, withActive, withBoard } from './support/board';
+import { gameOf } from './support/game';
 import { draw } from './support/random';
+import { TEST_SETTINGS, VERSUS_GARBAGE } from './support/settings';
 
 const SEED = 2026;
 
+/** The test settings with a gravity curve of the one speed `speed`. */
+function withGravity(speed: number): ModeSettings {
+  return { ...TEST_SETTINGS, gravity: { speeds: [speed], interval: null } };
+}
+
 function newEngine(seed = SEED) {
-  return createEngine(DEFAULT_MODE_SETTINGS, seed, 0);
+  return createEngine(TEST_SETTINGS, seed, 0);
 }
 
 /**
@@ -69,10 +77,11 @@ describe('a new engine', () => {
     expect([active.kind, ...queue]).toEqual(expected);
   });
 
-  test('starts at frame 0, not topped out', () => {
-    const { frame, toppedOut } = newEngine().state;
+  test('starts at frame 0, not topped out or finished', () => {
+    const { frame, toppedOut, finished } = newEngine().state;
     expect(frame).toBe(0);
     expect(toppedOut).toBe(false);
+    expect(finished).toBe(false);
   });
 
   test('spawns its first piece in rows 21–22 and drops it into rows 20–21', () => {
@@ -101,7 +110,7 @@ describe('gravity', () => {
   });
 
   test('follows the mode settings', () => {
-    const engine = createEngine({ gravity: 2 * 65_536 }, SEED, 0);
+    const engine = createEngine(withGravity(2 * 65_536), SEED, 0);
     const start = engine.state.active.row;
     engine.step(29, []);
     expect(engine.state.active.row).toBe(start);
@@ -110,7 +119,7 @@ describe('gravity', () => {
   });
 
   test('can move a piece several rows in one frame (20G)', () => {
-    const engine = createEngine({ gravity: 20 * SUBROWS_PER_ROW }, SEED, 0);
+    const engine = createEngine(withGravity(20 * SUBROWS_PER_ROW), SEED, 0);
     const kind = engine.state.active.kind;
     engine.step(1, []);
     // The piece fell from row 20 to the floor in one frame.
@@ -250,7 +259,7 @@ describe('step', () => {
 });
 
 /** `count` of the same action, one per frame from frame `from`. */
-function moves(type: ActionType, count: number, from = 1) {
+function moves(type: PieceActionType, count: number, from = 1) {
   return Array.from({ length: count }, (_, i) => ({ frame: from + i, type }));
 }
 
@@ -369,11 +378,11 @@ describe('lock delay', () => {
 function wiggles(
   count: number,
   every: number,
-  cycle: readonly ActionType[] = [ActionType.MoveLeft, ActionType.MoveRight],
+  cycle: readonly PieceActionType[] = [ActionType.MoveLeft, ActionType.MoveRight],
 ) {
   return Array.from({ length: count }, (_, i) => ({
     frame: (i + 1) * every,
-    type: cycle[i % cycle.length] as ActionType,
+    type: cycle[i % cycle.length] as PieceActionType,
   }));
 }
 
@@ -752,13 +761,58 @@ describe('lock out', () => {
 describe('createEngine', () => {
   test('rejects gravity that is not a positive whole number of sub-rows', () => {
     for (const gravity of [0, -65_536, 0.5, Number.NaN]) {
-      expect(() => createEngine({ gravity }, SEED, 0)).toThrow(RangeError);
+      expect(() => createEngine(withGravity(gravity), SEED, 0)).toThrow(RangeError);
     }
+  });
+
+  test('rejects a gravity curve with no speeds', () => {
+    const settings = { ...TEST_SETTINGS, gravity: { speeds: [], interval: null } };
+    expect(() => createEngine(settings, SEED, 0)).toThrow(RangeError);
+  });
+
+  test.each<[string, Partial<ModeSettings>]>([
+    ['lines per level of 0', { linesPerLevel: 0 }],
+    ['a line goal of 0', { lineGoal: 0 }],
+    ['a fractional frame limit', { frameLimit: 7_200.5 }],
+    ['a lock delay of 0', { lockDelay: 0 }],
+    ['negative lock resets', { maxLockResets: -1 }],
+    ['a negative preview size', { previewSize: -1 }],
+    ['a gravity interval of 0', { gravity: { speeds: [65_536], interval: 0 } }],
+    ['a garbage cap of 0', { garbage: { ...VERSUS_GARBAGE, cap: 0 } }],
+    [
+      'a fractional margin time start',
+      { garbage: { ...VERSUS_GARBAGE, marginTime: { start: 0.5, interval: 1_800 } } },
+    ],
+    [
+      'a margin time interval of 0',
+      { garbage: { ...VERSUS_GARBAGE, marginTime: { start: 7_200, interval: 0 } } },
+    ],
+  ])('rejects %s', (_, change) => {
+    expect(() => createEngine({ ...TEST_SETTINGS, ...change }, SEED, 0)).toThrow(RangeError);
+  });
+
+  test('takes the lock delay and its restarts from the mode settings', () => {
+    // A 10-frame lock delay with 1 restart: the move at frame 5 restarts it, the one at frame 10
+    // doesn't, so the T locks at frame 15.
+    const settings = { ...TEST_SETTINGS, lockDelay: 10, maxLockResets: 1 };
+    const engine = gameOf(settings, { piece: { kind: 'T', col: 3, row: 1, rotation: 0 } });
+    engine.step(14, [
+      { frame: 5, type: ActionType.MoveLeft },
+      { frame: 10, type: ActionType.MoveRight },
+    ]);
+    expect(renderLocked(engine.state, 2)).toEqual(emptyRows(2));
+    engine.step(15, []);
+    expect(renderLocked(engine.state, 2)).toEqual(['....T.....', '...TTT....']);
+  });
+
+  test('takes the preview size from the mode settings', () => {
+    const engine = createEngine({ ...TEST_SETTINGS, previewSize: 3 }, SEED, 0);
+    expect(engine.state.queue).toEqual(draw(SEED, 4).slice(1));
   });
 
   test('rejects a player index that is not a non-negative integer', () => {
     for (const playerIndex of [-1, 1.5]) {
-      expect(() => createEngine(DEFAULT_MODE_SETTINGS, SEED, playerIndex)).toThrow(RangeError);
+      expect(() => createEngine(TEST_SETTINGS, SEED, playerIndex)).toThrow(RangeError);
     }
   });
 });

@@ -57,7 +57,7 @@ A line clear that leaves the board empty.
 _Avoid_: all clear, PC (in code)
 
 **Level**:
-The number that multiplies line clear points and, in Marathon, sets gravity.
+The number that multiplies line clear points and, in Marathon, sets gravity. Versus gravity follows time instead, and the level stays at 1.
 _Avoid_: stage, speed
 
 **Attack**:
@@ -65,24 +65,36 @@ The number of garbage lines a clear produces, before cancellation.
 _Avoid_: damage, lines sent (for the pre-cancellation value)
 
 **Garbage**:
-Lines added to the bottom of a board, each with one gap, as a result of an opponent's attack.
+Lines added to the bottom of a board, each with one hole, as a result of an opponent's attack.
 _Avoid_: junk, penalty lines
 
+**Hole**:
+The one empty cell in a line of garbage. Every line of one attack has its hole in the same column, which the attack's hole seed picks, always away from the column of the attack that landed before it.
+_Avoid_: gap, well (a well is an open column the player leaves in their own stack)
+
 **Garbage meter**:
-A player's queue of incoming garbage that hasn't landed yet.
+A player's queue of incoming garbage that hasn't landed yet, oldest attack first.
 _Avoid_: pending bar, incoming
 
+**Garbage cap**:
+The most garbage lines that land at one lock: 8. The rest stays in the garbage meter.
+_Avoid_: garbage limit, max garbage
+
 **Cancellation**:
-Using your own attack to remove lines from your garbage meter before anything is sent on.
+Using your own attack to remove lines from your garbage meter before anything is sent on. The engine does it at the lock that makes the attack.
 _Avoid_: blocking, countering
 
 **Margin time**:
-The point in a versus match after which the attack multiplier starts to rise, ending stalemates.
+The point in a versus match after which the attack multiplier starts to rise, ending stalemates. The fraction of a line it leaves, the margin carry, adds to the player's next attack.
 _Avoid_: overtime, sudden death
 
 **Top-out**:
 A player losing their board through block out, lock out or garbage overflow.
 _Avoid_: death, game over (for one player in a multiplayer match)
+
+**Finish**:
+A single-player game ending by its mode's end condition rather than a top-out: Marathon's level cap, Sprint's 40 lines or Ultra's 2 minutes.
+_Avoid_: win, complete, game over
 
 **Lag-out**:
 A player being counted as topped out because their client fell too far behind the server clock or stopped acknowledging garbage.
@@ -191,7 +203,7 @@ The serialized engine state of every player at a frame, sent to a client joining
 _Avoid_: state dump, sync
 
 **Recorded match**:
-An engine test case: the seed, mode settings and action log of a game, plus the hash its final state must have. The replay-hash suite replays every recorded match.
+An engine test case: the seed, mode (by its preset's name) and action log of a game, plus the hash its final state must have. The replay-hash suite replays every recorded match.
 _Avoid_: replay, fixture, recording
 
 **Match log**:

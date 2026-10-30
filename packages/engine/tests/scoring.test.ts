@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { isEmpty } from '../src/board';
-import { ActionType, type ActivePiece, restoreEngine } from '../src/index';
+import { ActionType, restoreEngine } from '../src/index';
 import { withActive, withBoard } from './support/board';
+import { clearing, I_IN_WELL, well } from './support/game';
 import { type Lock, newEngine, play, type Setup } from './support/play';
 import { IN_PLACE, MINI_SLOT, TSD_SLOT, TST_KICK, TST_SLOT } from './support/t-spin';
 
@@ -13,21 +14,8 @@ function atLevel(level: number): Setup {
   return (state) => ({ ...state, level });
 }
 
-/** `count` rows full but for column 10, the well. */
-function well(count: number): string[] {
-  return Array.from({ length: count }, () => 'LLLLLLLLL.');
-}
-
-/** An I standing in the well on the floor: it clears every well row up to 4. */
-const I_IN_WELL: ActivePiece = { kind: 'I', col: 7, row: 3, rotation: 1 };
-
 /** A lock that clears nothing: an O on the floor of an empty board, in the corner. */
 const NO_CLEAR: Lock = { board: [], piece: { kind: 'O', col: 0, row: 1, rotation: 0 } };
-
-/** An I clearing `lines` well rows, with a cell above them so the board isn't left empty. */
-function clearing(lines: number): Lock {
-  return { board: ['L.........', ...well(lines)], piece: I_IN_WELL };
-}
 
 const SINGLE = clearing(1);
 const TETRIS = clearing(4);

@@ -1,23 +1,22 @@
 import { expect } from 'vitest';
 import {
   type Action,
-  type ActionType,
   type ActivePiece,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
-  LOCK_DELAY,
+  type PieceActionType,
   restoreEngine,
   type Turn,
 } from '../../src/index';
 import { withActive, withBoard } from './board';
+import { TEST_SETTINGS } from './settings';
 
 /** The seed of every game `newEngine` starts. */
 const SEED = 9;
 
 export function newEngine(): Engine {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
+  return createEngine(TEST_SETTINGS, SEED, 0);
 }
 
 /**
@@ -28,7 +27,7 @@ export interface Lock {
   board?: readonly string[];
   piece: ActivePiece;
   turn?: Turn;
-  actions?: readonly ActionType[];
+  actions?: readonly PieceActionType[];
 }
 
 /** Changes the state of a fresh game. */
@@ -49,7 +48,7 @@ export function play(locks: readonly Lock[], setup: Setup = (state) => state) {
     const before = state.score;
     engine = restoreEngine(state);
     const frames = actions.map((type, index): Action => ({ frame: state.frame + index + 1, type }));
-    engine.step(state.frame + actions.length + LOCK_DELAY, frames);
+    engine.step(state.frame + actions.length + state.settings.lockDelay, frames);
     expect(engine.state.piecesPlaced, 'the piece should have locked').toBe(state.piecesPlaced + 1);
     points.push(engine.state.score - before);
   }

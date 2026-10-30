@@ -3,17 +3,19 @@ import {
   type Action,
   ActionType,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
+  type GarbageRules,
+  ONE_VS_ONE,
   restoreEngine,
 } from '../src/index';
 import { loadRecordedMatches, replay } from './support/recorded-matches';
+import { TEST_SETTINGS, VERSUS_GARBAGE } from './support/settings';
 
 const SEED = 77;
 
 function newEngine(): Engine {
-  return createEngine(DEFAULT_MODE_SETTINGS, SEED, 0);
+  return createEngine(TEST_SETTINGS, SEED, 0);
 }
 
 /**
@@ -72,19 +74,9 @@ describe('serialize and restore', () => {
   });
 
   test.each(loadRecordedMatches())(
-    'restoring partway through $file gives the same hash',
+    'restoring before every frame of $file gives the same hashes',
     ({ match }) => {
-      const { actions, lastFrame } = match;
-      const expected = replay(match);
-      // Every 97th frame: the gravity-only match is too long to restore at every frame.
-      for (let frame = 0; frame <= lastFrame; frame += 97) {
-        const first = createEngine(match.settings, match.seed, match.playerIndex);
-        play(first, actions, 0, frame);
-        const resumed = play(restoreEngine(first.serialize()), actions, frame, lastFrame);
-        if (resumed.hash() !== expected) {
-          expect.fail(`restoring at frame ${frame} changed the outcome`);
-        }
-      }
+      expect(replay(match, { restoring: true }).hashes).toEqual(replay(match).hashes);
     },
   );
 
@@ -103,8 +95,24 @@ describe('serialize and restore', () => {
     copy.queue.length = 0;
     copy.randomizer.bag.length = 0;
     copy.active.col = 0;
-    copy.settings.gravity = 1;
     expect(engine.hash()).toBe(before);
+  });
+
+  test('shares mode settings that nothing can change', () => {
+    const settings = newEngine().serialize().settings as { lineGoal: number | null };
+    expect(() => {
+      settings.lineGoal = 1;
+    }).toThrow(TypeError);
+    expect(Object.isFrozen(newEngine().state.settings.gravity.speeds)).toBe(true);
+  });
+
+  test("doesn't let a change to the settings it was given reach the game", () => {
+    const settings = structuredClone(TEST_SETTINGS) as { lineGoal: number | null };
+    const engine = createEngine(settings as typeof TEST_SETTINGS, SEED, 0);
+    const before = engine.hash();
+    settings.lineGoal = 1;
+    expect(engine.hash()).toBe(before);
+    expect(engine.state.settings.lineGoal).toBeNull();
   });
 
   test('restore copies its input', () => {
@@ -183,6 +191,9 @@ describe('hash', () => {
     'the top-out flag': (s) => {
       s.toppedOut = !s.toppedOut;
     },
+    'the finished flag': (s) => {
+      s.finished = !s.finished;
+    },
     'the level': (s) => {
       s.level++;
     },
@@ -204,8 +215,32 @@ describe('hash', () => {
     'the player index': (s) => {
       s.playerIndex++;
     },
-    'the mode settings': (s) => {
-      s.settings.gravity++;
+    "the mode settings' gravity speeds": (s) => {
+      s.settings = { ...s.settings, gravity: { speeds: [65_536, 1], interval: null } };
+    },
+    "the mode settings' gravity interval": (s) => {
+      s.settings = { ...s.settings, gravity: { ...s.settings.gravity, interval: 1_800 } };
+    },
+    "the mode settings' end condition": (s) => {
+      s.settings = { ...s.settings, lineGoal: 40 };
+    },
+    "the mode settings' lock delay": (s) => {
+      s.settings = { ...s.settings, lockDelay: s.settings.lockDelay + 1 };
+    },
+    "the mode settings' lines per level": (s) => {
+      s.settings = { ...s.settings, linesPerLevel: 10 };
+    },
+    "the mode settings' garbage rules": (s) => {
+      s.settings = { ...s.settings, garbage: ONE_VS_ONE.garbage };
+    },
+    "margin time's carry": (s) => {
+      s.marginCarry++;
+    },
+    'the last hole column': (s) => {
+      s.lastHole = s.lastHole ? null : { id: 1, column: 4 };
+    },
+    'an attack in the garbage meter': (s) => {
+      s.garbageMeter.push({ id: 1, lines: 2, holeSeed: 3 });
     },
   };
 
@@ -213,5 +248,37 @@ describe('hash', () => {
     const changed = structuredClone(state);
     changes[name]?.(changed);
     expect(restoreEngine(changed).hash()).not.toBe(restoreEngine(state).hash());
+  });
+
+  test.each<[string, GarbageRules]>([
+    ['garbage cap', { ...VERSUS_GARBAGE, cap: 7 }],
+    ['margin time start', { ...VERSUS_GARBAGE, marginTime: { start: 7_201, interval: 1_800 } }],
+    ['margin time interval', { ...VERSUS_GARBAGE, marginTime: { start: 7_200, interval: 1_801 } }],
+  ])("changes when the mode settings' %s changes", (_, garbage) => {
+    const versus = (rules: GarbageRules): EngineState => ({
+      ...structuredClone(state),
+      settings: { ...state.settings, garbage: rules },
+    });
+    expect(restoreEngine(versus(garbage)).hash()).not.toBe(
+      restoreEngine(versus(VERSUS_GARBAGE)).hash(),
+    );
+  });
+
+  test("doesn't depend on the order of the mode settings' keys", () => {
+    const reordered = {
+      ...state,
+      settings: Object.fromEntries(Object.entries(state.settings).reverse()),
+    } as EngineState;
+    expect(restoreEngine(reordered).hash()).toBe(restoreEngine(state).hash());
+  });
+
+  test("changes when a garbage meter entry's lines or hole seed change", () => {
+    const meter = (lines: number, holeSeed: number): EngineState => ({
+      ...structuredClone(state),
+      garbageMeter: [{ id: 1, lines, holeSeed }],
+    });
+    const hash = restoreEngine(meter(2, 3)).hash();
+    expect(restoreEngine(meter(3, 3)).hash()).not.toBe(hash);
+    expect(restoreEngine(meter(2, 4)).hash()).not.toBe(hash);
   });
 });

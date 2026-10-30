@@ -5,11 +5,17 @@ export const BOARD_WIDTH = 10;
 export const BOARD_HEIGHT = 40;
 export const VISIBLE_ROWS = 20;
 
-/** Rows bottom-up (`board[0]` is design row 1), each `BOARD_WIDTH` cells. `null` is empty. */
-export type Board = (PieceKind | null)[][];
+/** A garbage cell. */
+export const GARBAGE = 'G';
+
+/** A cell of the board: a locked piece's kind, garbage, or `null` for empty. */
+export type BoardCell = PieceKind | typeof GARBAGE | null;
+
+/** Rows bottom-up (`board[0]` is design row 1), each `BOARD_WIDTH` cells. */
+export type Board = BoardCell[][];
 
 /** A board that is only read. */
-export type ReadonlyBoard = readonly (readonly (PieceKind | null)[])[];
+export type ReadonlyBoard = readonly (readonly BoardCell[])[];
 
 /** How many rows one lock can clear: a piece spans at most 4 rows. */
 export type ClearedLines = 0 | 1 | 2 | 3 | 4;
@@ -18,7 +24,7 @@ export function createBoard(): Board {
   return Array.from({ length: BOARD_HEIGHT }, emptyRow);
 }
 
-function emptyRow(): (PieceKind | null)[] {
+function emptyRow(): BoardCell[] {
   return Array.from({ length: BOARD_WIDTH }, () => null);
 }
 
@@ -53,4 +59,21 @@ export function clearLines(board: Board): ClearedLines {
   board.splice(0, board.length, ...kept, ...Array.from({ length: cleared }, emptyRow));
   // Only the rows the locked piece covers can have filled up.
   return cleared as ClearedLines;
+}
+
+/**
+ * Pushes the stack up `lines` rows and fills the rows freed at the bottom with garbage, each with
+ * its hole in `holeColumn`. Returns whether that pushed a filled cell past the top of the board,
+ * where it is lost: the garbage overflowed.
+ */
+export function insertGarbage(board: Board, lines: number, holeColumn: number): boolean {
+  const pushedOff = board.splice(BOARD_HEIGHT - lines, lines);
+  const garbage = Array.from({ length: lines }, () =>
+    Array.from(
+      { length: BOARD_WIDTH },
+      (_, col): BoardCell => (col === holeColumn ? null : GARBAGE),
+    ),
+  );
+  board.unshift(...garbage);
+  return pushedOff.some((row) => row.some((cell) => cell !== null));
 }

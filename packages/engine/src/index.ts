@@ -1,21 +1,49 @@
-export { BOARD_HEIGHT, BOARD_WIDTH, type Board, VISIBLE_ROWS } from './board';
+export { applyMarginTime, type ClearHistory, calculateAttack } from './attack';
+export {
+  BOARD_HEIGHT,
+  BOARD_WIDTH,
+  type Board,
+  type BoardCell,
+  GARBAGE,
+  VISIBLE_ROWS,
+} from './board';
 export {
   type Action,
   ActionType,
   createEngine,
-  DEFAULT_MODE_SETTINGS,
   type Engine,
   type EngineState,
-  LOCK_DELAY,
-  MAX_LOCK_RESETS,
-  type ModeSettings,
-  PREVIEW_SIZE,
+  type GarbageAcceptedAction,
+  type PieceAction,
+  type PieceActionType,
   type ReadonlyEngineState,
   restoreEngine,
-  SUBROWS_PER_ROW,
+  type SentGarbage,
+  type StepOptions,
+  type StepResult,
 } from './engine';
+export { cancelGarbage, type GarbageEntry, holeColumn } from './garbage';
+export {
+  FFA,
+  type GarbageRules,
+  type GravityCurve,
+  MARATHON,
+  type MarginTime,
+  type ModeSettings,
+  ONE_VS_ONE,
+  SPRINT,
+  SUBROWS_PER_ROW,
+  ULTRA,
+} from './modes';
 export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } from './pieces';
-export { type Randomizer, type SevenBagState, sevenBag } from './random';
+export {
+  type HoleSeedsState,
+  holeSeeds,
+  type Randomizer,
+  type SevenBagState,
+  sevenBag,
+} from './random';
 export { type Offset, type Rotation, type RotationSystem, srs } from './rotation';
+export type { LockClear } from './scoring';
 export { detectTSpin, TSpin, type Turn } from './t-spin';
 export { ENGINE_VERSION } from './version';
