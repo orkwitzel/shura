@@ -96,7 +96,7 @@ export interface EngineState {
    * -1 after a lock that cleared none and 0 after the first clear.
    */
   combo: number;
-  /** Whether the last line clear was a Tetris, so the next Tetris scores the back-to-back bonus. */
+  /** Whether the last line clear was a difficult clear, so the next one scores back-to-back. */
   backToBack: boolean;
 }
 

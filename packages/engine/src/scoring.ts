@@ -1,3 +1,4 @@
+import { isEmpty } from './board';
 import type { EngineState } from './engine';
 
 /** Points for each row a `softDrop` moves the piece down. Drop points aren't times the level. */
@@ -27,13 +28,14 @@ export function scoreLock(s: EngineState, lines: number): void {
   s.linesCleared += lines;
   s.combo++;
   let points = (LINE_CLEAR_POINTS[lines] ?? 0) * s.level;
+  // A Tetris is the only difficult clear until T-spins score.
   const difficult = lines === 4;
-  const backToBack = difficult && s.backToBack;
+  const backToBackBonus = difficult && s.backToBack;
   // Every clear's points are a multiple of 100, so half of them is a whole number.
-  if (backToBack) points += points >> 1;
+  if (backToBackBonus) points += points >> 1;
   points += COMBO_POINTS * s.combo * s.level;
-  if (s.board.every((row) => row.every((cell) => cell === null))) {
-    const bonus = backToBack
+  if (isEmpty(s.board)) {
+    const bonus = backToBackBonus
       ? BACK_TO_BACK_TETRIS_PERFECT_CLEAR_POINTS
       : PERFECT_CLEAR_POINTS[lines];
     points += (bonus ?? 0) * s.level;

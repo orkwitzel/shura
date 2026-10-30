@@ -1,5 +1,5 @@
 {
-  "description": "94 pieces with 27 holds: a 10-piece perfect clear opener found by search, then a greedy bot that keeps a well for Tetrises. 16 line clears: 7 singles, 2 doubles, 3 triples and 4 Tetrises. The opener clears its 4 lines as singles, the last a perfect clear at combo 2. Three Tetrises come in a row, the last two back-to-back, and a triple and two singles break the chain before the fourth. Every third piece is soft dropped onto the stack (516 rows of soft drop) and locked by the lock delay, and the other 63 are hard dropped. It ends without a top-out.",
+  "description": "94 pieces with 27 holds: a 10-piece perfect clear opener found by search, then a greedy bot that keeps a well for Tetrises. 16 line clears: 7 singles, 2 doubles, 3 triples and 4 Tetrises. The opener clears its 4 lines as singles, the last a perfect clear at combo 2. The first three Tetrises have no other line clear between them, so the last two score back-to-back, and a triple and two singles break the chain before the fourth. Every third piece is soft dropped onto the stack (516 rows of soft drop) and locked by the lock delay, and the other 63 are hard dropped. It ends without a top-out.",
   "engineVersion": 1,
   "seed": 2,
   "playerIndex": 0,

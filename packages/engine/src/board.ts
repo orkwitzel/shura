@@ -32,6 +32,11 @@ export function lockPiece(board: Board, piece: Readonly<ActivePiece>): void {
   }
 }
 
+/** Whether the board has no locked cells. */
+export function isEmpty(board: readonly (readonly (PieceKind | null)[])[]): boolean {
+  return board.every((row) => row.every((cell) => cell === null));
+}
+
 /** Removes full rows, moving the rows above down. Returns how many rows cleared. */
 export function clearLines(board: Board): number {
   const kept = board.filter((row) => row.some((cell) => cell === null));

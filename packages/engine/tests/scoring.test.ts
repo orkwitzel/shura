@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { isEmpty } from '../src/board';
 import {
   ActionType,
   type ActivePiece,
@@ -50,6 +51,12 @@ function play(locks: readonly Lock[], setup: (state: EngineState) => void = () =
   return { engine, points };
 }
 
+function atLevel(level: number) {
+  return (state: EngineState) => {
+    state.level = level;
+  };
+}
+
 /** `count` rows full but for column 10, the well. */
 function well(count: number): string[] {
   return Array.from({ length: count }, () => 'LLLLLLLLL.');
@@ -96,11 +103,8 @@ describe('line clears', () => {
   });
 
   test('score their points times the level', () => {
-    const atLevel3 = (state: EngineState) => {
-      state.level = 3;
-    };
-    expect(play([SINGLE], atLevel3).points).toEqual([300]);
-    expect(play([TETRIS], atLevel3).points).toEqual([2400]);
+    expect(play([SINGLE], atLevel(3)).points).toEqual([300]);
+    expect(play([TETRIS], atLevel(3)).points).toEqual([2400]);
   });
 });
 
@@ -140,10 +144,7 @@ describe('combos', () => {
   });
 
   test('the combo bonus is times the level', () => {
-    const atLevel2 = (state: EngineState) => {
-      state.level = 2;
-    };
-    expect(play([SINGLE, SINGLE, SINGLE], atLevel2).points).toEqual([200, 300, 400]);
+    expect(play([SINGLE, SINGLE, SINGLE], atLevel(2)).points).toEqual([200, 300, 400]);
   });
 
   test('the back-to-back bonus leaves the combo bonus out', () => {
@@ -177,7 +178,7 @@ describe('perfect clears', () => {
     ({ board, piece, points }) => {
       const { engine, points: scored } = play([{ board, piece }]);
       expect(scored).toEqual([points]);
-      expect(engine.state.board.flat().every((cell) => cell === null)).toBe(true);
+      expect(isEmpty(engine.state.board)).toBe(true);
     },
   );
 
@@ -187,10 +188,7 @@ describe('perfect clears', () => {
   });
 
   test('the bonus is times the level', () => {
-    const atLevel2 = (state: EngineState) => {
-      state.level = 2;
-    };
-    expect(play([{ board: well(4), piece: I_IN_WELL }], atLevel2).points).toEqual([5600]);
+    expect(play([{ board: well(4), piece: I_IN_WELL }], atLevel(2)).points).toEqual([5600]);
   });
 });
 
@@ -200,7 +198,7 @@ describe('drops', () => {
     const state = newEngine().serialize();
     setup(state);
     state.active = { kind: 'T', col: 3, row: 11, rotation: 0 };
-    state.lowestRow = 10;
+    state.lowestRow = bottomRow(state.active);
     return restoreEngine(state);
   }
 
