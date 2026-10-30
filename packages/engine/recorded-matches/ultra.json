@@ -3,21 +3,9 @@
   "engineVersion": 1,
   "seed": 1,
   "playerIndex": 0,
-  "settings": {
-    "gravity": [65536],
-    "gravityStep": null,
-    "linesPerLevel": 10,
-    "lineGoal": null,
-    "frameLimit": 7200,
-    "lockDelay": 30,
-    "maxLockResets": 15,
-    "previewSize": 5,
-    "garbageCap": 8,
-    "marginTimeStart": null,
-    "marginTimeStep": 1800
-  },
+  "mode": "ultra",
   "lastFrame": 7260,
-  "expectedHash": "1a480e6136c1f714",
+  "expectedHash": "338a5227df07d4cd",
   "actions": [
     { "frame": 11, "type": "moveLeft" },
     { "frame": 12, "type": "moveLeft" },

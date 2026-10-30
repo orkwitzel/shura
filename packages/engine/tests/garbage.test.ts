@@ -11,16 +11,30 @@ function seedsOf(seed: number, playerIndex: number, count = 20): number[] {
 }
 
 describe('hole columns', () => {
-  test('are the same for the same hole seed', () => {
-    for (const seed of [0, 1, 99, 0xffffffff]) expect(holeColumn(seed)).toBe(holeColumn(seed));
+  test('are the same for the same hole seed and previous column', () => {
+    for (const seed of [0, 1, 99, 0xffffffff]) {
+      expect(holeColumn(seed, null)).toBe(holeColumn(seed, null));
+      expect(holeColumn(seed, 4)).toBe(holeColumn(seed, 4));
+    }
   });
 
   test('are on the board, and consecutive seeds spread over every column', () => {
-    const columns = Array.from({ length: 200 }, (_, seed) => holeColumn(seed));
+    const columns = Array.from({ length: 200 }, (_, seed) => holeColumn(seed, null));
     for (const column of columns) expect(column).toBeGreaterThanOrEqual(0);
     for (const column of columns) expect(column).toBeLessThan(BOARD_WIDTH);
     expect(new Set(columns).size).toBe(BOARD_WIDTH);
   });
+
+  test.each(Array.from({ length: BOARD_WIDTH }, (_, column) => column))(
+    'after an attack with its hole in column %i, are always in one of the other 9',
+    (previous) => {
+      const columns = new Set(Array.from({ length: 200 }, (_, seed) => holeColumn(seed, previous)));
+      expect(columns.has(previous)).toBe(false);
+      expect(columns.size).toBe(BOARD_WIDTH - 1);
+      for (const column of columns) expect(column).toBeGreaterThanOrEqual(0);
+      for (const column of columns) expect(column).toBeLessThan(BOARD_WIDTH);
+    },
+  );
 });
 
 describe("a player's garbage RNG", () => {
@@ -42,7 +56,7 @@ describe("a player's garbage RNG", () => {
   test('gives 32-bit unsigned hole seeds that move the hole between attacks', () => {
     const seeds = seedsOf(5, 0, 50);
     expect(seeds.every((seed) => Number.isInteger(seed) && seed >= 0 && seed < 2 ** 32)).toBe(true);
-    expect(new Set(seeds.map(holeColumn)).size).toBeGreaterThan(5);
+    expect(new Set(seeds.map((seed) => holeColumn(seed, null))).size).toBeGreaterThan(5);
   });
 
   test('carries on from a copy of its state', () => {

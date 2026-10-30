@@ -14,12 +14,15 @@ export interface GarbageEntry {
 }
 
 /**
- * The column of the hole in every line of the attack with `holeSeed` (design §3): one draw of the
- * engine's PRNG seeded with it, so any seed, even one of a run of consecutive seeds, gives a
- * random column.
+ * The column of the hole in every line of the attack with `holeSeed` (design §3), from one draw of
+ * the engine's PRNG seeded with it, so any seed, even one of a run of consecutive seeds, gives a
+ * random column. After an attack with its hole in column `previous`, it is one of the other 9
+ * columns, so the hole always moves between attacks. With no `previous`, it is any of the 10.
  */
-export function holeColumn(holeSeed: number): number {
-  return nextRandom(holeSeed)[0] % BOARD_WIDTH;
+export function holeColumn(holeSeed: number, previous: number | null): number {
+  const [value] = nextRandom(holeSeed);
+  if (previous === null) return value % BOARD_WIDTH;
+  return (previous + 1 + (value % (BOARD_WIDTH - 1))) % BOARD_WIDTH;
 }
 
 /**

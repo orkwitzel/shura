@@ -1,4 +1,4 @@
-import type { ModeSettings } from './modes';
+import type { MarginTime } from './modes';
 import { isDifficult, type LockClear } from './scoring';
 import { TSpin } from './t-spin';
 
@@ -8,7 +8,7 @@ import { TSpin } from './t-spin';
  */
 const CLEAR_ATTACK: Readonly<Record<TSpin, readonly number[]>> = {
   [TSpin.None]: [0, 0, 1, 2, 4],
-  [TSpin.Mini]: [0, 1, 1],
+  [TSpin.Mini]: [0, 0, 1],
   [TSpin.Full]: [0, 2, 4, 6],
 };
 /** Extra lines for a back-to-back difficult clear. */
@@ -18,8 +18,11 @@ const COMBO_ATTACK = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5] as const;
 /** Extra lines for a perfect clear, on top of everything else. */
 const PERFECT_CLEAR_ATTACK = 10;
 
-/** The back-to-back and combo chain, as the fields of `EngineState` hold it before a lock. */
-export interface ClearChain {
+/**
+ * What the locks before a lock leave its attack: the combo counter and back-to-back status, as the
+ * fields of `EngineState` hold them before the lock.
+ */
+export interface ClearHistory {
   /** The combo counter: -1 after a lock that cleared nothing. */
   combo: number;
   /** Whether the last line clear was a difficult clear. */
@@ -28,35 +31,43 @@ export interface ClearChain {
 
 /**
  * Multiplies an attack made at `frame` for margin time (design §3): by 1.25 from the frame margin
- * time starts at, and by 0.25 more every `marginTimeStep` frames after it, rounded down to whole
- * lines. A mode without margin time leaves the attack as it is.
+ * time starts at, and by 0.25 more every `interval` frames after it. The multiplied attack, in
+ * quarter-lines, adds `carry`, the quarter-lines the last attack's rounding left over, then sends
+ * the whole lines and carries what is left (0 to 3) to the next attack, so margin time loses no
+ * lines. Before margin time starts, the attack and the carry stay as they are.
  */
 export function applyMarginTime(
   attack: number,
   frame: number,
-  { marginTimeStart, marginTimeStep }: Pick<ModeSettings, 'marginTimeStart' | 'marginTimeStep'>,
-): number {
-  if (marginTimeStart === null || frame < marginTimeStart) return attack;
+  { start, interval }: MarginTime,
+  carry: number,
+): { lines: number; carry: number } {
+  if (frame < start) return { lines: attack, carry };
   // Whole numbers both: the quotient floors exactly.
-  const steps = 1 + Math.floor((frame - marginTimeStart) / marginTimeStep);
+  const raises = 1 + Math.floor((frame - start) / interval);
   // The multiplier in quarters, 4 being ×1.
-  return (attack * (4 + steps)) >> 2;
+  const quarters = attack * (4 + raises) + carry;
+  return { lines: quarters >> 2, carry: quarters & 3 };
 }
 
 /**
  * The attack of a lock (design §3), before margin time and cancellation: the clear's lines from
  * the attack table, plus 1 for a back-to-back difficult clear, the combo bonus, and 10 for a
- * perfect clear. `chain` is the chain before the lock. A lock that clears nothing sends nothing.
+ * perfect clear. `history` is what the locks before it left. A lock that clears nothing sends
+ * nothing.
  */
-export function calculateAttack(chain: Readonly<ClearChain>, clear: Readonly<LockClear>): number {
+export function calculateAttack(
+  history: Readonly<ClearHistory>,
+  clear: Readonly<LockClear>,
+): number {
   const { lines, tSpin, perfectClear } = clear;
   if (lines === 0) return 0;
   const base = CLEAR_ATTACK[tSpin][lines];
   if (base === undefined) throw new RangeError(`a ${tSpin} T-spin can't clear ${lines} lines`);
-  const combo = Math.min(chain.combo + 1, COMBO_ATTACK.length - 1);
+  const combo = Math.min(history.combo + 1, COMBO_ATTACK.length - 1);
   return (
     base +
-    (chain.backToBack && isDifficult(clear) ? BACK_TO_BACK_ATTACK : 0) +
+    (history.backToBack && isDifficult(clear) ? BACK_TO_BACK_ATTACK : 0) +
     (COMBO_ATTACK[combo] as number) +
     (perfectClear ? PERFECT_CLEAR_ATTACK : 0)
   );

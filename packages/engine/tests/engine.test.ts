@@ -6,7 +6,9 @@ import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
   createEngine,
+  type GarbageRules,
   type ModeSettings,
+  ONE_VS_ONE,
   PIECE_KINDS,
   type PieceActionType,
   type PieceKind,
@@ -18,6 +20,13 @@ import { draw } from './support/random';
 import { TEST_SETTINGS } from './support/settings';
 
 const SEED = 2026;
+
+/** The test settings with a gravity curve of the one speed `speed`. */
+function withGravity(speed: number): ModeSettings {
+  return { ...TEST_SETTINGS, gravity: { speeds: [speed], interval: null } };
+}
+
+const VERSUS_GARBAGE = ONE_VS_ONE.garbage as GarbageRules;
 
 function newEngine(seed = SEED) {
   return createEngine(TEST_SETTINGS, seed, 0);
@@ -104,7 +113,7 @@ describe('gravity', () => {
   });
 
   test('follows the mode settings', () => {
-    const engine = createEngine({ ...TEST_SETTINGS, gravity: [2 * 65_536] }, SEED, 0);
+    const engine = createEngine(withGravity(2 * 65_536), SEED, 0);
     const start = engine.state.active.row;
     engine.step(29, []);
     expect(engine.state.active.row).toBe(start);
@@ -113,7 +122,7 @@ describe('gravity', () => {
   });
 
   test('can move a piece several rows in one frame (20G)', () => {
-    const engine = createEngine({ ...TEST_SETTINGS, gravity: [20 * SUBROWS_PER_ROW] }, SEED, 0);
+    const engine = createEngine(withGravity(20 * SUBROWS_PER_ROW), SEED, 0);
     const kind = engine.state.active.kind;
     engine.step(1, []);
     // The piece fell from row 20 to the floor in one frame.
@@ -755,14 +764,13 @@ describe('lock out', () => {
 describe('createEngine', () => {
   test('rejects gravity that is not a positive whole number of sub-rows', () => {
     for (const gravity of [0, -65_536, 0.5, Number.NaN]) {
-      expect(() => createEngine({ ...TEST_SETTINGS, gravity: [gravity] }, SEED, 0)).toThrow(
-        RangeError,
-      );
+      expect(() => createEngine(withGravity(gravity), SEED, 0)).toThrow(RangeError);
     }
   });
 
-  test('rejects gravity with no levels', () => {
-    expect(() => createEngine({ ...TEST_SETTINGS, gravity: [] }, SEED, 0)).toThrow(RangeError);
+  test('rejects a gravity curve with no speeds', () => {
+    const settings = { ...TEST_SETTINGS, gravity: { speeds: [], interval: null } };
+    expect(() => createEngine(settings, SEED, 0)).toThrow(RangeError);
   });
 
   test.each<[string, Partial<ModeSettings>]>([
@@ -772,6 +780,16 @@ describe('createEngine', () => {
     ['a lock delay of 0', { lockDelay: 0 }],
     ['negative lock resets', { maxLockResets: -1 }],
     ['a negative preview size', { previewSize: -1 }],
+    ['a gravity interval of 0', { gravity: { speeds: [65_536], interval: 0 } }],
+    ['a garbage cap of 0', { garbage: { ...VERSUS_GARBAGE, cap: 0 } }],
+    [
+      'a fractional margin time start',
+      { garbage: { ...VERSUS_GARBAGE, marginTime: { start: 0.5, interval: 1_800 } } },
+    ],
+    [
+      'a margin time interval of 0',
+      { garbage: { ...VERSUS_GARBAGE, marginTime: { start: 7_200, interval: 0 } } },
+    ],
   ])('rejects %s', (_, change) => {
     expect(() => createEngine({ ...TEST_SETTINGS, ...change }, SEED, 0)).toThrow(RangeError);
   });

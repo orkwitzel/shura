@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { type Action, ActionType, ENGINE_VERSION } from '../src/index';
+import { type Action, ActionType, ENGINE_VERSION, MARATHON, SPRINT } from '../src/index';
 import {
   checkRecordedMatch,
   expectedHashes,
   loadRecordedMatches,
+  PRESETS,
   RECORD_COMMAND,
   type RecordedMatch,
+  settingsOf,
   type VersusRecordedMatch,
   withHashes,
 } from './support/recorded-matches';
@@ -31,12 +33,30 @@ describe('replay-hash suite', () => {
   });
 });
 
+describe('a recorded match', () => {
+  test.each(matches)("$file names its mode's preset", ({ match }) => {
+    expect(Object.keys(PRESETS)).toContain(match.mode);
+  });
+
+  test('plays the preset itself, so changing a preset changes its replay', () => {
+    expect(settingsOf({ mode: 'marathon' })).toBe(MARATHON);
+  });
+
+  test("that tests a rule rather than a mode can change some of its preset's settings", () => {
+    expect(settingsOf({ mode: 'sprint', settings: { lineGoal: null } })).toEqual({
+      ...SPRINT,
+      lineGoal: null,
+    });
+  });
+});
+
 /**
  * Plays `match` as the players' clients would: their engines land garbage themselves, from the
  * actions without `garbageAccepted`, and record where it landed.
  */
-function playAccepting({ settings, seed, players, lastFrame }: VersusRecordedMatch) {
-  const game = new VersusMatch(settings, seed, players.length);
+function playAccepting(match: VersusRecordedMatch) {
+  const { seed, players, lastFrame } = match;
+  const game = new VersusMatch(settingsOf(match), seed);
   const frames = players.map(({ actions }) =>
     byFrame(
       actions.filter((action) => action.type !== ActionType.GarbageAccepted),

@@ -2,8 +2,6 @@ import { describe, expect, test } from 'vitest';
 import {
   type Action,
   ActionType,
-  type ActivePiece,
-  createEngine,
   FFA,
   MARATHON,
   type ModeSettings,
@@ -13,7 +11,7 @@ import {
   SUBROWS_PER_ROW,
   ULTRA,
 } from '../src/index';
-import { withActive, withBoard } from './support/board';
+import { gameOf, I_IN_WELL, well } from './support/game';
 
 /**
  * The guideline gravity curve, in seconds per row: (0.8 − (level − 1) × 0.007) ^ (level − 1). It
@@ -38,34 +36,9 @@ function subrowsPerFrame(secondsPerRow: number): number {
   return SUBROWS_PER_ROW / (60 * secondsPerRow);
 }
 
-const SEED = 11;
-
-/** `count` rows full but for column 10, the well. */
-function well(count: number): string[] {
-  return Array.from({ length: count }, () => 'LLLLLLLLL.');
-}
-
-/** An I standing in the well on the floor, so a hard drop locks it where it is. */
-const I_IN_WELL: ActivePiece = { kind: 'I', col: 7, row: 3, rotation: 1 };
-
-interface Setup {
-  /** The bottom of the board, as `withBoard` takes it. */
-  board?: readonly string[];
-  /** The piece in play. */
-  piece?: ActivePiece;
-  linesCleared?: number;
-  level?: number;
-}
-
-/** A fresh game of `settings`, changed by `setup`. */
-function gameOf(settings: Readonly<ModeSettings>, { board = [], piece, ...stats }: Setup = {}) {
-  const boarded = withBoard(createEngine(settings, SEED, 0).serialize(), board);
-  return restoreEngine({ ...(piece ? withActive(boarded, piece) : boarded), ...stats });
-}
-
 /** A game of `settings` at `linesCleared` lines, with an I set to clear `lines` lines at frame 1. */
-function clearingAt(settings: Readonly<ModeSettings>, linesCleared: number, lines: number) {
-  const level = Math.min(1 + Math.floor(linesCleared / 10), settings.gravity.length);
+function clearingAt(settings: ModeSettings, linesCleared: number, lines: number) {
+  const level = Math.min(1 + Math.floor(linesCleared / 10), settings.gravity.speeds.length);
   return gameOf(settings, {
     board: ['L.........', ...well(lines)],
     piece: I_IN_WELL,
@@ -81,14 +54,15 @@ describe('Marathon', () => {
     const levels = CITED_G.map((g, index) => ({ level: index + 1, g }));
 
     test('has a level for each of the 15 levels of the cited curve', () => {
-      expect(MARATHON.gravity).toHaveLength(15);
+      expect(MARATHON.gravity).toEqual({ speeds: expect.any(Array), interval: null });
+      expect(MARATHON.gravity.speeds).toHaveLength(15);
     });
 
     test.each(levels)(
       'at level $level is the guideline curve to the nearest sub-row',
       ({ level }) => {
         const exact = subrowsPerFrame(guidelineSecondsPerRow(level));
-        const gravity = MARATHON.gravity[level - 1] ?? Number.NaN;
+        const gravity = MARATHON.gravity.speeds[level - 1] ?? Number.NaN;
         expect(Number.isInteger(gravity)).toBe(true);
         expect(Math.abs(gravity - exact)).toBeLessThanOrEqual(0.5);
       },
@@ -96,7 +70,7 @@ describe('Marathon', () => {
 
     // The sources round to 2–5 significant figures, so this allows 0.5% either way.
     test.each(levels)('at level $level is $g G, as the sources print it', ({ level, g }) => {
-      const gravity = MARATHON.gravity[level - 1] ?? Number.NaN;
+      const gravity = MARATHON.gravity.speeds[level - 1] ?? Number.NaN;
       expect(Math.abs(gravity / SUBROWS_PER_ROW / g - 1)).toBeLessThan(0.005);
     });
   });
@@ -334,10 +308,8 @@ describe.each([
     expect(settings.frameLimit).toBeNull();
   });
 
-  test('lands at most 8 garbage lines a lock, with margin time from 2:00 in 30 s steps', () => {
-    expect(settings.garbageCap).toBe(8);
-    expect(settings.marginTimeStart).toBe(7_200);
-    expect(settings.marginTimeStep).toBe(1_800);
+  test('lands at most 8 garbage lines a lock, with margin time from 2:00, raised every 30 s', () => {
+    expect(settings.garbage).toEqual({ cap: 8, marginTime: { start: 7_200, interval: 1_800 } });
   });
 });
 
@@ -349,6 +321,6 @@ test.each([
   { name: 'Marathon', settings: MARATHON },
   { name: 'Sprint', settings: SPRINT },
   { name: 'Ultra', settings: ULTRA },
-])('$name has no margin time', ({ settings }) => {
-  expect(settings.marginTimeStart).toBeNull();
+])('$name has no garbage, so no margin time', ({ settings }) => {
+  expect(settings.garbage).toBeNull();
 });

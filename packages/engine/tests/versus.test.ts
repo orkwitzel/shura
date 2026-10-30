@@ -3,49 +3,22 @@ import {
   type Action,
   ActionType,
   type ActivePiece,
-  createEngine,
   type GarbageAcceptedAction,
   type GarbageEntry,
   holeColumn,
-  type ModeSettings,
+  ONE_VS_ONE,
   type ReadonlyEngineState,
   restoreEngine,
 } from '../src/index';
-import { renderLocked, withActive, withBoard } from './support/board';
+import { renderLocked } from './support/board';
+import { type GameSetup, gameOf as gameOfMode, I_IN_WELL, well } from './support/game';
 import { TEST_SETTINGS } from './support/settings';
 
-const SEED = 31;
-
-interface Setup {
-  settings?: Readonly<ModeSettings>;
-  /** The bottom of the board, as `withBoard` takes it. */
-  board?: readonly string[];
-  piece?: ActivePiece;
-  frame?: number;
-  garbage?: readonly GarbageEntry[];
+/** A 1v1 game changed by `setup`. */
+function gameOf(setup?: GameSetup) {
+  return gameOfMode(ONE_VS_ONE, setup);
 }
 
-/** A game changed by `setup`, with `garbage` queued in its meter. */
-function gameOf({
-  settings = TEST_SETTINGS,
-  board = [],
-  piece,
-  frame = 0,
-  garbage = [],
-}: Setup = {}) {
-  const boarded = withBoard(createEngine(settings, SEED, 0).serialize(), board);
-  const engine = restoreEngine({ ...(piece ? withActive(boarded, piece) : boarded), frame });
-  for (const entry of garbage) engine.queueGarbage(entry);
-  return engine;
-}
-
-/** `count` rows full but for column 10, the well. */
-function well(count: number): string[] {
-  return Array.from({ length: count }, () => 'LLLLLLLLL.');
-}
-
-/** An I standing in the well on the floor, so a hard drop locks it where it is. */
-const I_IN_WELL: ActivePiece = { kind: 'I', col: 7, row: 3, rotation: 1 };
 /** An O on the floor in the left corner of an empty board: a lock that clears nothing. */
 const O_IN_CORNER: ActivePiece = { kind: 'O', col: 0, row: 1, rotation: 0 };
 
@@ -68,14 +41,6 @@ describe('the garbage meter', () => {
     expect(() => engine.queueGarbage({ ...B, holeSeed: -1 })).toThrow(RangeError);
     expect(() => engine.queueGarbage({ ...B, holeSeed: 2 ** 32 })).toThrow(RangeError);
     expect(engine.state.garbageMeter).toEqual([A]);
-  });
-
-  test('cancelling takes lines off the oldest entry first and returns the remainder', () => {
-    const engine = gameOf({ garbage: [A, B] });
-    expect(engine.cancelGarbage(5)).toBe(0);
-    expect(engine.state.garbageMeter).toEqual([{ ...B, lines: 2 }]);
-    expect(engine.cancelGarbage(6)).toBe(4);
-    expect(engine.state.garbageMeter).toEqual([]);
   });
 });
 
@@ -146,14 +111,46 @@ describe('garbage landing, accepting garbage as it comes', () => {
   });
 
   test("puts each attack's hole in the column its hole seed picks, later attacks lower", () => {
-    const [columnA, columnB] = [holeColumn(A.holeSeed), holeColumn(B.holeSeed)];
-    expect(columnA).not.toBe(columnB);
+    const columnA = holeColumn(A.holeSeed, null);
+    const columnB = holeColumn(B.holeSeed, columnA);
     const engine = gameOf({ piece: O_IN_CORNER, garbage: [A, B] });
     engine.step(1, HARD_DROP_AT_1, { acceptGarbage: true });
     expect(holesOf(engine.state)).toEqual([
       ...Array<number>(B.lines).fill(columnB),
       ...Array<number>(A.lines).fill(columnA),
     ]);
+  });
+
+  // Hole seeds 3 and 7 both put the hole in column 3 (index 2) after no other attack.
+  const SAME_COLUMN: GarbageEntry[] = [
+    { id: 1, lines: 2, holeSeed: 3 },
+    { id: 2, lines: 2, holeSeed: 7 },
+  ];
+
+  test('moves the hole between attacks, even when their hole seeds pick the same column', () => {
+    expect(holeColumn(3, null)).toBe(holeColumn(7, null));
+    const engine = gameOf({ piece: O_IN_CORNER, garbage: SAME_COLUMN });
+    engine.step(1, HARD_DROP_AT_1, { acceptGarbage: true });
+    const [second, , first] = holesOf(engine.state);
+    expect(first).toBe(holeColumn(3, null));
+    expect(second).not.toBe(first);
+  });
+
+  test('moves the hole away from the last attack that landed, at a later lock', () => {
+    const [first, second] = SAME_COLUMN as [GarbageEntry, GarbageEntry];
+    const engine = gameOf({ piece: O_IN_CORNER, garbage: [first] });
+    engine.step(1, HARD_DROP_AT_1, { acceptGarbage: true });
+    engine.queueGarbage(second);
+    // The next piece falls and locks on its own at the lock delay's end, clearing nothing.
+    engine.step(2_000, [], { acceptGarbage: true });
+    expect(engine.state.garbageMeter).toEqual([]);
+    expect(holesOf(engine.state)).toEqual([
+      holeColumn(7, holeColumn(3, null)),
+      holeColumn(7, holeColumn(3, null)),
+      holeColumn(3, null),
+      holeColumn(3, null),
+    ]);
+    expect(holeColumn(7, holeColumn(3, null))).not.toBe(holeColumn(3, null));
   });
 
   test('without accepting garbage, lands none on its own', () => {
@@ -262,28 +259,100 @@ describe('garbage landing, replaying garbageAccepted', () => {
   });
 });
 
-describe('attacks', () => {
-  test('step reports the attack of each lock that sends one, at its frame', () => {
-    const engine = gameOf({ board: ['L.........', ...well(4)], piece: I_IN_WELL });
-    const { attacks } = engine.step(5, [{ frame: 3, type: ActionType.HardDrop }]);
-    expect(attacks).toEqual([{ frame: 3, lines: 4 }]);
+describe('sending garbage', () => {
+  test('a single-player mode sends none and takes none', () => {
+    const engine = gameOfMode(TEST_SETTINGS, {
+      board: ['L.........', ...well(4)],
+      piece: I_IN_WELL,
+    });
+    expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
+    expect(() => engine.queueGarbage(A)).toThrow(RangeError);
   });
 
-  test('a lock that sends nothing reports no attack', () => {
+  const TETRIS_READY = { board: ['L.........', ...well(4)], piece: I_IN_WELL };
+  const TWO_HARD_DROPS_AT_1: Action[] = [...HARD_DROP_AT_1, ...HARD_DROP_AT_1];
+
+  test('step reports the lines each lock sends, at its frame', () => {
+    const engine = gameOf(TETRIS_READY);
+    const { sent } = engine.step(5, [{ frame: 3, type: ActionType.HardDrop }]);
+    expect(sent).toEqual([{ frame: 3, lines: 4 }]);
+  });
+
+  test('a lock that sends nothing reports nothing', () => {
     const engine = gameOf({ board: ['L.........', ...well(1)], piece: I_IN_WELL });
-    expect(engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]).attacks).toEqual([]);
+    expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
+  });
+
+  test('cancels the attack against the garbage meter, oldest first, and sends only the rest', () => {
+    const engine = gameOf({
+      ...TETRIS_READY,
+      garbage: [
+        { ...A, lines: 1 },
+        { ...B, lines: 2 },
+      ],
+    });
+    expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([{ frame: 1, lines: 1 }]);
+    expect(engine.state.garbageMeter).toEqual([]);
+  });
+
+  test('sends nothing when the meter takes the whole attack, and keeps what it leaves', () => {
+    const engine = gameOf({ ...TETRIS_READY, garbage: [A, B] });
+    expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
+    expect(engine.state.garbageMeter).toEqual([{ ...B, lines: 3 }]);
+  });
+
+  test('cancels at the lock, before a later lock in the same frame lands garbage', () => {
+    // The Tetris cancels all 3 lines of A, so the next piece, hard dropped in the same frame and
+    // clearing nothing, finds nothing to land.
+    const engine = gameOf({ ...TETRIS_READY, garbage: [A] });
+    const { sent, accepted } = engine.step(1, TWO_HARD_DROPS_AT_1, { acceptGarbage: true });
+    expect(engine.state.piecesPlaced).toBe(2);
+    expect({ sent, accepted }).toEqual({ sent: [{ frame: 1, lines: 1 }], accepted: [] });
+    expect(engine.state.garbageMeter).toEqual([]);
+    expect(holesOf(engine.state)).toEqual([]);
+  });
+
+  test('replaying the same frame, a garbageAccepted for the cancelled attack has nothing to land', () => {
+    const engine = gameOf({ ...TETRIS_READY, garbage: [A] });
+    const actions: Action[] = [
+      ...TWO_HARD_DROPS_AT_1,
+      { frame: 1, type: ActionType.GarbageAccepted, id: A.id },
+    ];
+    expect(() => engine.step(1, actions)).toThrow(RangeError);
   });
 
   test('are multiplied by margin time from frame 7,200', () => {
-    const settings = { ...TEST_SETTINGS, marginTimeStart: 7_200 };
-    const setup = { settings, board: ['L.........', ...well(4)], piece: I_IN_WELL };
-    const before = gameOf({ ...setup, frame: 7_198 });
-    expect(before.step(7_199, [{ frame: 7_199, type: ActionType.HardDrop }]).attacks).toEqual([
+    const before = gameOf({ ...TETRIS_READY, frame: 7_198 });
+    expect(before.step(7_199, [{ frame: 7_199, type: ActionType.HardDrop }]).sent).toEqual([
       { frame: 7_199, lines: 4 },
     ]);
-    const after = gameOf({ ...setup, frame: 7_199 });
-    expect(after.step(7_200, [{ frame: 7_200, type: ActionType.HardDrop }]).attacks).toEqual([
+    const after = gameOf({ ...TETRIS_READY, frame: 7_199 });
+    expect(after.step(7_200, [{ frame: 7_200, type: ActionType.HardDrop }]).sent).toEqual([
       { frame: 7_200, lines: 5 },
     ]);
+  });
+
+  /** A double at frame 9,000, at ×1.5: an attack of 1, so 6 quarter-lines with nothing carried. */
+  function doubleAt9000(marginCarry: number, garbage: readonly GarbageEntry[] = []) {
+    const board = ['L.........', ...well(2)];
+    const engine = gameOf({ board, piece: I_IN_WELL, frame: 8_999, garbage });
+    const restored = restoreEngine({ ...engine.serialize(), marginCarry });
+    const { sent } = restored.step(9_000, [{ frame: 9_000, type: ActionType.HardDrop }]);
+    return { engine: restored, sent };
+  }
+
+  test("carries margin time's fraction of a line in the state to the next attack", () => {
+    const first = doubleAt9000(0);
+    expect(first.sent).toEqual([{ frame: 9_000, lines: 1 }]);
+    expect(first.engine.state.marginCarry).toBe(2);
+    const second = doubleAt9000(2);
+    expect(second.sent).toEqual([{ frame: 9_000, lines: 2 }]);
+    expect(second.engine.state.marginCarry).toBe(0);
+  });
+
+  test('adds the carry before cancellation, which cancels whole lines', () => {
+    const { sent, engine } = doubleAt9000(2, [{ ...A, lines: 1 }]);
+    expect(sent).toEqual([{ frame: 9_000, lines: 1 }]);
+    expect(engine.state.garbageMeter).toEqual([]);
   });
 });

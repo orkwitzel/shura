@@ -3,10 +3,26 @@ import {
   type Action,
   createEngine,
   ENGINE_VERSION,
+  FFA,
+  MARATHON,
   type ModeSettings,
+  ONE_VS_ONE,
   restoreEngine,
+  SPRINT,
+  ULTRA,
 } from '../../src/index';
 import { byFrame, VersusMatch } from './versus';
+
+/** The presets, by the name a recorded match gives its mode. */
+export const PRESETS = {
+  marathon: MARATHON,
+  sprint: SPRINT,
+  ultra: ULTRA,
+  '1v1': ONE_VS_ONE,
+  ffa: FFA,
+} as const satisfies Record<string, ModeSettings>;
+
+export type PresetName = keyof typeof PRESETS;
 
 /** What every recorded match holds besides its players' actions and hashes. */
 interface MatchSetup {
@@ -14,9 +30,28 @@ interface MatchSetup {
   /** The `ENGINE_VERSION` the expected hashes were recorded with. */
   engineVersion: number;
   seed: number;
-  settings: ModeSettings;
+  /** The mode, whose preset the match plays (`settingsOf`). */
+  mode: PresetName;
+  /**
+   * Settings that replace the preset's, for a match that tests a rule rather than a mode: the rule
+   * matches play Sprint without its line goal, as the rule tests do.
+   */
+  settings?: Partial<ModeSettings>;
   /** The frame the replay steps to. */
   lastFrame: number;
+}
+
+/**
+ * The mode settings a recorded match plays: its mode's preset as the engine exports it now, so a
+ * change to a preset shows in the replay-hash suite, with any settings the match replaces.
+ */
+export function settingsOf({
+  mode,
+  settings,
+}: Pick<MatchSetup, 'mode' | 'settings'>): ModeSettings {
+  const preset: ModeSettings | undefined = PRESETS[mode];
+  if (!preset) throw new Error(`no preset is named ${JSON.stringify(mode)}`);
+  return settings ? { ...preset, ...settings } : preset;
 }
 
 /**
@@ -87,7 +122,7 @@ export function withHashes(match: RecordedMatch, hashes: readonly string[]): Rec
 export function replay(match: RecordedMatch, { restoreAt = -1 } = {}): string[] {
   if ('players' in match) return replayVersus(match, restoreAt);
   const { actions, lastFrame } = match;
-  const engine = createEngine(match.settings, match.seed, match.playerIndex);
+  const engine = createEngine(settingsOf(match), match.seed, match.playerIndex);
   if (restoreAt < 0) {
     engine.step(lastFrame, actions);
     return [engine.hash()];
@@ -105,7 +140,7 @@ export function replay(match: RecordedMatch, { restoreAt = -1 } = {}): string[] 
 }
 
 function replayVersus(match: VersusRecordedMatch, restoreAt: number): string[] {
-  const game = new VersusMatch(match.settings, match.seed, match.players.length);
+  const game = new VersusMatch(settingsOf(match), match.seed);
   const frames = match.players.map(({ actions }) => byFrame(actions, match.lastFrame));
   for (let frame = 1; frame <= match.lastFrame; frame++) {
     if (frame - 1 === restoreAt) game.restore();
