@@ -1,8 +1,17 @@
 import { assertInteger } from './assert';
-import { type Board, clearLines, collides, createBoard, lockPiece, VISIBLE_ROWS } from './board';
+import {
+  BOARD_WIDTH,
+  type Board,
+  clearLines,
+  collides,
+  createBoard,
+  lockPiece,
+  VISIBLE_ROWS,
+} from './board';
 import { hashText } from './hash';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
+import { srs, turned } from './rotation';
 
 /** Gravity counts in sub-rows: 60 × 2^16 per row, so any whole number of rows per second is exact. */
 export const SUBROWS_PER_ROW = 3_932_160;
@@ -23,9 +32,8 @@ export const LOCK_DELAY = 30;
 /** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
 export const MAX_LOCK_RESETS = 15;
 
-/** Pieces spawn with their origin here: rows 21–22 in design numbering. */
-const SPAWN_COL = 4;
-const SPAWN_ROW = 20;
+/** Pieces spawn with the top row of their box in row 22 in design numbering. */
+const SPAWN_ROW = 21;
 
 /** An atomic engine instruction at a frame (design §7.1, ADR 0002). */
 export interface Action {
@@ -37,6 +45,9 @@ export interface Action {
 export enum ActionType {
   MoveLeft = 'moveLeft',
   MoveRight = 'moveRight',
+  RotateCW = 'rotateCW',
+  RotateCCW = 'rotateCCW',
+  Rotate180 = 'rotate180',
   SoftDrop = 'softDrop',
   HardDrop = 'hardDrop',
   Hold = 'hold',
@@ -173,10 +184,19 @@ export function restoreEngine(state: EngineState): Engine {
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
     case ActionType.MoveLeft:
-      shift(s, -1);
+      tryMove(s, -1, 0);
       break;
     case ActionType.MoveRight:
-      shift(s, 1);
+      tryMove(s, 1, 0);
+      break;
+    case ActionType.RotateCW:
+      rotate(s, 1);
+      break;
+    case ActionType.RotateCCW:
+      rotate(s, 3);
+      break;
+    case ActionType.Rotate180:
+      rotate(s, 2);
       break;
     case ActionType.SoftDrop:
       tryMove(s, 0, -1);
@@ -218,12 +238,15 @@ function applyGravity(s: EngineState): void {
 }
 
 /**
- * Moves the active piece sideways. A successful move from on the stack restarts the lock delay,
- * while the piece has restarts left. Moves in the air use none.
+ * Turns the active piece clockwise by `quarterTurns`, placing it at the first of the rotation
+ * system's kicks where it fits. If none fits, it doesn't turn.
  */
-function shift(s: EngineState, cols: number): void {
-  const wasOnStack = onStack(s);
-  if (tryMove(s, cols, 0) && wasOnStack) restartLockDelay(s);
+function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
+  const { kind, col, row, rotation } = s.active;
+  const to = turned(rotation, quarterTurns);
+  for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
+    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) return;
+  }
 }
 
 function restartLockDelay(s: EngineState): void {
@@ -253,13 +276,16 @@ function tryMove(s: EngineState, cols: number, rows: number): boolean {
 }
 
 /**
- * Makes `piece` the active piece if it fits. Reaching a new lowest row gives the piece a fresh lock
- * delay (design §3).
+ * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3). Reaching a new
+ * lowest row gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts
+ * its lock delay while it has restarts left, and a piece in the air uses none.
  */
 function tryPlace(s: EngineState, piece: ActivePiece): boolean {
   if (collides(s.board, piece)) return false;
+  const wasOnStack = onStack(s);
   s.active = piece;
   if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
+  else if (wasOnStack) restartLockDelay(s);
   return true;
 }
 
@@ -307,8 +333,11 @@ function spawn(s: EngineState, kind: PieceKind): void {
   else tryMove(s, 0, -1);
 }
 
+/** A new piece, centred in the board's columns and rounded left (design §3). */
 function atSpawn(kind: PieceKind): ActivePiece {
-  return { kind, col: SPAWN_COL, row: SPAWN_ROW };
+  // Every piece's box is as wide as its cells in rotation state 0.
+  const width = srs.cellOffsets(kind, 0).reduce((widest, [col]) => Math.max(widest, col + 1), 0);
+  return { kind, col: (BOARD_WIDTH - width) >> 1, row: SPAWN_ROW, rotation: 0 };
 }
 
 /**
@@ -323,7 +352,7 @@ function cloneState(state: EngineState): EngineState {
     playerIndex: state.playerIndex,
     frame: state.frame,
     board: state.board.map((row) => [...row]),
-    active: { kind: active.kind, col: active.col, row: active.row },
+    active: { kind: active.kind, col: active.col, row: active.row, rotation: active.rotation },
     hold: state.hold,
     holdUsed: state.holdUsed,
     queue: [...state.queue],
