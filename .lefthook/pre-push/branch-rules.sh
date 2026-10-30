@@ -14,7 +14,7 @@ while read -r _local_ref local_sha remote_ref _remote_sha; do
     status=1
     continue
   fi
-  "$(dirname "$0")/branch-name.sh" "$branch" || status=1
+  "$(git rev-parse --show-toplevel)/scripts/branch-name.sh" "$branch" || status=1
 done
 
 exit "$status"
