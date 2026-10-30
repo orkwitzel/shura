@@ -10,7 +10,9 @@ export {
 export {
   type Action,
   ActionType,
+  canMove,
   createEngine,
+  currentGravity,
   type Engine,
   type EngineState,
   type GarbageAcceptedAction,
