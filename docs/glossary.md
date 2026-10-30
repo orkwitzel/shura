@@ -126,6 +126,10 @@ _Avoid_: broadcast, echo
 The serialized engine state of every player at a frame, sent to a client joining or reconnecting mid-match.
 _Avoid_: state dump, sync
 
+**Recorded match**:
+An engine test case: the seed, mode settings and action log of a game, plus the hash its final state must have. The replay-hash suite replays every recorded match.
+_Avoid_: replay, fixture, recording
+
 **Match log**:
 The complete, ordered record of a match's seed, mode settings and verified input batches.
 _Avoid_: replay (for the stored data), event log, journal

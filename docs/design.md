@@ -4,7 +4,7 @@ Shura (Hebrew שורה, "row") is an online multiplayer falling-block puzzle gam
 
 This document is the source of truth for how the system works. It describes the system **as it is meant to be**, and it changes in the same pull request as any code that changes the behaviour it describes. Decisions that are expensive to reverse are recorded in [`adr/`](adr/), and terms are defined in [`glossary.md`](glossary.md). The interactive [architecture report](https://claude.ai/artifact/3EnAy6cCCW2VUC1ByKny2c) is a visual companion to the backend sections. Where they differ, this document wins.
 
-Status: designed, no code yet (October 2026).
+Status: M0 skeleton done, M1 engine in progress (October 2026).
 
 ---
 
@@ -60,7 +60,7 @@ The engine implements these rules. Every value is a field in the **mode settings
 | Area | Rule |
 |---|---|
 | Board | 10 wide × 40 tall: 20 visible rows plus 20 hidden above. |
-| Spawn | Pieces spawn in rows 21–22 and drop one row immediately if possible. |
+| Spawn | Pieces spawn flat side down in rows 21–22 and drop one row immediately if possible. I and O spawn in the middle columns (I in 4–7, O in 5–6), the rest in the left-middle columns 4–6. |
 | Randomizer | 7-bag, seeded. In versus, every player in a match gets the **same piece sequence** (one seed per match). |
 | Rotation | SRS with the standard kick tables. The 180° rotation uses TETR.IO's SRS+ 180 kick table. |
 | Hold | One hold slot, usable once per piece. |
@@ -109,16 +109,18 @@ These are what make server verification and replay work. They're enforced by tes
 - Fixed tick: the engine advances in **frames** at 60 fps of game time. It never reads wall-clock time.
 - No `Math.random`. All randomness comes from seeded PRNGs carried in engine state (match seed → bag RNG, plus a per-player garbage RNG).
 - No `Date.now`, `performance.now` or timers inside the engine.
-- Integer arithmetic only for game rules. Gravity is expressed as fixed-point sub-row counters, not floats.
+- Integer arithmetic only for game rules. Gravity is expressed as fixed-point sub-row counters, not floats. A row is 60 × 2¹⁶ = 3,932,160 sub-rows, so any whole number of rows per second is a whole number of sub-rows per frame (1 row/s is 65,536).
 - No dependence on object key order, `Map` iteration order of external input, or locale.
 - The same inputs and seed always produce the same state, bit for bit, on Node and in browsers.
+
+Two checks enforce these mechanically. The engine's `tsconfig.json` loads no Node or DOM types, so timers and `performance` don't typecheck. A test (`determinism.test.ts`) scans the engine source for `Math.random`, `Date`, `performance`, timers, float literals, float-valued `Math` functions and locale APIs. A pattern can't tell float division from integer division, so review checks every `/`.
 
 ### 5.2 Shape
 
 - `createEngine(modeSettings, seed, playerIndex) → Engine`
-- `engine.step(frame, actions[])` advances to `frame`, applying the actions that occurred at each frame.
-- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats, and whether the player has topped out.
-- `engine.serialize() → EngineState` and `Engine.restore(state)` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
+- `engine.step(frame, actions[])` advances to `frame`, applying the actions that occurred at each frame. Within a frame the engine applies that frame's actions in order, then gravity. Actions must be in frame order and fall after the current frame, or `step` throws and changes nothing. Once the player has topped out, `step` changes nothing and the frame stays at the top-out.
+- `engine.state` is read-only: board, active piece, hold, queue, garbage meter, stats, and whether the player has topped out. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it.
+- `engine.serialize() → EngineState` and `restoreEngine(state) → Engine` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
 - `engine.hash()` is a stable hash of the full state, used by the replay-hash tests and for debugging.
 - Pure helpers, exported and unit-tested: SRS kick lookup, T-spin detection, the attack calculator, garbage cancellation.
 
@@ -128,7 +130,11 @@ These are what make server verification and replay work. They're enforced by tes
 
 - If a hash changes and `engineVersion` did not change, CI fails.
 - Changing game outcomes therefore requires bumping `engineVersion` and re-recording the expected hashes in the same PR.
-- The same suite checks determinism: it replays in Node and asserts identical results across runs.
+- The same suite checks determinism: it replays each match twice in Node and asserts identical results.
+
+Recorded matches are JSON files in `packages/engine/recorded-matches/`. Each also records the `engineVersion` it was made with, and the suite fails if that differs from the current one. `pnpm --filter @shura/engine record` re-records the expected hash of every recorded match. The failure message explains when a bump is needed.
+
+Until M1 closes nothing has shipped, so no client or game pod can disagree about outcomes: `engineVersion` stays at 1, and a PR that changes outcomes only re-records the expected hashes. The bump rule above applies from then on.
 
 ---
 
