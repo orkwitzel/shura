@@ -165,12 +165,23 @@ The engine and the server only see **atomic actions**, each tagged with a frame 
 
 ### 7.3 Input engine and adapters
 
-`client-core` contains the **input engine**, a state machine for DAS, ARR and soft drop that runs on the game frame clock. It consumes key signals and emits actions. Each UI feeds it through an adapter:
+`client-core` contains the **input engine**, a state machine for DAS, ARR and soft drop that runs on the game frame clock. It consumes key events (press and release of a bound key, stamped with the time they arrived, §13.1) and emits actions.
+
+The input engine reads the board through pure helpers that `packages/engine` exports (`canMove`, which says whether the active piece can move by a given number of columns and rows, and the current gravity in sub-rows per frame), so it emits only actions that take effect:
+
+- **ARR 0:** once DAS is charged, it emits as many moves as there are free columns to the wall, in one frame. While the key stays held it checks each frame and emits more only when the piece can move again: after a new piece spawns, after it falls past an overhang, or after a rotation.
+- **Soft-drop factor:** the soft-drop speed is the factor times the current gravity, counted in sub-rows per frame with an integer accumulator, so ×20 at 1 row/s is one `softDrop` every 3 frames. "Instant" emits one `softDrop` for each row down to the stack.
+- **Countdown:** the input engine runs through the countdown (§13.1), so a key held through it is already charged at Go.
+
+Composite actions such as "shift to the wall" or "drop to the stack" were considered and deferred (§16): with the board helpers, plain moves cost at most one action per column moved.
+
+Each UI feeds the input engine through an adapter. An adapter is a pure function from timestamped raw input (DOM events, or terminal bytes) to key events, so each one is tested against recorded input:
 
 - **Web adapter:** `keydown` / `keyup`, with browser key repeat ignored.
 - **CLI precise adapter:** Ink 8 with the Kitty keyboard protocol (`kittyKeyboard: { mode: 'auto', flags: ['disambiguateEscapeCodes', 'reportEventTypes'] }`). This gives real press, repeat and release events. It's used when `key.eventType` is present.
 - **CLI basic adapter:** for terminals without release events (GNOME Terminal/VTE, Konsole, anything inside tmux). The first press moves once, and the OS key-repeat stream then drives repeated movement. A release is assumed after about 2× the repeat interval with no events (longer before the first repeat, about 500 ms). Precise DAS/ARR settings don't apply in this mode.
 - The CLI chooses an adapter automatically from the first key event and shows it in the status line (`input: precise` / `input: basic`). `--input precise|basic` overrides the choice.
+- The CLI adapters' tests replay byte streams recorded from real terminals (Kitty-protocol press, repeat and release from kitty and Ghostty; legacy sequences with OS key repeat from GNOME Terminal and tmux), kept in `apps/cli/tests/support/`. A hidden `--debug-input` flag shows the raw events, the chosen adapter and the actions emitted in a side panel: it's how the recordings are captured, and what to ask for in an input bug report.
 
 Terminals known to report key releases (as of Oct 2026): kitty, foot ≥ 1.10.3, Alacritty ≥ 0.13, Ghostty, iTerm2, Windows Terminal ≥ 1.25, and WezTerm with `enable_kitty_keyboard = true`.
 
@@ -185,10 +196,11 @@ Terminals known to report key releases (as of Oct 2026): kitty, foot ≥ 1.10.3,
 | Rotate CCW | Z, Ctrl | Z |
 | Rotate 180° | A | A |
 | Hold | C, Shift | C |
-| Pause / menu (single-player) | Esc, P | Esc, P |
-| Restart (Sprint/Ultra) | R | R |
+| Menu (single-player) | Esc, P | Esc, P |
 
 Terminals can't report Ctrl or Shift on their own, so the CLI defaults leave them out. Binding a key that's already in use swaps the two actions.
+
+During a game the menu is the only binding besides the game controls. Everything else lives inside the menu, which has its own fixed shortcuts: **Resume** (Esc, Enter), **Restart** (R), **Settings** (S) and **Quit to menu** (Q). Restart is therefore always two keys (Esc, then R) and asks for no confirmation. Changing settings mid-game is safe, because a game's log holds actions, not handling: the changes apply when the game resumes.
 
 ---
 
@@ -420,11 +432,31 @@ UI-free TypeScript shared by web and CLI:
 
 It exposes a subscribable store (`getState()`, `subscribe()`). Both UIs connect to it with a `useSyncExternalStore` hook.
 
+**Game loop.** The loop gets a clock from its platform: `now()` in milliseconds and `schedule(callback)` to wake it. The CLI uses `performance.now()` and a ~4 ms timer, the web `performance.now()` and `requestAnimationFrame`, and tests a fake clock they advance by hand. The game's frame comes from the time since its start, not from counting wakes: each wake steps the engine to `floor((now() − start) × 60 / 1000)`, several frames at once if the wake came late, so timer jitter never changes game speed and a Sprint time stays exact. Key events carry the time they arrived and apply at the first frame not yet stepped, at most one frame (16.7 ms) later. Pausing stops stepping, and resuming moves `start` forward by the time paused. If a wake finds more than 30 frames (0.5 s) to step, as after a laptop sleep or a debugger break, a single-player game opens the menu instead of simulating time the player never saw. The UI redraws from the store at its own rate (about 30 fps in Ink, the display's refresh rate on the web), independently of the loop.
+
+**Countdown.** Every single-player game starts with "3, 2, 1, Go", 0.5 s a step, and resuming from the menu or restarting shows it again. The countdown is frames −90 to −1: the board, queue and hold are shown and the input engine runs, so DAS charges, but the engine doesn't step. Go is frame 0, where Sprint's time starts.
+
+**Single-player session.** A session runs one mode through countdown, play, the menu (§7.4) and the end of the game, and then shows the results: the mode's headline (Sprint's time, or the score), lines, pieces, pieces per second, score and level, "Finished" or "Game over", and the personal best line ("new personal best", or how far off it the run was). From the results, Restart plays the same mode again, and Enter or Esc returns to the main menu.
+
+**Personal bests.** One per mode, the best run only:
+
+| Mode | What counts |
+|---|---|
+| Sprint | The fastest finished 40 lines, in frames, shown as `m:ss.mmm`. A top-out never counts |
+| Ultra | The highest score of a game that lasted the full 2 minutes. A top-out never counts |
+| Marathon | The highest score at the end of the game, by top-out or by finishing 150 lines, with the level and lines shown beside it |
+
+Each record keeps the date, the headline stats, `engineVersion`, and the seed and action log of the run, so it can be replayed or verified later (§16). A record is only written when a game ends: quitting mid-game writes nothing.
+
+**Settings model.** client-core owns the settings rules that every settings screen needs: the handling ranges (§7.2), the bindings with the swap rule (§7.4), the ghost toggle, validation and saving. The CLI's and the web's settings screens are views over it.
+
+**Storage.** Settings and records are two separate stores, each with its own zod schema and `version` field, migrated on load, behind one storage interface. Records are machine-written data, so a hand edit of the settings can't damage them. The CLI keeps them in two files (§13.3), and the web in two `localStorage` keys.
+
 ### 13.2 Web
 
 - React + Vite, plain CSS (no component library).
 - Each board is a `<canvas>` redrawn on `requestAnimationFrame` directly from client-core state, outside React's render cycle. React renders menus, lobby, settings and results.
-- Settings and personal bests are stored in `localStorage`.
+- Settings and personal bests are stored in two `localStorage` keys (§13.1).
 - Simple sound effects with an on/off setting, plus a board skin option.
 - UI text is in English. Nicknames in any script, Hebrew included, display correctly.
 - In dev, Vite forwards `/api` and `/ws` to the gateway, so the browser sees one origin.
@@ -433,7 +465,7 @@ It exposes a subscribable store (`getState()`, `subscribe()`). Both UIs connect 
 
 - **Your board:** 10×20 cells, each 2 characters wide (`██`), with hold on the left and the 5-piece preview on the right.
 - **Opponent boards:** half-block characters (`▀`/`▄` with foreground/background colors), so each takes 10×10 characters plus a name and garbage meter. Up to 7 fit beside your board on a ~120×30 terminal. Smaller terminals show opponents as a list (name, stack height, alive or out).
-- **Minimum size:** 80×24. Below that the CLI shows "please enlarge the terminal".
+- **Minimum size:** 80×24. Below that the CLI shows "please enlarge the terminal". If the terminal shrinks below it during a single-player game, the game opens the menu behind the message.
 - **Color:** 24-bit when supported, otherwise the 16 ANSI colors. `--no-color` / `NO_COLOR` draws cells as glyphs instead.
 - **Rendering:** Ink renders at about 30 fps, while the game logic stays at 60 fps in client-core. Each board is turned into one pre-colored string per row and drawn as a single `<Text>` per row, never one component per cell.
 - **Silent:** no sound.
@@ -452,7 +484,15 @@ shura --version | --help
 global flags: --server <url>  --name <nickname>  --input precise|basic  --no-color
 ```
 
-**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the nickname, bindings, handling, server URL and personal bests. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build.
+Until online play exists (M4), the menu shows *Play online* disabled with "coming soon", `quick`, `create` and `join` parse their arguments but print "online play isn't available yet" and exit with code 1, and `--server` and `--name` parse but have no effect.
+
+**Settings screen:** handling (DAS, ARR and soft-drop factor, stepped within the §7.2 ranges), a "press a key" rebind for each action with the swap rule, and the ghost toggle. It's reached from the main menu and from the in-game menu.
+
+**Quitting:** Ctrl+C quits at once from anywhere and restores the terminal (cursor, keyboard protocol, alternate screen). A game in progress is dropped.
+
+**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the settings: nickname, bindings, handling, ghost and server URL. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build.
+
+**Records:** personal bests (§13.1) live in `records.json` in the XDG data directory (`~/.local/share/shura/`; `%LOCALAPPDATA%\shura` on Windows), apart from the config people edit by hand. Both files are written atomically (a temporary file, then a rename), so a crash mid-save never corrupts them. An invalid `config.json` falls back to the defaults with a message that says what's wrong. An invalid `records.json` is moved to `records.json.bak` and a fresh one started, with a message, so personal bests are never silently lost.
 
 **Update check:** at most once a day, a non-blocking request to the npm registry. If a newer version exists, a one-line notice appears in the menu. `SHURA_NO_UPDATE_CHECK=1` disables it.
 
@@ -529,6 +569,8 @@ The full rules for contributors are in [`CONTRIBUTING.md`](../CONTRIBUTING.md). 
 | Battle Royale, Co-op | Future. Co-op breaks the one-player-one-board assumption |
 | FFA quick-match | Future |
 | UI localisation | Future. English only for now |
+| Composite actions (`shiftToWall`, `sonicDrop`) | If action counts at ARR 0 or with instant soft drop become a problem. The input engine sends plain moves for now (§7.3) |
+| Personal best history | Future. Only the best run per mode is kept, with its action log (§13.1) |
 | OpenTelemetry tracing | When needed |
 | Playwright end-to-end tests | Once the UI stabilises |
 
@@ -540,7 +582,7 @@ The full rules for contributors are in [`CONTRIBUTING.md`](../CONTRIBUTING.md). 
 |---|---|---|
 | M0 | Repo skeleton: tooling, empty packages and apps, CI, `main` ruleset, lefthook, docs, Docker Compose with Valkey | `pnpm check` passes in CI, and a non-conforming branch or PR is rejected |
 | M1 | Engine: rules from §3, `serialize`/`restore`/`hash`, replay-hash suite | The rules are tested, and recorded matches replay to their expected hashes |
-| M2 | CLI single-player: client-core loop + input engine, both adapters, Ink board rendering, the three modes, config file | Sprint is playable offline via `pnpm cli` |
+| M2 | CLI single-player: client-core loop + input engine, both adapters, Ink board rendering, the three modes, settings screen, config and records files | All three modes are playable offline via `pnpm cli` with both input adapters, and settings and personal bests are kept between runs |
 | M3 | Web single-player: canvas board rendering, settings, the three modes | The same game in the browser |
 | M4 | Multiplayer core: protocol + handshake, gateway, game, match log, session tokens, reconnect, spectating, limits | A 1v1 and an FFA between web and CLI on a laptop, with every match verified by the server |
 | M5 | Multi-pod and operations: heartbeats and placement, `dev:game2`, health/metrics/logs, the three images, first capacity benchmark | Two game pods share rooms correctly, and the images run under Compose |
