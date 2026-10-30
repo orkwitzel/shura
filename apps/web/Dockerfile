@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 COPY --from=prune /repo/out/full/ .
 RUN pnpm --filter @shura/web build
 
-FROM nginxinc/nginx-unprivileged:1.30-alpine-slim
+FROM nginxinc/nginx-unprivileged:1.31-alpine-slim
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist/ /usr/share/nginx/html/
 EXPOSE 8080
