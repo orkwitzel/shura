@@ -62,6 +62,8 @@ fix(gateway)!: reject clients without protocolVersion      # "!" marks a breakin
 
 Biome formats and lints all code and config files (`pnpm check`, and the pre-commit hook on staged files). Use the terms in [`docs/glossary.md`](docs/glossary.md).
 
+In every app and package, tests live in a `tests/` folder next to `src/` (`tests/server.test.ts`, importing from `../src/server`). `src/` holds only shipped code, and helpers used only by tests go in `tests/support/`. The shared base config (`packages/tsconfig/base.json`) includes both folders for every package, so tests are typechecked too, and a package's `tsconfig.json` needs no `include` of its own.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under [AGPL-3.0-only](LICENSE).

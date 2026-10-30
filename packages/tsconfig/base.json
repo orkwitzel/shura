@@ -16,5 +16,6 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "types": []
-  }
+  },
+  "include": ["${configDir}/src", "${configDir}/tests"]
 }

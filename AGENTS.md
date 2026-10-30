@@ -25,6 +25,10 @@ If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the replay
 - Add fields as optional and add new message types freely.
 - Renaming, removing or changing the meaning of a message or field is a breaking change: bump `PROTOCOL_VERSION`.
 
+## Tests
+
+Tests go in `tests/` next to `src/` in every app and package, never inside `src/`. Test-only helpers go in `tests/support/`. See `CONTRIBUTING.md`.
+
 ## Package boundaries
 
 - `engine` imports nothing from the workspace.
