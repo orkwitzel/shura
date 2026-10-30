@@ -1,12 +1,12 @@
 import { expect } from 'vitest';
 import {
   type Action,
-  type ActionType,
   type ActivePiece,
   createEngine,
   type Engine,
   type EngineState,
   LOCK_DELAY,
+  type PieceActionType,
   restoreEngine,
   type Turn,
 } from '../../src/index';
@@ -28,7 +28,7 @@ export interface Lock {
   board?: readonly string[];
   piece: ActivePiece;
   turn?: Turn;
-  actions?: readonly ActionType[];
+  actions?: readonly PieceActionType[];
 }
 
 /** Changes the state of a fresh game. */

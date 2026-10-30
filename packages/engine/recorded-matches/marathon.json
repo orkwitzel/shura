@@ -8,15 +8,19 @@
       65536, 82643, 106080, 138633, 184506, 250134, 345513, 486408, 698066, 1021580, 1524935,
       2322516, 3610137, 5729001, 9284539
     ],
+    "gravityStep": null,
     "linesPerLevel": 10,
     "lineGoal": 150,
     "frameLimit": null,
     "lockDelay": 30,
     "maxLockResets": 15,
-    "previewSize": 5
+    "previewSize": 5,
+    "garbageCap": 8,
+    "marginTimeStart": null,
+    "marginTimeStep": 1800
   },
   "lastFrame": 4125,
-  "expectedHash": "27ecae2b0b045605",
+  "expectedHash": "cb024f2e3c136d72",
   "actions": [
     { "frame": 1, "type": "moveLeft" },
     { "frame": 2, "type": "moveLeft" },

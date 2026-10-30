@@ -74,14 +74,12 @@ describe('serialize and restore', () => {
   test.each(loadRecordedMatches())(
     'restoring partway through $file gives the same hash',
     ({ match }) => {
-      const { actions, lastFrame } = match;
-      const expected = replay(match);
-      // Every 97th frame: the gravity-only match is too long to restore at every frame.
-      for (let frame = 0; frame <= lastFrame; frame += 97) {
-        const first = createEngine(match.settings, match.seed, match.playerIndex);
-        play(first, actions, 0, frame);
-        const resumed = play(restoreEngine(first.serialize()), actions, frame, lastFrame);
-        if (resumed.hash() !== expected) {
+      const expected = replay(match).join();
+      // Every 97th frame, as the gravity-only match is too long to restore at every frame, and 25
+      // frames through a versus match, which replays frame by frame.
+      const every = 'players' in match ? Math.ceil(match.lastFrame / 25) : 97;
+      for (let frame = 0; frame <= match.lastFrame; frame += every) {
+        if (replay(match, { restoreAt: frame }).join() !== expected) {
           expect.fail(`restoring at frame ${frame} changed the outcome`);
         }
       }
@@ -216,11 +214,39 @@ describe('hash', () => {
     "the mode settings' lock delay": (s) => {
       s.settings.lockDelay++;
     },
+    "the mode settings' gravity step": (s) => {
+      s.settings.gravityStep = 1_800;
+    },
+    "the mode settings' lines per level": (s) => {
+      s.settings.linesPerLevel = null;
+    },
+    "the mode settings' garbage cap": (s) => {
+      s.settings.garbageCap++;
+    },
+    "the mode settings' margin time": (s) => {
+      s.settings.marginTimeStart = 7_200;
+    },
+    "the mode settings' margin time step": (s) => {
+      s.settings.marginTimeStep++;
+    },
+    'an attack in the garbage meter': (s) => {
+      s.garbageMeter.push({ id: 1, lines: 2, holeSeed: 3 });
+    },
   };
 
   test.each(Object.keys(changes))('changes when %s changes', (name) => {
     const changed = structuredClone(state);
     changes[name]?.(changed);
     expect(restoreEngine(changed).hash()).not.toBe(restoreEngine(state).hash());
+  });
+
+  test("changes when a garbage meter entry's lines or hole seed change", () => {
+    const meter = (lines: number, holeSeed: number): EngineState => ({
+      ...structuredClone(state),
+      garbageMeter: [{ id: 1, lines, holeSeed }],
+    });
+    const hash = restoreEngine(meter(2, 3)).hash();
+    expect(restoreEngine(meter(3, 3)).hash()).not.toBe(hash);
+    expect(restoreEngine(meter(2, 4)).hash()).not.toBe(hash);
   });
 });

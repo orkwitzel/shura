@@ -57,7 +57,7 @@ A line clear that leaves the board empty.
 _Avoid_: all clear, PC (in code)
 
 **Level**:
-The number that multiplies line clear points and, in Marathon, sets gravity.
+The number that multiplies line clear points and, in Marathon, sets gravity. Versus gravity follows time instead, and the level stays at 1.
 _Avoid_: stage, speed
 
 **Attack**:
@@ -65,12 +65,20 @@ The number of garbage lines a clear produces, before cancellation.
 _Avoid_: damage, lines sent (for the pre-cancellation value)
 
 **Garbage**:
-Lines added to the bottom of a board, each with one gap, as a result of an opponent's attack.
+Lines added to the bottom of a board, each with one hole, as a result of an opponent's attack.
 _Avoid_: junk, penalty lines
 
+**Hole**:
+The one empty cell in a line of garbage. Every line of one attack has its hole in the same column, which the attack's hole seed picks.
+_Avoid_: gap, well (a well is an open column the player leaves in their own stack)
+
 **Garbage meter**:
-A player's queue of incoming garbage that hasn't landed yet.
+A player's queue of incoming garbage that hasn't landed yet, oldest attack first.
 _Avoid_: pending bar, incoming
+
+**Garbage cap**:
+The most garbage lines that land at one lock: 8. The rest stays in the garbage meter.
+_Avoid_: garbage limit, max garbage
 
 **Cancellation**:
 Using your own attack to remove lines from your garbage meter before anything is sent on.
