@@ -117,7 +117,7 @@ The details, and the reasoning behind each choice, are in the [design document](
 ## Development
 
 > [!IMPORTANT]
-> The code skeleton lands in milestone M0. Until then, the repository contains only documentation.
+> Only the M0 skeleton exists so far: the services answer health checks and the clients are placeholders.
 
 You'll need Node.js 26, Docker for the local Valkey, and corepack for the pinned pnpm (`npm install -g corepack && corepack enable`).
 

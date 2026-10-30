@@ -1,0 +1,4 @@
+{
+  "extends": "@shura/tsconfig/base.json",
+  "include": ["src"]
+}

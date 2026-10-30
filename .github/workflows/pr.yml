@@ -1,0 +1,57 @@
+name: pr
+
+# Branch, title and description rules (CONTRIBUTING.md). Bot PRs (Changesets, Dependabot) are
+# exempt; a skipped job still satisfies a required check.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/branch-name.sh "$HEAD_REF"
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+
+  pr-title:
+    if: github.head_ref != 'changeset-release/main' && !startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: conventions
+        run: |
+          . scripts/conventions.sh
+          { echo 'types<<EOF'; echo "$TYPES" | tr ' ' '\n'; echo EOF; } >> "$GITHUB_OUTPUT"
+          { echo 'scopes<<EOF'; echo "$SCOPES" | tr ' ' '\n'; echo EOF; } >> "$GITHUB_OUTPUT"
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: ${{ steps.conventions.outputs.types }}
+          scopes: ${{ steps.conventions.outputs.scopes }}
+          requireScope: true
+          subjectPattern: ^[a-z0-9].*$
+          subjectPatternError: The summary "{subject}" must start with a lowercase letter or digit.
+      - name: title is at most 72 characters
+        run: |
+          if [ "${#TITLE}" -gt 72 ]; then
+            echo "The PR title is ${#TITLE} characters; the limit is 72." >&2
+            exit 1
+          fi
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+
+  pr-body:
+    if: github.head_ref != 'changeset-release/main' && !startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: node scripts/check-pr-body.mjs
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
