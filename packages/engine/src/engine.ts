@@ -177,10 +177,10 @@ export function restoreEngine(state: EngineState): Engine {
 function applyAction(s: EngineState, type: ActionType): void {
   switch (type) {
     case ActionType.MoveLeft:
-      shift(s, -1);
+      tryMove(s, -1, 0);
       break;
     case ActionType.MoveRight:
-      shift(s, 1);
+      tryMove(s, 1, 0);
       break;
     case ActionType.RotateCW:
       rotate(s, 1);
@@ -231,30 +231,14 @@ function applyGravity(s: EngineState): void {
 }
 
 /**
- * Moves the active piece sideways. A successful move from on the stack restarts the lock delay,
- * while the piece has restarts left. Moves in the air use none.
- */
-function shift(s: EngineState, cols: number): void {
-  const wasOnStack = onStack(s);
-  if (tryMove(s, cols, 0) && wasOnStack) restartLockDelay(s);
-}
-
-/**
  * Turns the active piece clockwise by `quarterTurns`, placing it at the first of the rotation
- * system's kicks where it fits; if none fits, it doesn't turn. A successful turn from on the stack
- * restarts the lock delay, as a move does, and turns in the air use no restarts.
+ * system's kicks where it fits. If none fits, it doesn't turn.
  */
 function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
   const { kind, col, row, rotation } = s.active;
   const to = turned(rotation, quarterTurns);
-  const wasOnStack = onStack(s);
-  const lowestRow = s.lowestRow;
   for (const [cols, rows] of srs.kicks(kind, rotation, to)) {
-    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
-      // A turn down to a new lowest row has already given the piece a fresh lock delay.
-      if (wasOnStack && s.lowestRow === lowestRow) restartLockDelay(s);
-      return;
-    }
+    if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) return;
   }
 }
 
@@ -285,13 +269,16 @@ function tryMove(s: EngineState, cols: number, rows: number): boolean {
 }
 
 /**
- * Makes `piece` the active piece if it fits. Reaching a new lowest row gives the piece a fresh lock
- * delay (design §3).
+ * Makes `piece` the active piece if it fits: moved, turned or dropped (design §3). Reaching a new
+ * lowest row gives the piece a fresh lock delay. Otherwise, a piece that was on the stack restarts
+ * its lock delay while it has restarts left, and a piece in the air uses none.
  */
 function tryPlace(s: EngineState, piece: ActivePiece): boolean {
   if (collides(s.board, piece)) return false;
+  const wasOnStack = onStack(s);
   s.active = piece;
   if (bottomRow(piece) < s.lowestRow) freshLockDelay(s);
+  else if (wasOnStack) restartLockDelay(s);
   return true;
 }
 

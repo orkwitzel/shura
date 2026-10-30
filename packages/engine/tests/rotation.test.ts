@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { type PieceKind, type Rotation, srs } from '../src/index';
+import { type Offset, type PieceKind, type Rotation, srs } from '../src/index';
 
-type Kicks = readonly (readonly [cols: number, rows: number])[];
-type KickTable = Record<string, Kicks>;
+type KickTable = Record<string, readonly Offset[]>;
 
 /** A transition key, as the tables below write it: from-state then to-state, `R` and `L` for 1 and 3. */
 const STATE_NAMES = ['0', 'R', '2', 'L'] as const;
@@ -17,122 +16,28 @@ const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
  * The SRS kick tables, as the Hard Drop wiki gives them (https://harddrop.com/wiki/SRS, "Wall
  * Kicks"): x rightwards and y upwards, with the basic rotation (0, 0) as test 1.
  */
+// biome-ignore format: one turn per line, as the sources print them
 const SRS_JLSTZ: KickTable = {
-  '0R': [
-    [0, 0],
-    [-1, 0],
-    [-1, 1],
-    [0, -2],
-    [-1, -2],
-  ],
-  R0: [
-    [0, 0],
-    [1, 0],
-    [1, -1],
-    [0, 2],
-    [1, 2],
-  ],
-  R2: [
-    [0, 0],
-    [1, 0],
-    [1, -1],
-    [0, 2],
-    [1, 2],
-  ],
-  '2R': [
-    [0, 0],
-    [-1, 0],
-    [-1, 1],
-    [0, -2],
-    [-1, -2],
-  ],
-  '2L': [
-    [0, 0],
-    [1, 0],
-    [1, 1],
-    [0, -2],
-    [1, -2],
-  ],
-  L2: [
-    [0, 0],
-    [-1, 0],
-    [-1, -1],
-    [0, 2],
-    [-1, 2],
-  ],
-  L0: [
-    [0, 0],
-    [-1, 0],
-    [-1, -1],
-    [0, 2],
-    [-1, 2],
-  ],
-  '0L': [
-    [0, 0],
-    [1, 0],
-    [1, 1],
-    [0, -2],
-    [1, -2],
-  ],
+  '0R': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  R0: [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  R2: [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  '2R': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  '2L': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+  L2: [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  L0: [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  '0L': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
 };
 
+// biome-ignore format: one turn per line, as the sources print them
 const SRS_I: KickTable = {
-  '0R': [
-    [0, 0],
-    [-2, 0],
-    [1, 0],
-    [-2, -1],
-    [1, 2],
-  ],
-  R0: [
-    [0, 0],
-    [2, 0],
-    [-1, 0],
-    [2, 1],
-    [-1, -2],
-  ],
-  R2: [
-    [0, 0],
-    [-1, 0],
-    [2, 0],
-    [-1, 2],
-    [2, -1],
-  ],
-  '2R': [
-    [0, 0],
-    [1, 0],
-    [-2, 0],
-    [1, -2],
-    [-2, 1],
-  ],
-  '2L': [
-    [0, 0],
-    [2, 0],
-    [-1, 0],
-    [2, 1],
-    [-1, -2],
-  ],
-  L2: [
-    [0, 0],
-    [-2, 0],
-    [1, 0],
-    [-2, -1],
-    [1, 2],
-  ],
-  L0: [
-    [0, 0],
-    [1, 0],
-    [-2, 0],
-    [1, -2],
-    [-2, 1],
-  ],
-  '0L': [
-    [0, 0],
-    [-1, 0],
-    [2, 0],
-    [-1, 2],
-    [2, -1],
-  ],
+  '0R': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  R0: [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  R2: [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+  '2R': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  '2L': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  L2: [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  L0: [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  '0L': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
 };
 
 /**
@@ -142,58 +47,20 @@ const SRS_I: KickTable = {
  * basic rotation, so here every y is negated and (0, 0) is added as test 1. For example, its
  * `"02": [[0,-1],[1,-1],[-1,-1],[1,0],[-1,0]]` is the first row below.
  */
+// biome-ignore format: one turn per line, as the sources print them
 const SRS_PLUS_180_JLSTZ: KickTable = {
-  '02': [
-    [0, 0],
-    [0, 1],
-    [1, 1],
-    [-1, 1],
-    [1, 0],
-    [-1, 0],
-  ],
-  RL: [
-    [0, 0],
-    [1, 0],
-    [1, 2],
-    [1, 1],
-    [0, 2],
-    [0, 1],
-  ],
-  '20': [
-    [0, 0],
-    [0, -1],
-    [-1, -1],
-    [1, -1],
-    [-1, 0],
-    [1, 0],
-  ],
-  LR: [
-    [0, 0],
-    [-1, 0],
-    [-1, 2],
-    [-1, 1],
-    [0, 2],
-    [0, 1],
-  ],
+  '02': [[0, 0], [0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0]],
+  RL: [[0, 0], [1, 0], [1, 2], [1, 1], [0, 2], [0, 1]],
+  '20': [[0, 0], [0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0]],
+  LR: [[0, 0], [-1, 0], [-1, 2], [-1, 1], [0, 2], [0, 1]],
 };
 
+// biome-ignore format: one turn per line, as the sources print them
 const SRS_PLUS_180_I: KickTable = {
-  '02': [
-    [0, 0],
-    [0, 1],
-  ],
-  RL: [
-    [0, 0],
-    [1, 0],
-  ],
-  '20': [
-    [0, 0],
-    [0, -1],
-  ],
-  LR: [
-    [0, 0],
-    [-1, 0],
-  ],
+  '02': [[0, 0], [0, 1]],
+  RL: [[0, 0], [1, 0]],
+  '20': [[0, 0], [0, -1]],
+  LR: [[0, 0], [-1, 0]],
 };
 
 const TABLES: Record<PieceKind, KickTable> = {
@@ -215,6 +82,10 @@ describe('SRS kick lookup', () => {
     test.each(TRANSITIONS)('$name', ({ from, to, name }) => {
       expect(srs.kicks(kind, from, to)).toEqual(TABLES[kind][name]);
     });
+  });
+
+  test('rejects a turn that keeps the rotation state', () => {
+    expect(() => srs.kicks('T', 2, 2)).toThrow(RangeError);
   });
 
   test.each(TRANSITIONS)("O doesn't kick: $name tries only the basic rotation", ({ from, to }) => {

@@ -254,8 +254,8 @@ describe('step', () => {
   });
 });
 
-/** `count` of the same move, one per frame from frame `from`. */
-function moves(type: ActionType.MoveLeft | ActionType.MoveRight, count: number, from = 1) {
+/** `count` of the same action, one per frame from frame `from`. */
+function moves(type: ActionType, count: number, from = 1) {
   return Array.from({ length: count }, (_, i) => ({ frame: from + i, type }));
 }
 
@@ -371,10 +371,14 @@ describe('lock delay', () => {
 });
 
 /** `count` moves alternating left and right, one every `every` frames from frame `every`. */
-function wiggles(count: number, every: number) {
+function wiggles(
+  count: number,
+  every: number,
+  cycle: readonly ActionType[] = [ActionType.MoveLeft, ActionType.MoveRight],
+) {
   return Array.from({ length: count }, (_, i) => ({
     frame: (i + 1) * every,
-    type: i % 2 === 0 ? ActionType.MoveLeft : ActionType.MoveRight,
+    type: cycle[i % cycle.length] as ActionType,
   }));
 }
 
@@ -396,13 +400,15 @@ describe('lock delay with rotation', () => {
     // 8 turns and 8 moves, one every 10 frames from frame 10. The 15th, at frame 150, is the last
     // that counts, so the piece locks at frame 180 rather than 190.
     const engine = restingT();
-    const turnsAndMoves = Array.from({ length: 16 }, (_, i) => ({
-      frame: (i + 1) * 10,
-      type: [ActionType.RotateCW, ActionType.MoveLeft, ActionType.RotateCCW, ActionType.MoveRight][
-        i % 4
-      ] as ActionType,
-    }));
-    engine.step(179, turnsAndMoves);
+    engine.step(
+      179,
+      wiggles(16, 10, [
+        ActionType.RotateCW,
+        ActionType.MoveLeft,
+        ActionType.RotateCCW,
+        ActionType.MoveRight,
+      ]),
+    );
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 1, rotation: 2 });
     engine.step(180, []);
     expect(renderLocked(engine.state, 2)).toEqual(['...TTT....', '....T.....']);
@@ -410,10 +416,7 @@ describe('lock delay with rotation', () => {
 
   test('turns in the air use none of the 15 restarts', () => {
     const engine = game({ active: { kind: 'T', col: 4, row: 10, rotation: 0 } });
-    engine.step(
-      16,
-      Array.from({ length: 16 }, (_, i) => ({ frame: i + 1, type: ActionType.RotateCW })),
-    );
+    engine.step(16, moves(ActionType.RotateCW, 16));
     expect(engine.state.active).toEqual({ kind: 'T', col: 4, row: 10, rotation: 0 });
     expect(engine.state.lockResets).toBe(0);
   });

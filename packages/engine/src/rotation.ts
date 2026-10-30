@@ -16,7 +16,7 @@ export interface RotationSystem {
   cellOffsets(kind: PieceKind, rotation: Rotation): readonly Offset[];
   /**
    * The translations a turn of `kind` from `from` to `to` tries, in order. The first is (0, 0),
-   * the turn in place.
+   * the turn in place. Throws a RangeError if `from` and `to` are the same state.
    */
   kicks(kind: PieceKind, from: Rotation, to: Rotation): readonly Offset[];
 }
@@ -95,15 +95,22 @@ function turnedOffsets(kind: PieceKind, offsets: readonly Offset[]): readonly Of
   return offsets.map(([x, y]) => [y + cols, rows - x]);
 }
 
-/** A piece's cell offsets in rotation states 0 to 3. */
-function srsOffsets(kind: PieceKind): readonly (readonly Offset[])[] {
+/** A piece's cell offsets in each rotation state, indexed by `Rotation`. */
+type CellOffsets = readonly [
+  readonly Offset[],
+  readonly Offset[],
+  readonly Offset[],
+  readonly Offset[],
+];
+
+function srsOffsets(kind: PieceKind): CellOffsets {
   const spawn = SPAWN_OFFSETS[kind];
   const right = turnedOffsets(kind, spawn);
   const two = turnedOffsets(kind, right);
   return [spawn, right, two, turnedOffsets(kind, two)];
 }
 
-const SRS_OFFSETS: Record<PieceKind, readonly (readonly Offset[])[]> = {
+const SRS_OFFSETS: Record<PieceKind, CellOffsets> = {
   I: srsOffsets('I'),
   O: srsOffsets('O'),
   T: srsOffsets('T'),
@@ -113,46 +120,46 @@ const SRS_OFFSETS: Record<PieceKind, readonly (readonly Offset[])[]> = {
   L: srsOffsets('L'),
 };
 
-type KickTable = Partial<Record<`${Rotation}${Rotation}`, readonly Offset[]>>;
+/** A turn from one rotation state to another, written from-state then to-state. */
+type Transition = Exclude<`${Rotation}${Rotation}`, '00' | '11' | '22' | '33'>;
 
-/** Kicks written as the SRS references write them, e.g. `(0,0) (-1,0) (-1,+1)`. */
-function parseKicks(text: string): Offset[] {
-  return [...text.matchAll(/\(([-+]?\d),([-+]?\d)\)/g)].map(([, x, y]) => [Number(x), Number(y)]);
-}
+type KickTable = Readonly<Record<Transition, readonly Offset[]>>;
 
 /**
- * The guideline SRS kicks for J, L, S, T and Z, and TETR.IO's SRS+ 180 kicks for them. Keys are
- * from-state then to-state. The tests cite the sources.
+ * The guideline SRS kicks for J, L, S, T and Z, then TETR.IO's SRS+ 180 kicks for them. The tests
+ * cite the sources.
  */
+// biome-ignore format: one turn per line, as the sources print them
 const JLSTZ_KICKS: KickTable = {
-  '01': parseKicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
-  '10': parseKicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
-  '12': parseKicks('(0,0) (+1,0) (+1,-1) (0,+2) (+1,+2)'),
-  '21': parseKicks('(0,0) (-1,0) (-1,+1) (0,-2) (-1,-2)'),
-  '23': parseKicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
-  '32': parseKicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
-  '30': parseKicks('(0,0) (-1,0) (-1,-1) (0,+2) (-1,+2)'),
-  '03': parseKicks('(0,0) (+1,0) (+1,+1) (0,-2) (+1,-2)'),
-  '02': parseKicks('(0,0) (0,+1) (+1,+1) (-1,+1) (+1,0) (-1,0)'),
-  '13': parseKicks('(0,0) (+1,0) (+1,+2) (+1,+1) (0,+2) (0,+1)'),
-  '20': parseKicks('(0,0) (0,-1) (-1,-1) (+1,-1) (-1,0) (+1,0)'),
-  '31': parseKicks('(0,0) (-1,0) (-1,+2) (-1,+1) (0,+2) (0,+1)'),
+  '01': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  '10': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  '12': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  '21': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  '23': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+  '32': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  '30': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  '03': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+  '02': [[0, 0], [0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0]],
+  '13': [[0, 0], [1, 0], [1, 2], [1, 1], [0, 2], [0, 1]],
+  '20': [[0, 0], [0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0]],
+  '31': [[0, 0], [-1, 0], [-1, 2], [-1, 1], [0, 2], [0, 1]],
 };
 
-/** The guideline SRS kicks for I, and TETR.IO's SRS+ 180 kicks for I. */
+/** The guideline SRS kicks for I, then TETR.IO's SRS+ 180 kicks for I. */
+// biome-ignore format: one turn per line, as the sources print them
 const I_KICKS: KickTable = {
-  '01': parseKicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
-  '10': parseKicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
-  '12': parseKicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
-  '21': parseKicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
-  '23': parseKicks('(0,0) (+2,0) (-1,0) (+2,+1) (-1,-2)'),
-  '32': parseKicks('(0,0) (-2,0) (+1,0) (-2,-1) (+1,+2)'),
-  '30': parseKicks('(0,0) (+1,0) (-2,0) (+1,-2) (-2,+1)'),
-  '03': parseKicks('(0,0) (-1,0) (+2,0) (-1,+2) (+2,-1)'),
-  '02': parseKicks('(0,0) (0,+1)'),
-  '13': parseKicks('(0,0) (+1,0)'),
-  '20': parseKicks('(0,0) (0,-1)'),
-  '31': parseKicks('(0,0) (-1,0)'),
+  '01': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  '10': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  '12': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+  '21': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  '23': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  '32': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  '30': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  '03': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+  '02': [[0, 0], [0, 1]],
+  '13': [[0, 0], [1, 0]],
+  '20': [[0, 0], [0, -1]],
+  '31': [[0, 0], [-1, 0]],
 };
 
 /** O turns only in place. */
@@ -161,11 +168,13 @@ const NO_KICKS: readonly Offset[] = [[0, 0]];
 /** SRS with the guideline kicks for quarter turns and TETR.IO's SRS+ kicks for half turns (design §3). */
 export const srs: RotationSystem = {
   cellOffsets(kind, rotation) {
-    return SRS_OFFSETS[kind][rotation] as readonly Offset[];
+    return SRS_OFFSETS[kind][rotation];
   },
 
   kicks(kind, from, to) {
+    if (from === to)
+      throw new RangeError(`a turn must change the rotation state, got ${from} to ${to}`);
     if (kind === 'O') return NO_KICKS;
-    return (kind === 'I' ? I_KICKS : JLSTZ_KICKS)[`${from}${to}`] ?? NO_KICKS;
+    return (kind === 'I' ? I_KICKS : JLSTZ_KICKS)[`${from}${to}` as Transition];
   },
 };

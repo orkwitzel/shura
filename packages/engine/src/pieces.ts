@@ -23,12 +23,7 @@ export interface Cell {
 
 /** `piece` shifted by `cols` and `rows`. */
 export function moved(piece: Readonly<ActivePiece>, cols: number, rows: number): ActivePiece {
-  return {
-    kind: piece.kind,
-    col: piece.col + cols,
-    row: piece.row + rows,
-    rotation: piece.rotation,
-  };
+  return { ...piece, col: piece.col + cols, row: piece.row + rows };
 }
 
 /** The lowest board row a piece covers. */
