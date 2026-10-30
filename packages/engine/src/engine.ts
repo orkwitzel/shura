@@ -1,5 +1,13 @@
 import { assertInteger } from './assert';
-import { type Board, clearLines, collides, createBoard, lockPiece, VISIBLE_ROWS } from './board';
+import {
+  BOARD_WIDTH,
+  type Board,
+  clearLines,
+  collides,
+  createBoard,
+  lockPiece,
+  VISIBLE_ROWS,
+} from './board';
 import { hashText } from './hash';
 import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
@@ -24,9 +32,8 @@ export const LOCK_DELAY = 30;
 /** How many times moving or rotating on the stack can restart one piece's lock delay (design §3). */
 export const MAX_LOCK_RESETS = 15;
 
-/** Pieces spawn with their origin here: rows 21–22 in design numbering. */
-const SPAWN_COL = 4;
-const SPAWN_ROW = 20;
+/** Pieces spawn with the top row of their box in row 22 in design numbering. */
+const SPAWN_ROW = 21;
 
 /** An atomic engine instruction at a frame (design §7.1, ADR 0002). */
 export interface Action {
@@ -326,8 +333,11 @@ function spawn(s: EngineState, kind: PieceKind): void {
   else tryMove(s, 0, -1);
 }
 
+/** A new piece, centred in the board's columns and rounded left (design §3). */
 function atSpawn(kind: PieceKind): ActivePiece {
-  return { kind, col: SPAWN_COL, row: SPAWN_ROW, rotation: 0 };
+  // Every piece's box is as wide as its cells in rotation state 0.
+  const width = srs.cellOffsets(kind, 0).reduce((widest, [col]) => Math.max(widest, col + 1), 0);
+  return { kind, col: (BOARD_WIDTH - width) >> 1, row: SPAWN_ROW, rotation: 0 };
 }
 
 /**

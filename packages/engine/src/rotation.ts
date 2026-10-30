@@ -12,7 +12,7 @@ export type Offset = readonly [cols: number, rows: number];
  * piece doesn't turn.
  */
 export interface RotationSystem {
-  /** The cells of `kind` in `rotation`, as offsets from the piece's origin. */
+  /** The cells of `kind` in `rotation`, as offsets from the top-left cell of the piece's box. */
   cellOffsets(kind: PieceKind, rotation: Rotation): readonly Offset[];
   /**
    * The translations a turn of `kind` from `from` to `to` tries, in order. The first is (0, 0),
@@ -26,103 +26,15 @@ export function turned(rotation: Rotation, quarterTurns: 1 | 2 | 3): Rotation {
   return ((rotation + quarterTurns) % 4) as Rotation;
 }
 
-/**
- * Cell offsets from the origin in rotation state 0. Every piece spawns flat side down with its
- * origin in column 4, so I and O sit in the middle columns and the rest in the left-middle columns.
- */
-const SPAWN_OFFSETS: Record<PieceKind, readonly Offset[]> = {
-  I: [
-    [-1, 0],
-    [0, 0],
-    [1, 0],
-    [2, 0],
-  ],
-  O: [
-    [0, 0],
-    [1, 0],
-    [0, 1],
-    [1, 1],
-  ],
-  T: [
-    [-1, 0],
-    [0, 0],
-    [1, 0],
-    [0, 1],
-  ],
-  S: [
-    [-1, 0],
-    [0, 0],
-    [0, 1],
-    [1, 1],
-  ],
-  Z: [
-    [-1, 1],
-    [0, 1],
-    [0, 0],
-    [1, 0],
-  ],
-  J: [
-    [-1, 1],
-    [-1, 0],
-    [0, 0],
-    [1, 0],
-  ],
-  L: [
-    [1, 1],
-    [-1, 0],
-    [0, 0],
-    [1, 0],
-  ],
-};
+/** The rotation states as the guideline names them, indexed by `Rotation`. */
+const STATE_NAMES = ['0', 'R', '2', 'L'] as const;
 
-/**
- * Where a quarter turn clockwise moves the cell at (x, y): to (y + cols, rows − x). SRS turns J, L,
- * S, T and Z about the centre of the origin cell, I about the corner below and right of it (the
- * centre of its 4 × 4 box) and O about the corner above and right of it, so O never changes cells.
- */
-const QUARTER_TURN_SHIFT: Record<PieceKind, Offset> = {
-  I: [1, 0],
-  O: [0, 1],
-  T: [0, 0],
-  S: [0, 0],
-  Z: [0, 0],
-  J: [0, 0],
-  L: [0, 0],
-};
-
-function turnedOffsets(kind: PieceKind, offsets: readonly Offset[]): readonly Offset[] {
-  const [cols, rows] = QUARTER_TURN_SHIFT[kind];
-  return offsets.map(([x, y]) => [y + cols, rows - x]);
-}
-
-/** A piece's cell offsets in each rotation state, indexed by `Rotation`. */
-type CellOffsets = readonly [
-  readonly Offset[],
-  readonly Offset[],
-  readonly Offset[],
-  readonly Offset[],
-];
-
-function srsOffsets(kind: PieceKind): CellOffsets {
-  const spawn = SPAWN_OFFSETS[kind];
-  const right = turnedOffsets(kind, spawn);
-  const two = turnedOffsets(kind, right);
-  return [spawn, right, two, turnedOffsets(kind, two)];
-}
-
-const SRS_OFFSETS: Record<PieceKind, CellOffsets> = {
-  I: srsOffsets('I'),
-  O: srsOffsets('O'),
-  T: srsOffsets('T'),
-  S: srsOffsets('S'),
-  Z: srsOffsets('Z'),
-  J: srsOffsets('J'),
-  L: srsOffsets('L'),
-};
+type StateName = (typeof STATE_NAMES)[number];
 
 /** A turn from one rotation state to another, written from-state then to-state. */
-type Transition = Exclude<`${Rotation}${Rotation}`, '00' | '11' | '22' | '33'>;
+type Transition = Exclude<`${StateName}${StateName}`, '00' | 'RR' | '22' | 'LL'>;
 
+/** The kicks each turn tries, as (columns right, rows up), with the turn in place first. */
 type KickTable = Readonly<Record<Transition, readonly Offset[]>>;
 
 /**
@@ -131,50 +43,115 @@ type KickTable = Readonly<Record<Transition, readonly Offset[]>>;
  */
 // biome-ignore format: one turn per line, as the sources print them
 const JLSTZ_KICKS: KickTable = {
-  '01': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
-  '10': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
-  '12': [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
-  '21': [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
-  '23': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
-  '32': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
-  '30': [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
-  '03': [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
-  '02': [[0, 0], [0, 1], [1, 1], [-1, 1], [1, 0], [-1, 0]],
-  '13': [[0, 0], [1, 0], [1, 2], [1, 1], [0, 2], [0, 1]],
-  '20': [[0, 0], [0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0]],
-  '31': [[0, 0], [-1, 0], [-1, 2], [-1, 1], [0, 2], [0, 1]],
+  '0R': [[ 0,  0], [-1,  0], [-1,  1], [ 0, -2], [-1, -2]],
+  'R0': [[ 0,  0], [ 1,  0], [ 1, -1], [ 0,  2], [ 1,  2]],
+  'R2': [[ 0,  0], [ 1,  0], [ 1, -1], [ 0,  2], [ 1,  2]],
+  '2R': [[ 0,  0], [-1,  0], [-1,  1], [ 0, -2], [-1, -2]],
+  '2L': [[ 0,  0], [ 1,  0], [ 1,  1], [ 0, -2], [ 1, -2]],
+  'L2': [[ 0,  0], [-1,  0], [-1, -1], [ 0,  2], [-1,  2]],
+  'L0': [[ 0,  0], [-1,  0], [-1, -1], [ 0,  2], [-1,  2]],
+  '0L': [[ 0,  0], [ 1,  0], [ 1,  1], [ 0, -2], [ 1, -2]],
+
+  '02': [[ 0,  0], [ 0,  1], [ 1,  1], [-1,  1], [ 1,  0], [-1,  0]],
+  'RL': [[ 0,  0], [ 1,  0], [ 1,  2], [ 1,  1], [ 0,  2], [ 0,  1]],
+  '20': [[ 0,  0], [ 0, -1], [-1, -1], [ 1, -1], [-1,  0], [ 1,  0]],
+  'LR': [[ 0,  0], [-1,  0], [-1,  2], [-1,  1], [ 0,  2], [ 0,  1]],
 };
 
 /** The guideline SRS kicks for I, then TETR.IO's SRS+ 180 kicks for I. */
 // biome-ignore format: one turn per line, as the sources print them
 const I_KICKS: KickTable = {
-  '01': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
-  '10': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
-  '12': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
-  '21': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
-  '23': [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
-  '32': [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
-  '30': [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
-  '03': [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
-  '02': [[0, 0], [0, 1]],
-  '13': [[0, 0], [1, 0]],
-  '20': [[0, 0], [0, -1]],
-  '31': [[0, 0], [-1, 0]],
+  '0R': [[ 0,  0], [-2,  0], [ 1,  0], [-2, -1], [ 1,  2]],
+  'R0': [[ 0,  0], [ 2,  0], [-1,  0], [ 2,  1], [-1, -2]],
+  'R2': [[ 0,  0], [-1,  0], [ 2,  0], [-1,  2], [ 2, -1]],
+  '2R': [[ 0,  0], [ 1,  0], [-2,  0], [ 1, -2], [-2,  1]],
+  '2L': [[ 0,  0], [ 2,  0], [-1,  0], [ 2,  1], [-1, -2]],
+  'L2': [[ 0,  0], [-2,  0], [ 1,  0], [-2, -1], [ 1,  2]],
+  'L0': [[ 0,  0], [ 1,  0], [-2,  0], [ 1, -2], [-2,  1]],
+  '0L': [[ 0,  0], [-1,  0], [ 2,  0], [-1,  2], [ 2, -1]],
+
+  '02': [[ 0,  0], [ 0,  1]],
+  'RL': [[ 0,  0], [ 1,  0]],
+  '20': [[ 0,  0], [ 0, -1]],
+  'LR': [[ 0,  0], [-1,  0]],
 };
 
+const IN_PLACE: readonly Offset[] = [[0, 0]];
+
 /** O turns only in place. */
-const NO_KICKS: readonly Offset[] = [[0, 0]];
+// biome-ignore format: a grid of turns
+const O_KICKS: KickTable = {
+  '0R': IN_PLACE, 'R0': IN_PLACE, 'R2': IN_PLACE, '2R': IN_PLACE,
+  '2L': IN_PLACE, 'L2': IN_PLACE, 'L0': IN_PLACE, '0L': IN_PLACE,
+  '02': IN_PLACE, 'RL': IN_PLACE, '20': IN_PLACE, 'LR': IN_PLACE,
+};
+
+interface SrsPiece {
+  /** The piece's cells in each rotation state, indexed by `Rotation`. */
+  cells: readonly [readonly Offset[], readonly Offset[], readonly Offset[], readonly Offset[]];
+  kicks: KickTable;
+}
+
+/**
+ * A piece from a picture of its box in rotation state 0, top row first, `.` for an empty cell. Each
+ * turn clockwise rotates the box a quarter turn about its centre, which takes the cell `x` columns
+ * right of the top-left cell and `y` rows above it to column `width − 1 + y`, row `−x`.
+ */
+function srsPiece(box: readonly string[], kicks: KickTable): SrsPiece {
+  const spawn = box.flatMap((line, down) =>
+    [...line].flatMap((cell, x): Offset[] => (cell === '.' ? [] : [[x, -down]])),
+  );
+  const turn = (cells: readonly Offset[]) =>
+    cells.map(([x, y]): Offset => [box.length - 1 + y, -x]);
+  const right = turn(spawn);
+  const two = turn(right);
+  return { cells: [spawn, right, two, turn(two)], kicks };
+}
+
+/**
+ * Every piece's box in rotation state 0, as SRS draws it: flat side down, I in a 4 × 4 box, O in a
+ * 2 × 2 box so turning never changes its cells, and the rest in a 3 × 3 box.
+ */
+// biome-ignore format: the pictures
+const SRS_PIECES: Record<PieceKind, SrsPiece> = {
+  I: srsPiece(['....',
+               'IIII',
+               '....',
+               '....'], I_KICKS),
+
+  O: srsPiece(['OO',
+               'OO'], O_KICKS),
+
+  T: srsPiece(['.T.',
+               'TTT',
+               '...'], JLSTZ_KICKS),
+
+  S: srsPiece(['.SS',
+               'SS.',
+               '...'], JLSTZ_KICKS),
+
+  Z: srsPiece(['ZZ.',
+               '.ZZ',
+               '...'], JLSTZ_KICKS),
+
+  J: srsPiece(['J..',
+               'JJJ',
+               '...'], JLSTZ_KICKS),
+
+  L: srsPiece(['..L',
+               'LLL',
+               '...'], JLSTZ_KICKS),
+};
 
 /** SRS with the guideline kicks for quarter turns and TETR.IO's SRS+ kicks for half turns (design §3). */
 export const srs: RotationSystem = {
   cellOffsets(kind, rotation) {
-    return SRS_OFFSETS[kind][rotation];
+    return SRS_PIECES[kind].cells[rotation];
   },
 
   kicks(kind, from, to) {
     if (from === to)
       throw new RangeError(`a turn must change the rotation state, got ${from} to ${to}`);
-    if (kind === 'O') return NO_KICKS;
-    return (kind === 'I' ? I_KICKS : JLSTZ_KICKS)[`${from}${to}` as Transition];
+    return SRS_PIECES[kind].kicks[`${STATE_NAMES[from]}${STATE_NAMES[to]}` as Transition];
   },
 };

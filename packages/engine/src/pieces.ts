@@ -5,9 +5,9 @@ export const PIECE_KINDS = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'] as const;
 export type PieceKind = (typeof PIECE_KINDS)[number];
 
 /**
- * The piece under the player's control. `col` and `row` locate the piece's origin cell on the
- * board, with row 0 the bottom row (design row 1). The rotation system places its cells around the
- * origin for each rotation state.
+ * The piece under the player's control. `col` and `row` locate the top-left cell of the piece's box
+ * on the board, with row 0 the bottom row (design row 1). The rotation system places its cells in
+ * the box for each rotation state.
  */
 export interface ActivePiece {
   kind: PieceKind;
