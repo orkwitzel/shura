@@ -5,6 +5,7 @@ import {
   clearLines,
   collides,
   createBoard,
+  isEmpty,
   lockPiece,
   VISIBLE_ROWS,
 } from './board';
@@ -321,7 +322,9 @@ function lock(s: EngineState): void {
     s.toppedOut = true;
     return;
   }
-  scoreLock(s, clearLines(s.board));
+  const lines = clearLines(s.board);
+  s.linesCleared += lines;
+  scoreLock(s, { lines, perfectClear: isEmpty(s.board) });
   s.holdUsed = false;
   spawn(s, nextFromQueue(s));
 }

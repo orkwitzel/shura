@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { isEmpty } from '../src/board';
 import {
   ActionType,
   type ActivePiece,
@@ -11,8 +12,7 @@ import {
   restoreEngine,
   SUBROWS_PER_ROW,
 } from '../src/index';
-import { bottomRow } from '../src/pieces';
-import { emptyRows, render, renderLocked, withBoard } from './support/board';
+import { emptyRows, render, renderLocked, withActive, withBoard } from './support/board';
 import { draw } from './support/random';
 
 const SEED = 2026;
@@ -26,11 +26,8 @@ function newEngine(seed = SEED) {
  * had just spawned there, and `next` as the next piece in the queue.
  */
 function game({ board = [], active, next }: GameSetup) {
-  const state = withBoard(newEngine().serialize(), board);
-  if (active) {
-    state.active = active;
-    state.lowestRow = bottomRow(active);
-  }
+  const boarded = withBoard(newEngine().serialize(), board);
+  const state = active ? withActive(boarded, active) : boarded;
   if (next) state.queue[0] = next;
   return restoreEngine(state);
 }
@@ -62,10 +59,8 @@ describe('a new engine', () => {
   test('has an empty 10 × 40 board', () => {
     const { board } = newEngine().state;
     expect(board).toHaveLength(BOARD_HEIGHT);
-    for (const row of board) {
-      expect(row).toHaveLength(BOARD_WIDTH);
-      expect(row.every((cell) => cell === null)).toBe(true);
-    }
+    for (const row of board) expect(row).toHaveLength(BOARD_WIDTH);
+    expect(isEmpty(board)).toBe(true);
   });
 
   test('takes its active piece and 5-piece preview from the seeded bag', () => {

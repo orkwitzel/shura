@@ -8,6 +8,7 @@ import {
   pieceCells,
   type ReadonlyEngineState,
 } from '../../src/index';
+import { type ActivePiece, bottomRow } from '../../src/pieces';
 
 type Picture = readonly string[];
 
@@ -48,6 +49,11 @@ export function withBoard(state: EngineState, picture: Picture): EngineState {
     });
   });
   return { ...state, board };
+}
+
+/** `state` with `piece` in play as if it had just spawned there. */
+export function withActive(state: EngineState, piece: ActivePiece): EngineState {
+  return { ...state, active: piece, lowestRow: bottomRow(piece) };
 }
 
 /** The bottom `rows` rows of locked cells, without the active piece. */

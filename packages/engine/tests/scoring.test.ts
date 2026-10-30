@@ -10,8 +10,7 @@ import {
   LOCK_DELAY,
   restoreEngine,
 } from '../src/index';
-import { bottomRow } from '../src/pieces';
-import { withBoard } from './support/board';
+import { withActive, withBoard } from './support/board';
 
 // The points are the guideline's, as tetris.wiki tabulates them for recent guideline games,
 // including the perfect clear bonuses of Tetris Effect: https://tetris.wiki/Scoring (revision
@@ -29,19 +28,19 @@ interface Lock {
   piece: ActivePiece;
 }
 
+/** Changes the state of a fresh game. */
+type Setup = (state: EngineState) => EngineState;
+
 /**
  * Plays each lock in turn, letting the piece's lock delay run out so it scores no drop points, and
  * returns the points each lock scored. `setup` changes the state of the fresh game first.
  */
-function play(locks: readonly Lock[], setup: (state: EngineState) => void = () => {}) {
-  const start = newEngine().serialize();
-  setup(start);
-  let engine: Engine = restoreEngine(start);
+function play(locks: readonly Lock[], setup: Setup = (state) => state) {
+  let engine: Engine = restoreEngine(setup(newEngine().serialize()));
   const points: number[] = [];
   for (const { board, piece } of locks) {
-    const state = board ? withBoard(engine.serialize(), board) : engine.serialize();
-    state.active = piece;
-    state.lowestRow = bottomRow(piece);
+    const current = engine.serialize();
+    const state = withActive(board ? withBoard(current, board) : current, piece);
     const before = state.score;
     engine = restoreEngine(state);
     engine.step(state.frame + LOCK_DELAY, []);
@@ -51,10 +50,8 @@ function play(locks: readonly Lock[], setup: (state: EngineState) => void = () =
   return { engine, points };
 }
 
-function atLevel(level: number) {
-  return (state: EngineState) => {
-    state.level = level;
-  };
+function atLevel(level: number): Setup {
+  return (state) => ({ ...state, level });
 }
 
 /** `count` rows full but for column 10, the well. */
@@ -68,13 +65,22 @@ const I_IN_WELL: ActivePiece = { kind: 'I', col: 7, row: 3, rotation: 1 };
 /** A lock that clears nothing: an O on the floor of an empty board, in the corner. */
 const NO_CLEAR: Lock = { board: [], piece: { kind: 'O', col: 0, row: 1, rotation: 0 } };
 
-/** `lines` well rows with a cell above them, so `I_IN_WELL` clears them but not the board. */
-function clearing(lines: number): string[] {
-  return ['L.........', ...well(lines)];
+/** An I clearing `lines` well rows, with a cell above them so the board isn't left empty. */
+function clearing(lines: number): Lock {
+  return { board: ['L.........', ...well(lines)], piece: I_IN_WELL };
 }
 
-const SINGLE: Lock = { board: clearing(1), piece: I_IN_WELL };
-const TETRIS: Lock = { board: clearing(4), piece: I_IN_WELL };
+const SINGLE = clearing(1);
+const TETRIS = clearing(4);
+/** A Tetris that leaves the board empty. */
+const TETRIS_PERFECT_CLEAR: Lock = { board: well(4), piece: I_IN_WELL };
+
+const CLEARS = [
+  { name: 'single', lines: 1, points: 100 },
+  { name: 'double', lines: 2, points: 300 },
+  { name: 'triple', lines: 3, points: 500 },
+  { name: 'Tetris', lines: 4, points: 800 },
+];
 
 describe('a new engine', () => {
   test('starts at level 1 with no score, lines or pieces, no combo and no back-to-back', () => {
@@ -91,13 +97,8 @@ describe('a new engine', () => {
 });
 
 describe('line clears', () => {
-  test.each([
-    { name: 'single', lines: 1, points: 100 },
-    { name: 'double', lines: 2, points: 300 },
-    { name: 'triple', lines: 3, points: 500 },
-    { name: 'Tetris', lines: 4, points: 800 },
-  ])('a $name scores $points at level 1', ({ lines, points }) => {
-    const { engine, points: scored } = play([{ board: clearing(lines), piece: I_IN_WELL }]);
+  test.each(CLEARS)('a $name scores $points at level 1', ({ lines, points }) => {
+    const { engine, points: scored } = play([clearing(lines)]);
     expect(scored).toEqual([points]);
     expect(engine.state.linesCleared).toBe(lines);
   });
@@ -115,15 +116,13 @@ describe('back-to-back', () => {
     expect(engine.state.backToBack).toBe(true);
   });
 
-  test.each([
-    { name: 'single', lines: 1, points: 100 },
-    { name: 'double', lines: 2, points: 300 },
-    { name: 'triple', lines: 3, points: 500 },
-  ])('a $name between two Tetrises breaks the chain', ({ lines, points }) => {
-    const clear = { board: clearing(lines), piece: I_IN_WELL };
-    const { points: scored } = play([TETRIS, NO_CLEAR, clear, NO_CLEAR, TETRIS]);
-    expect(scored).toEqual([800, 0, points, 0, 800]);
-  });
+  test.each(CLEARS.slice(0, 3))(
+    'a $name between two Tetrises breaks the chain',
+    ({ lines, points }) => {
+      const { points: scored } = play([TETRIS, NO_CLEAR, clearing(lines), NO_CLEAR, TETRIS]);
+      expect(scored).toEqual([800, 0, points, 0, 800]);
+    },
+  );
 
   test('a single after a Tetris ends back-to-back status', () => {
     const { engine } = play([TETRIS, NO_CLEAR, SINGLE]);
@@ -172,7 +171,7 @@ describe('perfect clears', () => {
       piece: { kind: 'J', col: 8, row: 2, rotation: 3 },
       points: 500 + 1800,
     },
-    { name: 'Tetris', board: well(4), piece: I_IN_WELL, points: 800 + 2000 },
+    { name: 'Tetris', ...TETRIS_PERFECT_CLEAR, points: 800 + 2000 },
   ] satisfies (Lock & { name: string; points: number })[])(
     'a $name that empties the board scores the perfect clear bonus on top: $points',
     ({ board, piece, points }) => {
@@ -183,23 +182,19 @@ describe('perfect clears', () => {
   );
 
   test('a back-to-back Tetris perfect clear scores 3200 on top', () => {
-    const tetrisPerfectClear = { board: well(4), piece: I_IN_WELL };
-    expect(play([TETRIS, NO_CLEAR, tetrisPerfectClear]).points).toEqual([800, 0, 1200 + 3200]);
+    expect(play([TETRIS, NO_CLEAR, TETRIS_PERFECT_CLEAR]).points).toEqual([800, 0, 1200 + 3200]);
   });
 
   test('the bonus is times the level', () => {
-    expect(play([{ board: well(4), piece: I_IN_WELL }], atLevel(2)).points).toEqual([5600]);
+    expect(play([TETRIS_PERFECT_CLEAR], atLevel(2)).points).toEqual([5600]);
   });
 });
 
 describe('drops', () => {
-  /** A fresh game with a T in play, its flat side 10 rows above the floor or `board`. */
-  function fallingT(setup: (state: EngineState) => void = () => {}) {
-    const state = newEngine().serialize();
-    setup(state);
-    state.active = { kind: 'T', col: 3, row: 11, rotation: 0 };
-    state.lowestRow = bottomRow(state.active);
-    return restoreEngine(state);
+  /** A fresh game with a T in play, its flat side 10 rows above the floor. */
+  function fallingT(setup: Setup = (state) => state) {
+    const state = setup(newEngine().serialize());
+    return restoreEngine(withActive(state, { kind: 'T', col: 3, row: 11, rotation: 0 }));
   }
 
   test('soft drop scores 1 point per row', () => {
@@ -237,10 +232,7 @@ describe('drops', () => {
   });
 
   test('drop points add to the points of the clear and are not times the level', () => {
-    const engine = fallingT((state) => {
-      Object.assign(state, withBoard(state, ['ZZZ...ZZZZ']));
-      state.level = 2;
-    });
+    const engine = fallingT((state) => ({ ...withBoard(state, ['ZZZ...ZZZZ']), level: 2 }));
     engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
     expect(engine.state.score).toBe(20 + 2 * 100);
   });
