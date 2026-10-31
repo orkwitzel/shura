@@ -13,7 +13,7 @@ import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { Look } from '../../board/look';
 import { menuLines } from '../../board/overlay';
-import { keyName, type TerminalInput } from '../../platform/input/terminal-input';
+import { eventTypeOf, keyName, type TerminalInput } from '../../platform/input/terminal-input';
 import { type InputOptions, useTerminalInput } from '../../platform/input/use-terminal-input';
 import type { ColorMode } from '../../platform/terminal/color-mode';
 import { ResultsScreen } from '../results/results-screen';
@@ -126,7 +126,7 @@ export function SoloScreen({
   const shortcut = (raw: TerminalInput): boolean => {
     const { phase } = session.getState();
     const commands = phase === 'paused' ? menu : phase === 'ended' ? results : [];
-    const press = (raw.key.eventType ?? 'press') === 'press';
+    const press = eventTypeOf(raw.key) === 'press';
     const name = press ? keyName(raw) : null;
     const command = name === null ? undefined : commands.find(({ keys }) => keys.includes(name));
     if (!command) return false;

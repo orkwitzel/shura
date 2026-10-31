@@ -14,11 +14,10 @@ import {
 } from '@shura/client-core';
 import { useSettings, useSettingsStore } from '@shura/client-core/react';
 import { ActionType, type PieceActionType } from '@shura/engine';
-import { Box, type Key, Text, useInput } from 'ink';
+import { Box, type Key, Text } from 'ink';
 import { useState } from 'react';
 import { bindableKey, keyLabel } from '../../platform/input/bindable';
-import { createKeyRepeatReader } from '../../platform/input/key-repeat';
-import { keyName } from '../../platform/input/terminal-input';
+import { useScreenKeys } from '../../platform/input/use-screen-keys';
 
 export interface SettingsScreenProps {
   /** Leave the screen (Esc). The changes are already saved. */
@@ -28,8 +27,6 @@ export interface SettingsScreenProps {
   /** What times its keys, to tell a key's OS repeat from a new press. The system's by default. */
   readonly clock?: Pick<Clock, 'now'>;
 }
-
-const SYSTEM_CLOCK: Pick<Clock, 'now'> = { now: () => performance.now() };
 
 /** A row ← and → change: a handling stepper, the ghost toggle, or a picker. */
 interface ValueRow {
@@ -194,20 +191,13 @@ function hint(row: Row | undefined, capturing: boolean): string {
  * and is saved at once. It reads the stores from `ClientCoreProvider`, so it stands on its own: the
  * in-game menu and the main menu both open it.
  */
-export function SettingsScreen({
-  onClose,
-  active = true,
-  clock = SYSTEM_CLOCK,
-}: SettingsScreenProps) {
+export function SettingsScreen({ onClose, active = true, clock }: SettingsScreenProps) {
   const settings = useSettings();
   const store = useSettingsStore();
   const [cursor, setCursor] = useState(0);
   const [slot, setSlot] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [message, setMessage] = useState('');
-  // Tells presses from the key repeat where the terminal doesn't (design §7.3), so the OS repeat of
-  // the Enter that opened the rebind prompt isn't bound.
-  const [repeats] = useState(() => createKeyRepeatReader());
   const row = ROWS[cursor];
 
   const change = (next: SettingsChange, said = '') => {
@@ -237,16 +227,10 @@ export function SettingsScreen({
     change({ bindings: next }, rebindMessage(settings.bindings, next, action));
   };
 
-  // Keys that come while it can't be seen are dropped here, rather than by unsubscribing: with no
-  // `useInput` active, Ink stops reading the terminal and would hand them over once it could be.
-  useInput((input, key) => {
-    if (!active || !row) return;
-    const changes = repeats.feed({ input, key, time: clock.now() });
-    // A key with no name can't repeat in the reader's eyes: its event type says what it was.
-    const press =
-      keyName({ input, key }) === null
-        ? (key.eventType ?? 'press') === 'press'
-        : changes.at(-1)?.kind === 'press';
+  // A press, told from the key repeat, so the OS repeat of the Enter that opened the rebind prompt
+  // isn't bound.
+  useScreenKeys({ active, clock }, ({ input, key }, press) => {
+    if (!row) return;
     if (capturing && row.kind === 'binding') {
       if (press) capture(input, key, row.action);
       return;

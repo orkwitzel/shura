@@ -1,3 +1,4 @@
+import type { KeyEvent } from '@shura/client-core';
 import type { Key } from 'ink';
 
 /** One key as Ink's `useInput` reports it: the text it typed and what Ink parsed it as. */
@@ -30,4 +31,12 @@ export function keyName({ input, key }: RawKey): KeyName | null {
   if (input === ' ') return 'space';
   if ([...input].length === 1) return input.toLowerCase();
   return null;
+}
+
+/**
+ * What a key did: its event type, or a press for a key without one, as a terminal without the Kitty
+ * protocol sends every key, and the protocol an unmodified press (design §7.3).
+ */
+export function eventTypeOf(key: Key): KeyEvent['kind'] {
+  return key.eventType ?? 'press';
 }
