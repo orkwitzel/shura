@@ -1,5 +1,6 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
 export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './actions';
+export { type BackToBackTracker, isBackToBack, trackBackToBack } from './back-to-back';
 export {
   type Bindings,
   type RebindChange,

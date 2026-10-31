@@ -1,9 +1,9 @@
 import { act, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import { PersonalBestSummary } from '@/features/personal-bests/components/personal-best-summary';
-import { toppedOutMarathon } from '../../support/games';
-import { personalBest } from '../../support/records';
-import { renderWithStores } from '../../support/render-with-stores';
+import { toppedOutMarathon } from '../../../support/games';
+import { personalBest } from '../../../support/records';
+import { renderWithStores } from '../../../support/render-with-stores';
 
 describe('PersonalBestSummary', () => {
   test('says when a mode has no record yet', () => {

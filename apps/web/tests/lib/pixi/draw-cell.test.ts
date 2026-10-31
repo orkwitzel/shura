@@ -1,30 +1,7 @@
 import { type CanvasDrawing, type Rgb, SKINS } from '@shura/client-core';
 import { describe, expect, test } from 'vitest';
-import { type CellTarget, drawCell } from '@/lib/pixi/draw-cell';
-
-interface Filled {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly color: number;
-  readonly alpha: number;
-}
-
-/** A drawing target that keeps every filled rectangle, in order. */
-function recorder(): CellTarget & { readonly filled: Filled[] } {
-  const filled: Filled[] = [];
-  return {
-    filled,
-    rect(x, y, width, height) {
-      return {
-        fill: ({ color, alpha }) => {
-          filled.push({ x, y, width, height, color, alpha });
-        },
-      };
-    },
-  };
-}
+import { drawCell } from '@/lib/pixi/draw-cell';
+import { type Filled, recordingTarget } from '../../support/recording-target';
 
 /** The colour and alpha last painted over the pixel at `x`, `y`, or undefined. */
 function at(filled: readonly Filled[], x: number, y: number) {
@@ -43,7 +20,7 @@ const T_SHINE = 0xe4b5fd;
 
 describe('drawCell', () => {
   test('draws a 16-pixel Outline cell in art pixels 2 pixels wide', () => {
-    const target = recorder();
+    const target = recordingTarget();
     drawCell(target, { x: 100, y: 50, size: 16, color: T, drawing: SKINS.outline.canvas });
     const { filled } = target;
     // Art pixel (0, 0): the edge. (1, 1): the ring. (2, 2): the shine. (4, 4): the faint fill.
@@ -56,7 +33,7 @@ describe('drawCell', () => {
 
   test('paints only inside the cell', () => {
     for (const skin of Object.values(SKINS)) {
-      const target = recorder();
+      const target = recordingTarget();
       drawCell(target, { x: 100, y: 50, size: 16, color: T, drawing: skin.canvas });
       expect(at(target.filled, 99, 50)).toBeUndefined();
       expect(at(target.filled, 116, 50)).toBeUndefined();
@@ -66,7 +43,7 @@ describe('drawCell', () => {
 
   test('each skin draws its own cell from the same colour', () => {
     const shine = (drawing: CanvasDrawing) => {
-      const target = recorder();
+      const target = recordingTarget();
       drawCell(target, { x: 0, y: 0, size: 8, color: T, drawing });
       return at(target.filled, 2, 2);
     };

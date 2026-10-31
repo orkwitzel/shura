@@ -2,11 +2,11 @@ import { createSoloSession, SKINS } from '@shura/client-core';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
-import { fakeEngineEvents, lockEvent } from '../../support/engine-events';
-import { fakeClock } from '../../support/fake-clock';
-import { holdPixiInit, pixiApps, releasePixiInit, tickPixi } from '../../support/fake-pixi';
-import { setMedia } from '../../support/match-media';
-import { renderWithStores } from '../../support/render-with-stores';
+import { fakeEngineEvents, lockEvent } from '../../../support/engine-events';
+import { fakeClock } from '../../../support/fake-clock';
+import { holdPixiInit, pixiApps, releasePixiInit, tickPixi } from '../../../support/fake-pixi';
+import { setMedia } from '../../../support/match-media';
+import { renderWithStores } from '../../../support/render-with-stores';
 
 beforeEach(() => {
   window.innerWidth = 1440;

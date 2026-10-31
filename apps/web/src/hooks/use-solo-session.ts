@@ -15,7 +15,8 @@ import { useSessionHandling } from './use-session-handling';
 /** The keys that open the in-game menu during a game (design §7.4): fixed, not bindable. */
 const MENU_KEYS: readonly KeyName[] = ['Escape', 'KeyP'];
 
-export interface SoloGame {
+/** A solo session made by `useSoloSession`, with what the page needs around it. */
+export interface UseSoloSessionResult {
   /** The session: pass it to the features that show it. */
   readonly session: SoloSession;
   /**
@@ -30,12 +31,12 @@ export interface SoloGame {
   readonly start: () => void;
 }
 
-export interface SoloGameOptions {
+export interface UseSoloSessionOptions {
   /**
    * Whether keys reach the game: `false` while the settings are open over it (design §7.4), which
    * lets go of every key held and ignores every key until it is `true` again. `true` by default.
    */
-  readonly keys?: boolean;
+  readonly acceptKeys?: boolean;
 }
 
 /**
@@ -47,7 +48,10 @@ export interface SoloGameOptions {
  * focus, every held key is let go and the menu opens (design §13.2, Keyboard). Changed handling or
  * bindings apply at once. Each game that ends goes to the records once.
  */
-export function useSoloSession(mode: SoloMode, { keys = true }: SoloGameOptions = {}): SoloGame {
+export function useSoloSession(
+  mode: SoloMode,
+  { acceptKeys = true }: UseSoloSessionOptions = {},
+): UseSoloSessionResult {
   const settings = useSettingsStore();
   // Made during the first render, on a clock that wakes nothing (and whose time stands still) until
   // `start`, so a session React makes and throws away (as Strict Mode does) never runs.
@@ -74,7 +78,7 @@ export function useSoloSession(mode: SoloMode, { keys = true }: SoloGameOptions 
 
   const bindings = useSettings((state) => state.bindings);
   useEffect(() => {
-    if (!keys) {
+    if (!acceptKeys) {
       letGo.current();
       return;
     }
@@ -103,7 +107,7 @@ export function useSoloSession(mode: SoloMode, { keys = true }: SoloGameOptions 
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
     };
-  }, [session, clock, bindings, keys]);
+  }, [session, clock, bindings, acceptKeys]);
 
   // Keys released while the window has no focus are never heard, so losing it lets go of them all.
   useEffect(() => {

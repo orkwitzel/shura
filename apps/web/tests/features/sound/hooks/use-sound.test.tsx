@@ -3,16 +3,16 @@ import { type EngineEvent, TSpin } from '@shura/engine';
 import { act, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createSoundPlayer, type SoundPlayer, useSound } from '@/features/sound/hooks/use-sound';
-import { fakeEngineEvents, lockEvent } from '../../support/engine-events';
+import { fakeEngineEvents, lockEvent } from '../../../support/engine-events';
 import {
   FakeAudioContext,
   fakeAudioContext,
   loadUrl,
   resetFakeAudio,
   settle,
-} from '../../support/fake-audio-context';
-import { fakeClock } from '../../support/fake-clock';
-import { renderWithStores } from '../../support/render-with-stores';
+} from '../../../support/fake-audio-context';
+import { fakeClock } from '../../../support/fake-clock';
+import { renderWithStores } from '../../../support/render-with-stores';
 
 afterEach(() => {
   resetFakeAudio();

@@ -2,7 +2,7 @@ import { createSoloSession, type SoloMode } from '@shura/client-core';
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import { Hud } from '@/features/hud/components/hud';
-import { fakeClock } from '../../support/fake-clock';
+import { fakeClock } from '../../../support/fake-clock';
 
 function setup(mode: SoloMode) {
   const clock = fakeClock(0);

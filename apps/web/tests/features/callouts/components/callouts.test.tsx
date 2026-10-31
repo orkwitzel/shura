@@ -3,9 +3,9 @@ import { TSpin } from '@shura/engine';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { Callouts } from '@/features/callouts/components/callouts';
-import { fakeEngineEvents, lockEvent } from '../../support/engine-events';
-import { fakeClock } from '../../support/fake-clock';
-import { renderWithStores } from '../../support/render-with-stores';
+import { fakeEngineEvents, lockEvent } from '../../../support/engine-events';
+import { fakeClock } from '../../../support/fake-clock';
+import { renderWithStores } from '../../../support/render-with-stores';
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

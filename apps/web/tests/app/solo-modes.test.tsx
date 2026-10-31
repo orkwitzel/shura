@@ -14,6 +14,7 @@ import {
   play,
   result,
   runTo,
+  stat,
   tap,
 } from '../support/solo-game';
 
@@ -27,11 +28,6 @@ afterEach(() => {
 
 /** A mode's item on the main menu. */
 const modeItem = (name: string) => screen.getByRole('menuitem', { name });
-
-/** A HUD value, found by its label (not the results' one). */
-const stat = (label: string) =>
-  screen.getAllByText(label, { selector: 'dt' }).find((term) => !term.closest('dialog'))
-    ?.nextElementSibling;
 
 /** Hard drops a piece every 50 ms, from Go, until the stack tops out. */
 async function topOut(path: string, name: string, stored?: Parameters<typeof play>[2]) {

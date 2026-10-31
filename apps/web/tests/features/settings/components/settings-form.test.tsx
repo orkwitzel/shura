@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { SettingsForm } from '@/features/settings/components/settings-form';
 import { useTheme } from '@/hooks/use-theme';
-import { setMedia } from '../../support/match-media';
-import { renderWithStores } from '../../support/render-with-stores';
+import { setMedia } from '../../../support/match-media';
+import { renderWithStores } from '../../../support/render-with-stores';
 
 const REDUCE = '(prefers-reduced-motion: reduce)';
 

@@ -72,17 +72,20 @@ const ACTIONS = Object.entries(ACTION_LABELS) as [PieceActionType, string][];
 
 const VOLUME_STEPS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 
-const EFFECTS_OPTIONS: readonly RadioOption<Effects>[] = [
-  { value: 'full', label: 'Full' },
-  { value: 'reduced', label: 'Reduced', detail: 'no shake, nudge or trails' },
-  { value: 'off', label: 'Off', detail: 'callouts as plain text' },
-];
-
 const EFFECTS_NAMES: Readonly<Record<Effects, string>> = {
   full: 'Full',
   reduced: 'Reduced',
   off: 'Off',
 };
+
+const EFFECTS_DETAILS: Readonly<Partial<Record<Effects, string>>> = {
+  reduced: 'no shake, nudge or trails',
+  off: 'callouts as plain text',
+};
+
+const EFFECTS_OPTIONS: readonly RadioOption<Effects>[] = (
+  Object.entries(EFFECTS_NAMES) as [Effects, string][]
+).map(([value, label]) => ({ value, label, detail: EFFECTS_DETAILS[value] }));
 
 /** A theme in small: its backdrop with its swirls over it. */
 function themeSwatch({ chrome, web }: Theme): string {

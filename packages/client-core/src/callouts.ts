@@ -1,4 +1,5 @@
 import { type LockEvent, TSpin } from '@shura/engine';
+import { isBackToBack, trackBackToBack } from './back-to-back';
 import type { SoloSession } from './solo-session';
 
 /** What a callout tells: the clear, a back-to-back, the combo or a perfect clear. */
@@ -18,11 +19,6 @@ const T_SPIN_NAMES: Record<TSpin, string> = {
   [TSpin.Full]: 'T-SPIN',
 };
 
-/** A clear that chains back-to-back: a Tetris, or a T-spin or mini that clears lines (§3). */
-function isDifficult({ lines, tSpin }: LockEvent['clear']): boolean {
-  return lines === 4 || (lines > 0 && tSpin !== TSpin.None);
-}
-
 /**
  * The callouts a lock earns, in order (design §13.1, Callouts): the clear ("SINGLE" to "TETRIS",
  * with "T-SPIN" or "T-SPIN MINI" in front for a T-spin, alone for one that clears nothing), then
@@ -31,14 +27,14 @@ function isDifficult({ lines, tSpin }: LockEvent['clear']): boolean {
  *
  * The lock event carries the back-to-back status *after* the lock, so a back-to-back needs the status
  * before it, `backToBackBefore`: the previous lock's `backToBack` in the same game, false for its
- * first lock. `onCallouts` keeps track of it.
+ * first lock. `trackBackToBack` keeps it, and `onCallouts` uses that.
  */
 export function lockCallouts(lock: LockEvent, backToBackBefore: boolean): Callout[] {
   const { lines, tSpin, perfectClear } = lock.clear;
   const name = [T_SPIN_NAMES[tSpin], LINE_NAMES[lines]].filter(Boolean).join(' ');
   if (name === '') return [];
   const callouts: Callout[] = [{ kind: 'clear', text: name }];
-  if (backToBackBefore && isDifficult(lock.clear)) {
+  if (isBackToBack(lock, backToBackBefore)) {
     callouts.push({ kind: 'backToBack', text: 'BACK-TO-BACK' });
   }
   if (lock.combo >= 1) callouts.push({ kind: 'combo', text: `COMBO ${lock.combo}` });
@@ -51,26 +47,20 @@ export type CalloutListener = (callouts: readonly Callout[], lock: LockEvent) =>
 
 /**
  * Passes the callouts of each of `session`'s locks that earns any to `listener`, in frame order,
- * from the session's engine events. It keeps the back-to-back status before each lock (the previous
- * lock's, false before a game's first), starting again with each new game. Returns a function that
- * stops it.
+ * from the session's engine events, with the back-to-back status before each lock from
+ * `trackBackToBack`. Returns a function that stops it.
  */
 export function onCallouts(session: SoloSession, listener: CalloutListener): () => void {
-  let backToBack = false;
-  // A game at frame 0 has locked nothing: a restart (or the first countdown) starts afresh.
-  const stopWatching = session.subscribe((state) => {
-    if (state.engine.frame === 0) backToBack = false;
-  });
+  const backToBack = trackBackToBack(session);
   const stopHearing = session.onEvents((events) => {
     for (const event of events) {
       if (event.type !== 'lock') continue;
-      const callouts = lockCallouts(event, backToBack);
-      backToBack = event.backToBack;
+      const callouts = lockCallouts(event, backToBack.next(event));
       if (callouts.length > 0) listener(callouts, event);
     }
   });
   return () => {
-    stopWatching();
+    backToBack.stop();
     stopHearing();
   };
 }

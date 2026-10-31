@@ -69,7 +69,7 @@ features/board/
 
 Code that only one feature uses stays in that feature. Shared code goes by what it is:
 
-- **It touches a browser API or a library:** `lib/`. For example, the keyboard adapter, the `requestAnimationFrame` clock, client-core's `Storage` over `localStorage`, and the Pixi setup plus `draw-cell.ts`, which the board and the settings screen's skin previews share.
+- **It touches a browser API or a library:** `lib/`. For example, the keyboard adapter, the `requestAnimationFrame` clock, client-core's `Storage` over `localStorage`, and the Pixi setup plus `draw-cell.ts`, which the board and the settings screen's skin previews share, and `draw-shapes.ts`, which the board and effects painters share.
 - **It's a constant:** `config/`.
 - **It's pure logic, with no browser API and no library:** `utils/`.
 - **It's a React component that more than one feature or page uses:** `components/`. `components/ui/` holds the primitives (`Button`, `MenuList`, `Dialog`, `Slider`, `Toggle`, `RadioGroup`, `KeyCapture`), built on native HTML elements.

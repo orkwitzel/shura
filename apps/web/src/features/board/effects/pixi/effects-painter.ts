@@ -1,6 +1,5 @@
 import { type Application, Graphics } from 'pixi.js';
-import { type CellTarget, drawCell } from '@/lib/pixi/draw-cell';
-import { colorNumber } from '@/utils/color';
+import { drawShapes } from '@/lib/pixi/draw-shapes';
 import {
   type EffectView,
   effectFrame,
@@ -30,14 +29,6 @@ export function createEffectsPainter(app: Application): EffectsPainter {
   /** What was last drawn, to skip frames that would draw the same. */
   let drawn: { view: EffectView; changing: boolean } | null = null;
 
-  /** `graphics`, with every fill's alpha multiplied by `alpha`. */
-  const faded = (alpha: number): CellTarget => ({
-    rect: (x, y, width, height) => ({
-      fill: (style) =>
-        graphics.rect(x, y, width, height).fill({ ...style, alpha: style.alpha * alpha }),
-    }),
-  });
-
   return {
     add(effects, now) {
       if (effects.length === 0) return;
@@ -57,14 +48,7 @@ export function createEffectsPainter(app: Application): EffectsPainter {
       const frame = effectFrame(running, now, view);
       running = frame.running;
       graphics.clear();
-      for (const shape of frame.shapes) {
-        if (shape.type === 'cell') drawCell(faded(shape.alpha), shape);
-        else {
-          graphics
-            .rect(shape.x, shape.y, shape.width, shape.height)
-            .fill({ color: colorNumber(shape.color), alpha: shape.alpha });
-        }
-      }
+      drawShapes(graphics, frame.shapes);
       app.stage.position.set(frame.offset.x, frame.offset.y);
       drawn = { view, changing: frame.changing };
     },
