@@ -77,7 +77,7 @@ describe('sound', () => {
     );
   });
 
-  test('each combo step plays the combo sound a semitone higher, from an octave below the sample, and stops below it', async () => {
+  test('each combo step plays the combo sound a semitone higher, up to 11 semitones at combo 12', async () => {
     const { emit, context, pressKey } = setup();
     await pressKey();
     act(() => {
@@ -85,12 +85,12 @@ describe('sound', () => {
     });
     const combos = context().played.filter((played) => played.url === '/sounds/combo.mp3');
     expect(combos.map((played) => played.rate)).toEqual([
-      1 / 2,
-      2 ** (-11 / 12),
-      2 ** (-10 / 12),
-      2 ** (-1 / 12),
-      2 ** (-1 / 12),
-      2 ** (-1 / 12),
+      1,
+      2 ** (1 / 12),
+      2 ** (2 / 12),
+      2 ** (11 / 12),
+      2 ** (11 / 12),
+      2 ** (11 / 12),
     ]);
     // The clear itself keeps its pitch.
     const singles = context().played.filter((played) => played.url === '/sounds/single.mp3');
