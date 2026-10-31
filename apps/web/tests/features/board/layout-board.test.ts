@@ -11,6 +11,7 @@ import {
   type BoardLayout,
   type BoardPart,
   type CellShape,
+  GHOST_DRAWING,
   layoutBoard,
 } from '@/features/board/utils/layout-board';
 
@@ -100,19 +101,35 @@ describe('layoutBoard', () => {
     ]);
   });
 
-  test('every cell is drawn with the skin’s canvas drawing, a cell wide', () => {
-    const board = layout(
+  describe.each(Object.values(SKINS))('in the $name skin', (skin) => {
+    const board = layoutBoard(
       game((state) => {
         const bottom = state.board[0];
         if (bottom) bottom[0] = 'G';
+        state.hold = 'I';
       }),
+      theme,
+      skin,
+      32,
+      { ghost: true },
     );
-    for (const part of ['locked', 'active'] as const) {
-      for (const shape of cells(board, part)) {
-        expect(shape.drawing).toBe(SKINS.pixel.canvas);
-        expect(shape.size).toBe(32);
+
+    test('every filled cell is drawn with the skin’s canvas drawing, a cell wide', () => {
+      for (const part of ['locked', 'active', 'hold', 'preview'] as const) {
+        const shapes = cells(board, part);
+        expect(shapes.length).toBeGreaterThan(0);
+        for (const shape of shapes) {
+          expect(shape.drawing).toBe(skin.canvas);
+          expect(shape.size).toBe(32);
+        }
       }
-    }
+    });
+
+    test('the ghost is drawn the same as in every other skin', () => {
+      const ghosts = cells(board, 'ghost');
+      expect(ghosts).toHaveLength(4);
+      for (const shape of ghosts) expect(shape.drawing).toBe(GHOST_DRAWING);
+    });
   });
 
   test('draws the active piece', () => {
