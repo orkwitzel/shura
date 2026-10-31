@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@shura/engine": "workspace:*",
+    "@shura/protocol": "workspace:*",
     "zod": "catalog:"
   },
   "peerDependencies": {

@@ -16,6 +16,7 @@ export {
   type Engine,
   type EngineState,
   type GarbageAcceptedAction,
+  type GarbageReceivedAction,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
@@ -56,6 +57,7 @@ export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } 
 export {
   type HoleSeedsState,
   holeSeeds,
+  nextRandom,
   type Randomizer,
   type SevenBagState,
   sevenBag,

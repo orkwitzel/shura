@@ -1,15 +1,13 @@
-import { ActionType, type PieceAction, type PieceActionType } from '@shura/engine';
+import type { PieceAction, PieceActionType } from '@shura/engine';
 // The engine's recorded single-player games (design §5.3): each a full game whose action log plays
 // it to its end. Read from the engine package so they stay in step when the engine re-records them.
 import marathon from '../../../engine/recorded-matches/marathon.json';
 import sprint from '../../../engine/recorded-matches/sprint.json';
 import ultra from '../../../engine/recorded-matches/ultra.json';
-import { createSoloSession, type SoloMode, type SoloSession } from '../../src/index';
+import { createSoloSession, PIECE_ACTIONS, type SoloMode, type SoloSession } from '../../src/index';
 import { type FakeClock, fakeClock } from './fake-clock';
 
-const PIECE_ACTION_TYPES = new Set<string>(
-  Object.values(ActionType).filter((type) => type !== ActionType.GarbageAccepted),
-);
+const PIECE_ACTION_TYPES = new Set<string>(PIECE_ACTIONS);
 
 function isPieceActionType(type: string): type is PieceActionType {
   return PIECE_ACTION_TYPES.has(type);

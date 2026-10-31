@@ -19,5 +19,6 @@ catalog:
 
 # Dependencies allowed to run install scripts (pnpm blocks all others).
 allowBuilds:
+  bufferutil: true
   esbuild: true
   lefthook: true
