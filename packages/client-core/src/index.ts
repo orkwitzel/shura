@@ -74,6 +74,7 @@ export { errorMessage, type Storage, type StoredKind } from './storage';
 export type { AppStores, Store } from './store';
 export {
   type Ansi16,
+  type Rgb,
   SKINS,
   type Skin,
   type SkinId,
@@ -81,6 +82,8 @@ export {
   type Theme,
   type ThemeColor,
   type ThemeId,
+  type TranslucentColor,
+  type WebColors,
 } from './themes';
 export {
   type Loaded,

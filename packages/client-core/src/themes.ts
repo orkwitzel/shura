@@ -6,10 +6,38 @@ import type { PieceKind } from '@shura/engine';
  */
 export type Ansi16 = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
+/** A 24-bit colour: red, green and blue, each 0–255. */
+export type Rgb = readonly [red: number, green: number, blue: number];
+
 /** A theme colour: its 24-bit value, and the nearest ANSI colour for terminals without 24-bit. */
 export interface ThemeColor {
-  readonly rgb: readonly [red: number, green: number, blue: number];
+  readonly rgb: Rgb;
   readonly ansi16: Ansi16;
+}
+
+/** A see-through colour: its 24-bit value and its alpha, 0 (clear) to 1 (opaque). */
+export interface TranslucentColor {
+  readonly rgb: Rgb;
+  readonly alpha: number;
+}
+
+/**
+ * The colours only the web needs (design §13.2, Styling), which the CLI ignores: the panels, the
+ * shadow, the muted text, the backdrop's three swirls and the board's checkered well.
+ */
+export interface WebColors {
+  /** Panels and cards. */
+  readonly panel: Rgb;
+  /** The darkest panels: boxes inside a panel, such as the hold and the preview. */
+  readonly deep: Rgb;
+  /** The hard offset shadows and dark outlines (ink). */
+  readonly shadow: Rgb;
+  /** Secondary text: hints, taglines and details beside a label. */
+  readonly muted: Rgb;
+  /** The backdrop's three drifting colour swirls. */
+  readonly swirls: readonly [TranslucentColor, TranslucentColor, TranslucentColor];
+  /** The board well's two checker colours. */
+  readonly well: readonly [Rgb, Rgb];
 }
 
 /**
@@ -32,6 +60,7 @@ export interface Theme {
     /** The board's grid: the CLI's empty-cell dots, and anything greyed out. */
     readonly grid: ThemeColor;
   };
+  readonly web: WebColors;
 }
 
 /** The piece colours, which every theme shares: the themes differ in their backdrop. */
@@ -50,6 +79,10 @@ const PIECES = {
 const CREAM = { rgb: [255, 244, 220], ansi16: 15 } as const satisfies ThemeColor;
 const GOLD = { rgb: [255, 210, 63], ansi16: 11 } as const satisfies ThemeColor;
 
+/** The web's shadow (ink) and muted text, which every theme shares. */
+const INK = [10, 4, 20] as const satisfies Rgb;
+const MUTED = [201, 191, 224] as const satisfies Rgb;
+
 /** Indigo, the default theme: a deep violet backdrop. */
 const INDIGO = {
   id: 'indigo',
@@ -64,6 +97,21 @@ const INDIGO = {
     accent: GOLD,
     board: { rgb: [23, 12, 46], ansi16: 0 },
     grid: { rgb: [58, 42, 99], ansi16: 8 },
+  },
+  web: {
+    panel: [42, 26, 77],
+    deep: [18, 8, 38],
+    shadow: INK,
+    muted: MUTED,
+    swirls: [
+      { rgb: [255, 77, 109], alpha: 0.45 },
+      { rgb: [77, 124, 255], alpha: 0.5 },
+      { rgb: [255, 210, 63], alpha: 0.25 },
+    ],
+    well: [
+      [23, 12, 46],
+      [28, 16, 56],
+    ],
   },
 } as const satisfies Theme;
 
@@ -82,6 +130,21 @@ const PLUM = {
     board: { rgb: [29, 8, 28], ansi16: 0 },
     grid: { rgb: [77, 35, 80], ansi16: 8 },
   },
+  web: {
+    panel: [61, 22, 64],
+    deep: [26, 6, 25],
+    shadow: INK,
+    muted: MUTED,
+    swirls: [
+      { rgb: [255, 120, 60], alpha: 0.42 },
+      { rgb: [255, 77, 170], alpha: 0.42 },
+      { rgb: [120, 90, 255], alpha: 0.32 },
+    ],
+    well: [
+      [29, 8, 28],
+      [37, 11, 36],
+    ],
+  },
 } as const satisfies Theme;
 
 /** Deep Sea: a deep blue backdrop. */
@@ -98,6 +161,21 @@ const DEEP_SEA = {
     accent: GOLD,
     board: { rgb: [7, 24, 39], ansi16: 0 },
     grid: { rgb: [30, 61, 92], ansi16: 8 },
+  },
+  web: {
+    panel: [16, 48, 77],
+    deep: [6, 20, 35],
+    shadow: INK,
+    muted: MUTED,
+    swirls: [
+      { rgb: [62, 224, 255], alpha: 0.32 },
+      { rgb: [77, 124, 255], alpha: 0.45 },
+      { rgb: [255, 77, 109], alpha: 0.3 },
+    ],
+    well: [
+      [7, 24, 39],
+      [10, 30, 49],
+    ],
   },
 } as const satisfies Theme;
 
