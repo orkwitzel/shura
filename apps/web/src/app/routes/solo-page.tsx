@@ -4,6 +4,7 @@ import { Redirect, useLocation, useParams } from 'wouter';
 import { MODE_NAMES } from '@/config/modes';
 import { ROUTES } from '@/config/routes';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
+import { Callouts } from '@/features/callouts/components/callouts';
 import { Countdown } from '@/features/countdown/components/countdown';
 import { GameMenu } from '@/features/game-menu/components/game-menu';
 import { Hud } from '@/features/hud/components/hud';
@@ -16,9 +17,9 @@ const isSoloMode = (mode: string | undefined): mode is SoloMode =>
   (SOLO_MODES as readonly (string | undefined)[]).includes(mode);
 
 /**
- * One mode's games: the board, with the HUD beside it and the countdown over it, the in-game menu
- * (with the settings) while paused, and the results once a game ends. The game starts once the
- * board is on screen, and no key reaches it while the settings are open.
+ * One mode's games: the board, with the HUD and the callouts beside it and the countdown over it,
+ * the in-game menu (with the settings) while paused, and the results once a game ends. The game
+ * starts once the board is on screen, and no key reaches it while the settings are open.
  */
 function SoloGame({ mode }: { mode: SoloMode }) {
   const [, navigate] = useLocation();
@@ -32,7 +33,12 @@ function SoloGame({ mode }: { mode: SoloMode }) {
       <BoardCanvas
         session={session}
         onShown={start}
-        aside={<Hud session={session} />}
+        aside={
+          <>
+            <Hud session={session} />
+            <Callouts session={session} />
+          </>
+        }
         overlay={<Countdown session={session} />}
       />
       <GameMenu

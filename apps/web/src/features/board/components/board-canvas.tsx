@@ -25,9 +25,9 @@ import styles from './board-canvas.module.css';
 export interface BoardCanvasProps {
   /** The game to draw. */
   readonly session: SoloSession;
-  /** Shown over the well (the visible 20 rows): the countdown, callouts, the end of the game. */
+  /** Shown over the well (the visible 20 rows): the countdown, the end of the game. */
   readonly overlay?: ReactNode;
-  /** Shown in the column under the hold: the HUD. */
+  /** Shown in the column under the hold: the HUD and the callouts. */
   readonly aside?: ReactNode;
   /**
    * Called once, on the tick after the first paint: the board has been drawn on screen, and

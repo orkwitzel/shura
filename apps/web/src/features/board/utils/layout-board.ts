@@ -1,11 +1,4 @@
-import {
-  type CanvasDrawing,
-  hasEnded,
-  type Rgb,
-  SKINS,
-  type Skin,
-  type Theme,
-} from '@shura/client-core';
+import { type CanvasDrawing, hasEnded, type Rgb, type Skin, type Theme } from '@shura/client-core';
 import {
   BOARD_WIDTH,
   type BoardCell,
@@ -157,7 +150,8 @@ export function boardRegions(cellSize: number): BoardLayout['regions'] {
  * (garbage in the theme's garbage colour), the ghost when `ghost` is on, the active piece, the hold
  * on the left (greyed out once used) and the next 5 pieces on the right, each in a frame. Every
  * position is a whole number of art pixels (an eighth of `cellSize`), so a cell size of a multiple
- * of 8 physical pixels keeps the art sharp. A skin without a canvas drawing yet is drawn as Pixel.
+ * of 8 physical pixels keeps the art sharp. Filled cells are drawn in `skin`'s canvas drawing, and
+ * the ghost the same in every skin.
  */
 export function layoutBoard(
   state: ReadonlyEngineState,
@@ -168,7 +162,7 @@ export function layoutBoard(
 ): BoardLayout {
   const c = cellSize;
   const art = c / 8;
-  const drawing = skin.canvas ?? SKINS.pixel.canvas;
+  const drawing = skin.canvas;
   const shapes: BoardShape[] = [];
   const regions = boardRegions(cellSize);
   const { well, hold, preview } = regions;

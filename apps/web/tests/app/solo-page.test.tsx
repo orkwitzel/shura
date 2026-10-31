@@ -119,9 +119,10 @@ const result = (results: HTMLElement | null, label: string) =>
   within(results as HTMLElement).getByText(label, { selector: 'dt' }).nextElementSibling;
 
 describe('/solo/sprint', () => {
-  test('shows the board, with the HUD beside it', async () => {
+  test('shows the board, with the HUD and the callouts beside it', async () => {
     renderWithStores(<AppRouter />, { path: '/solo/sprint' });
     await started();
+    expect(screen.getByRole('status', { name: 'Callouts' })).toBeInTheDocument();
     expect(pixiApps).toHaveLength(1);
     expect(stat('Time')).toHaveTextContent('0:00.000');
     expect(stat('Lines')).toHaveTextContent('0/40');
@@ -145,6 +146,11 @@ describe('/solo/sprint', () => {
     // The recorded game finishes 40 lines at frame 1,222: 20.367 s.
     expect(stat('Lines')).toHaveTextContent('40/40');
     expect(dialog('Finished')).toHaveTextContent('0:20.367');
+    // The engine's events reached the callouts: the lock that cleared the 40th line has some.
+    expect(
+      within(screen.getByRole('status', { name: 'Callouts' })).getAllByRole('listitem').length,
+    ).toBeGreaterThan(0);
+    // The game ended, so it was recorded.
     expect(app.stores.records.getState().sprint?.stats.frames).toBe(1_222);
   });
 

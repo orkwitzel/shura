@@ -56,11 +56,18 @@ export const ULTRA_SCORE = 21_449;
 
 /**
  * A session of `mode` from `seed` on a fake clock, played through the countdown (1.5 s) with
- * `actions`, a recorded action log, and then for a second more.
+ * `actions`, a recorded action log, and then for a second more. `before` sees the session first,
+ * to listen to it.
  */
-export function playRecorded(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
+export function playRecorded(
+  mode: SoloMode,
+  seed: number,
+  actions: readonly PieceAction[],
+  before?: (session: SoloSession) => void,
+) {
   const clock: FakeClock = fakeClock(1_000);
   const session: SoloSession = createSoloSession({ mode, clock, seed });
+  before?.(session);
   const go = clock.now() + 1_500;
   // Each action arrives 1 ms into the frame before its own, after the wake that stepped it.
   for (const { frame, type } of actions) {
