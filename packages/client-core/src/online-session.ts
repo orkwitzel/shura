@@ -110,6 +110,11 @@ export interface OnlineSessionOptions {
  * the match's own game, played with the same input engine as single-player.
  */
 export interface OnlineSession extends Store<OnlineSessionState> {
+  /**
+   * The session token the server issued (once welcomed), which the session reconnects with: the
+   * web keeps it in `sessionStorage` for a reload (design §10.2).
+   */
+  readonly sessionToken: string | null;
   /** Creates a room of `mode` and enters it as its host. Sent once connected. */
   createRoom(mode: RoomMode): void;
   /** Joins the room with `code` (as typed). Sent once connected. */
@@ -181,6 +186,11 @@ class Session implements OnlineSession {
   #outbox: ClientMessage[] = [];
   #sessionToken: string | null;
   #match: OnlineMatch | null = null;
+  /**
+   * The room you just left. The server says nothing back to `leaveRoom`, so a `roomState` of it
+   * already on its way is stale, until you ask to enter a room again.
+   */
+  #left: string | null = null;
   readonly #eventListeners = new Set<SessionEventListener>();
   readonly #actionListeners = new Set<AppliedActionsListener>();
 
@@ -204,18 +214,19 @@ class Session implements OnlineSession {
     return this.#sessionToken;
   }
 
-  createRoom = (mode: RoomMode): void => this.#send({ type: 'createRoom', mode });
-  joinRoom = (code: string): void => this.#send({ type: 'joinRoom', code });
+  createRoom = (mode: RoomMode): void => this.#enter({ type: 'createRoom', mode });
+  joinRoom = (code: string): void => this.#enter({ type: 'joinRoom', code });
   setReady = (ready: boolean): void => this.#send({ type: 'ready', ready });
   startMatch = (): void => this.#send({ type: 'startMatch' });
   spectate = (): void => this.#send({ type: 'spectate' });
   takeSeat = (): void => this.#send({ type: 'takeSeat' });
   setNickname = (nickname: string): void => this.#send({ type: 'setNickname', nickname });
-  quickMatch = (): void => this.#send({ type: 'quickMatch' });
+  quickMatch = (): void => this.#enter({ type: 'quickMatch' });
   cancelQuickMatch = (): void => this.#send({ type: 'cancelQuickMatch' });
   rematch = (): void => this.#send({ type: 'rematch' });
 
   leaveRoom = (): void => {
+    this.#left = this.getState().room?.code ?? null;
     this.#send({ type: 'leaveRoom' });
     this.#endMatch();
     this.#set({ room: null, match: null });
@@ -335,6 +346,8 @@ class Session implements OnlineSession {
         return;
       case 'roomState': {
         const { type: _, ...room } = message;
+        if (room.code === this.#left) return;
+        this.#left = null;
         this.#set({ room, quickMatch: 'idle' });
         return;
       }
@@ -479,6 +492,12 @@ class Session implements OnlineSession {
   #endMatch(): void {
     this.#match?.stop();
     this.#match = null;
+  }
+
+  /** Asks to enter a room: a `roomState` of the one you last left counts again. */
+  #enter(message: ClientMessage): void {
+    this.#left = null;
+    this.#send(message);
   }
 
   /** Sends now if welcomed, or once welcomed. */

@@ -62,3 +62,21 @@ What the web client's automated tests can't see (design §13.2, Tests): real bro
 - [ ] Particles can fly past the well's edge, where the canvas clips them. Check that this looks fine.
 - [ ] Effects keep animating behind the in-game menu, because they are time-based. It's harmless, but check it isn't distracting.
 - [ ] **Particle performance on a slow machine.** A big-combo back-to-back Tetris draws up to about 1,280 particle rectangles for 0.75 s. On a slow machine, or with Chrome's DevTools CPU throttling at 4× or 6×, it shouldn't drop frames enough to make the game stall or pause.
+
+## Online: Play online and the lobby (M4)
+
+Run `pnpm dev` (Valkey, the gateway, the game service and the web), and `pnpm dev:bot` for bots. A second browser tab is the second player.
+
+- [ ] **Play online** in the main menu opens `/online`. The first time (clear storage), the nickname prompt comes first, prefilled with `PlayerNNNN`. Enter accepts it, a name like `no!pe` is refused as it's typed, and the name shows in the settings' *Online* section afterwards.
+- [ ] With the gateway stopped, *Play online* says "Can't reach the server". Start it again and *Retry* (Enter) connects.
+- [ ] **Two tabs, one room.** Tab 1: *Create room* → *1v1*. The address becomes `/r/XXXX`. *Copy link*, paste it into tab 2's address bar: tab 2 joins after its nickname prompt (if needed), and both tabs show both players in the lobby, with a "joined" toast in tab 1.
+- [ ] *Copy link* puts the room's full link on the clipboard (in Safari too), and says "Link copied".
+- [ ] **Ready and Start.** In tab 2, R (or Enter) toggles ready. In tab 1 (host, with the crown), Enter starts only once tab 2 is ready; until then the hint says what it waits for.
+- [ ] S steps out to watch (the spectator count shows) and S again takes the seat back. N changes the nickname: both tabs show the new name, and the settings have it.
+- [ ] Esc in the lobby leaves for `/online`, and the other tab gets a "left" toast (and "… is now host" if the host left). The browser's Back from a room leaves it too.
+- [ ] **Reload in the lobby.** Reloading a tab in a room comes back in the same seat, without a "Leave your room first" toast.
+- [ ] Opening `/r/ZZZZ` (no such room) says "No room with that code" and goes to `/online`.
+- [ ] **Quick match.** *Quick match* in both tabs pairs them (the waiting screen counts the time waited; Esc cancels). With a bot (`pnpm bot quick`, see `apps/bot/README.md`), one tab is enough.
+- [ ] The ping chip in the lobby's corner is green on localhost. With Chrome's DevTools network throttling, it turns yellow, then red.
+- [ ] Nicknames in Hebrew (`שירה`) display correctly in the seats and in toasts.
+- [ ] Going back to the main menu closes the connection: the gateway logs the session leaving, and the other tab sees a "left" toast.

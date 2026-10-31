@@ -7,15 +7,20 @@ The React web client. `docs/design.md` §13.2 describes how it behaves; this fil
 ```text
 src/
 ├── main.tsx       mounts React
-├── app/           app.tsx, provider.tsx (the stores into <ClientCoreProvider>), router.tsx
-│   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page
+├── app/           app.tsx, provider.tsx (the stores into <ClientCoreProvider>), router.tsx,
+│   │              online-routes.tsx (online play's routes over one online session)
+│   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page,
+│                  online-page, room-page
 ├── features/      one folder per capability: board/ (with effects/), callouts/, hud/, countdown/,
-│                  game-menu/, results/, personal-bests/, settings/, sound/
+│                  game-menu/, results/, personal-bests/, settings/, sound/, connection/,
+│                  online-menu/, nickname/, lobby/
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
-│                  backdrop, the "needs a keyboard" screen
-├── hooks/         shared hooks: use-solo-session, use-theme, use-reduced-motion
+│                  backdrop, the "needs a keyboard" screen, the ping chip
+├── hooks/         shared hooks: use-solo-session, use-online-session, use-room-address,
+│                  use-theme, use-reduced-motion
 ├── lib/           browser APIs and libraries set up for Shura: keyboard/, pixi/, audio/,
-│                  raf-clock, local-storage
+│                  raf-clock, online-clock, open-online-session (the WebSocket), session-token
+│                  (sessionStorage), clipboard, toasts (Sonner), local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
 ├── config/        fixed values: default-bindings, routes
 ├── utils/         small pure helpers, created when one is needed
@@ -72,7 +77,7 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
 - **It touches a browser API or a library:** `lib/`. For example, the keyboard adapter, the `requestAnimationFrame` clock, client-core's `Storage` over `localStorage`, and the Pixi setup plus `draw-cell.ts`, which the board and the settings screen's skin previews share, and `draw-shapes.ts`, which the board and effects painters share.
 - **It's a constant:** `config/`.
 - **It's pure logic, with no browser API and no library:** `utils/`.
-- **It's a React component that more than one feature or page uses:** `components/`. `components/ui/` holds the primitives (`Button`, `MenuList`, `Dialog`, `Slider`, `Toggle`, `RadioGroup`, `KeyCapture`), built on native HTML elements.
+- **It's a React component that more than one feature or page uses:** `components/`. `components/ui/` holds the primitives (`Button`, `MenuList`, `Dialog`, `Slider`, `Toggle`, `RadioGroup`, `KeyCapture`, `TextField`), built on native HTML elements.
 
 ## State
 
@@ -84,6 +89,10 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
   - `hooks/use-solo-session.ts` creates it on mount. It brings the `requestAnimationFrame` clock, the saved settings and the keyboard, and writes the records when a game ends.
   - The hook disposes of it on unmount.
   - The page passes it to features as a prop, and they read it with `useSession(session, selector)`. Features never create sessions or stores.
+- **The online session.** One belongs to the app's stay in online play, across `/online` and every `/r/:code`.
+  - `app/online-routes.tsx` makes it with `hooks/use-online-session.ts` once there's a nickname, and closes it as the player leaves those routes. Its token goes to `sessionStorage` through `lib/session-token`.
+  - `hooks/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room.
+  - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`).
 - **UI state.** State that only one feature uses goes in that feature's `stores/`.
 
 ## Names

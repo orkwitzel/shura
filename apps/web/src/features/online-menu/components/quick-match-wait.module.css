@@ -1,0 +1,83 @@
+.wait {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  width: 100%;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 700;
+  text-shadow:
+    3px 3px 0 var(--color-piece-t),
+    6px 6px 0 var(--color-shadow);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.time {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-logo);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent);
+  text-shadow: 5px 5px 0 var(--color-shadow);
+  font-variant-numeric: tabular-nums;
+}
+
+.buttons {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Four pixel cells hopping in turn, like a piece looking for a place. */
+.searching {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.cell {
+  width: 16px;
+  height: 16px;
+  background: var(--color-piece-i);
+  box-shadow:
+    inset -3px -3px 0 rgb(0 0 0 / 0.35),
+    inset 3px 3px 0 rgb(255 255 255 / 0.4),
+    2px 2px 0 var(--color-shadow);
+  animation: hop 900ms var(--ease-bounce) infinite;
+}
+
+.cell:nth-child(2) {
+  background: var(--color-piece-t);
+}
+
+.cell:nth-child(3) {
+  background: var(--color-piece-s);
+}
+
+.cell:nth-child(4) {
+  background: var(--color-piece-z);
+}
+
+@keyframes hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    animation: none;
+  }
+}

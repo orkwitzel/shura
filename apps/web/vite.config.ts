@@ -11,9 +11,9 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
-    // One origin in dev, like production: /api and /ws go to the gateway (docs/design.md §13.2).
+    // One origin in dev, like production: /ws goes to the gateway (docs/design.md §13.2). /api is
+    // added when something uses it (§9.1).
     proxy: {
-      '/api': gateway,
       '/ws': { target: gateway, ws: true },
     },
   },
