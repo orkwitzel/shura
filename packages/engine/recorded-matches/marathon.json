@@ -1,12 +1,12 @@
 {
   "description": "Marathon to its level cap: 377 pieces with 13 holds, placed by a greedy bot and hard dropped, every fifth after 2 soft drops. Before each piece the bot waits 0 to 12 frames, so each level's gravity pulls pieces down, at level 15 far enough to land them on the stack. 125 line clears: 101 singles, 23 doubles and a triple. The level rises every 10 lines, reaching 15 at frame 3792, and the lock that reaches 150 lines at frame 4065 finishes the game with 171,349 points. The replay steps 60 frames past the finish, where nothing changes.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 1,
   "mode": "marathon",
   "lastFrame": 4125,
   "players": [
     {
-      "expectedHash": "9a1f29e2bcbb4f81",
+      "expectedHash": "fac0b32e8343dc5d",
       "actions": [
         { "frame": 1, "type": "moveLeft" },
         { "frame": 2, "type": "moveLeft" },
