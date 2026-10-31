@@ -41,7 +41,7 @@ export interface GameSetup
   board?: readonly string[];
   /** The piece in play. */
   piece?: ActivePiece;
-  /** Garbage queued in the meter, oldest first. */
+  /** Garbage received before the game's frame and waiting in the meter, oldest first. */
   garbage?: readonly GarbageEntry[];
 }
 
@@ -51,7 +51,10 @@ export function gameOf(
   { board = [], piece, garbage = [], ...state }: GameSetup = {},
 ) {
   const boarded = withBoard(createEngine(settings, SEED, 0).serialize(), board);
-  const engine = restoreEngine({ ...(piece ? withActive(boarded, piece) : boarded), ...state });
-  for (const entry of garbage) engine.queueGarbage(entry);
-  return engine;
+  return restoreEngine({
+    ...(piece ? withActive(boarded, piece) : boarded),
+    ...state,
+    garbageMeter: garbage.map((entry) => ({ ...entry })),
+    receivedGarbageIds: garbage.map(({ id }) => id),
+  });
 }

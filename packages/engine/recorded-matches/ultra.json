@@ -1,12 +1,12 @@
 {
   "description": "Ultra: 266 pieces with 12 holds in 2 minutes, placed by a greedy bot at 1 row/s, every fourth after 3 soft drops, and hard dropped. 83 line clears: 67 singles, 14 doubles and 2 triples, at level 1 throughout. The last hard drop, at frame 7200, still counts, and the game finishes at the end of that frame with 21,449 points. The replay steps to frame 7260, where nothing has changed.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 1,
   "mode": "ultra",
   "lastFrame": 7260,
   "players": [
     {
-      "expectedHash": "338a5227df07d4cd",
+      "expectedHash": "96939fb2eb878ee5",
       "actions": [
         { "frame": 11, "type": "moveLeft" },
         { "frame": 12, "type": "moveLeft" },

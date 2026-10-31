@@ -1,6 +1,6 @@
 {
   "description": "106 pieces with 43 holds, each hard dropped: a 7-piece T-spin double opener found by search, then a greedy bot that takes a T-spin when one is reachable. 9 T-spins: the opener's T-spin double, turned in place, a T-spin zero after the kick (1, -1), six mini T-spin zeros, and a mini T-spin single at combo 2. 42 lines: 31 singles, 4 doubles and the two T-spin clears. It ends without a top-out.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 11,
   "mode": "sprint",
   "settings": {
@@ -9,7 +9,7 @@
   "lastFrame": 651,
   "players": [
     {
-      "expectedHash": "9f7b5d4a4baf8c03",
+      "expectedHash": "516c0a8ec2cceb15",
       "actions": [
         { "frame": 1, "type": "moveLeft" },
         { "frame": 2, "type": "moveLeft" },
