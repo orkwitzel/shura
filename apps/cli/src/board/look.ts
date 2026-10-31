@@ -1,17 +1,12 @@
 import { SKINS, type Skin, THEMES, type Theme } from '@shura/client-core';
 import type { GARBAGE, PieceKind } from '@shura/engine';
+import type { ColorMode } from '../platform/terminal/color-mode';
 
 /**
  * How the CLI draws cells (design §13.3): the colours come from the theme and a filled cell's
  * characters from the skin, both client-core data (design §13.1). Only what has no setting lives
  * here.
  */
-
-/**
- * How the terminal draws colour: 24-bit, the 16 ANSI colours, or none (`--no-color` / `NO_COLOR`),
- * which draws cells as glyphs instead, whatever the skin.
- */
-export type ColorMode = 'truecolor' | 'ansi16' | 'none';
 
 /** What fills a cell: a piece kind, or garbage. */
 export type CellKind = PieceKind | typeof GARBAGE;

@@ -11,15 +11,17 @@ import { useRecordsStore, useSession, useSettings } from '@shura/client-core/rea
 import type { ReadonlyEngineState } from '@shura/engine';
 import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { commandFor, type MenuCommand, menuLines } from '../../board/game-menu';
-import type { ColorMode, Look } from '../../board/look';
+import type { Look } from '../../board/look';
+import { menuLines } from '../../board/overlay';
 import { keyName, type TerminalInput } from '../../platform/input/terminal-input';
 import { type InputOptions, useTerminalInput } from '../../platform/input/use-terminal-input';
+import type { ColorMode } from '../../platform/terminal/color-mode';
 import { ResultsScreen } from '../results/results-screen';
 import { SettingsScreen } from '../settings/settings-screen';
 import { useCountdownLabel } from './countdown';
 import { DebugPanel } from './debug-panel';
 import { GameView } from './game-view';
+import type { MenuCommand } from './menu-command';
 
 export interface SoloScreenProps {
   readonly mode: SoloMode;
@@ -125,7 +127,8 @@ export function SoloScreen({
     const { phase } = session.getState();
     const commands = phase === 'paused' ? menu : phase === 'ended' ? results : [];
     const press = (raw.key.eventType ?? 'press') === 'press';
-    const command = press ? commandFor(commands, keyName(raw)) : undefined;
+    const name = press ? keyName(raw) : null;
+    const command = name === null ? undefined : commands.find(({ keys }) => keys.includes(name));
     if (!command) return false;
     if (visible) command.run();
     return true;

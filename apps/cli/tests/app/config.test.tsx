@@ -4,7 +4,7 @@ import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../../src/app/app';
 import { exitMessages, openStores } from '../../src/app/stores';
-import type { ColorMode } from '../../src/board/look';
+import type { ColorMode } from '../../src/platform/terminal/color-mode';
 import { fakeClock } from '../support/fake-clock';
 import { resize, settle, visibleRows } from '../support/ink';
 import { tempStorage } from '../support/temp-storage';
