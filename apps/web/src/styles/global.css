@@ -22,6 +22,9 @@ body {
   font-size: var(--text-body);
   line-height: 1.4;
   overflow-x: hidden;
+  /* A game, not a document: dragging or double-clicking selects nothing. Nothing takes typed text. */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button,
