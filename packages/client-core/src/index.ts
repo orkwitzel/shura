@@ -1,5 +1,6 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
 export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './actions';
+export { type BackToBackTracker, isBackToBack, trackBackToBack } from './back-to-back';
 export {
   type Bindings,
   type RebindChange,
@@ -8,6 +9,13 @@ export {
   rebindChange,
   unbind,
 } from './bindings';
+export {
+  type Callout,
+  type CalloutKind,
+  type CalloutListener,
+  lockCallouts,
+  onCallouts,
+} from './callouts';
 export type { Clock } from './clock';
 export { countdownLabel } from './countdown';
 export { formatFrames, formatHeadline, formatScore } from './format';
@@ -19,6 +27,7 @@ export {
   type Handling,
   type HandlingSettings,
   handlingFrames,
+  handlingSteps,
   stepHandling,
 } from './handling';
 export {
@@ -63,7 +72,6 @@ export {
 export {
   type AppliedActionsListener,
   createSoloSession,
-  type SessionEvent,
   type SessionEventListener,
   type SoloPhase,
   type SoloSession,
@@ -74,6 +82,9 @@ export { errorMessage, type Storage, type StoredKind } from './storage';
 export type { AppStores, Store } from './store';
 export {
   type Ansi16,
+  type ArtRect,
+  type CanvasDrawing,
+  type Rgb,
   SKINS,
   type Skin,
   type SkinId,
@@ -81,6 +92,8 @@ export {
   type Theme,
   type ThemeColor,
   type ThemeId,
+  type TranslucentColor,
+  type WebColors,
 } from './themes';
 export {
   type Loaded,

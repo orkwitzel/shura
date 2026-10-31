@@ -41,6 +41,58 @@
           }
         }
       }
+    },
+    {
+      "includes": ["apps/web/src/features/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/features/**"],
+                    "message": "Features never import each other (apps/web/AGENTS.md): the page connects them. Reach your own feature's files by relative paths."
+                  },
+                  {
+                    "group": ["@/app/**"],
+                    "message": "Features never import app/ (apps/web/AGENTS.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/components/**",
+        "apps/web/src/hooks/**",
+        "apps/web/src/lib/**",
+        "apps/web/src/stores/**",
+        "apps/web/src/config/**",
+        "apps/web/src/utils/**",
+        "apps/web/src/styles/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/features/**", "@/app/**"],
+                    "message": "Shared folders never import features/ or app/ (apps/web/AGENTS.md): imports go shared → features → app."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

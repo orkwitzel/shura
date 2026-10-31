@@ -1,0 +1,79 @@
+/* A lock's callouts beside the board, under the HUD (design §13.2, Effects). */
+.callouts {
+  pointer-events: none;
+}
+
+.list {
+  margin: 0;
+  padding: calc(var(--cell-size, 32px) * 0.4) 0 0;
+  list-style: none;
+  display: grid;
+  justify-items: center;
+  gap: calc(var(--cell-size, 32px) * 0.15);
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.clear,
+.backToBack,
+.combo,
+.perfectClear {
+  font-size: calc(var(--cell-size, 32px) * 0.6);
+}
+
+.clear {
+  color: var(--color-accent);
+  font-size: calc(var(--cell-size, 32px) * 0.75);
+}
+
+.backToBack {
+  color: var(--color-piece-t);
+}
+
+.combo {
+  color: var(--color-piece-i);
+}
+
+.perfectClear {
+  color: var(--color-piece-o);
+}
+
+/* Full and Reduced: hard shadows, a bouncy pop-in, and a size that grows with the combo. */
+.list[data-pop] {
+  --growth: calc(1 + var(--combo, 0) * 0.06);
+  animation: pop var(--duration-quick, 180ms) var(--ease-bounce, ease-out) both;
+}
+
+.list[data-pop] > li {
+  font-size: calc(var(--cell-size, 32px) * 0.6 * var(--growth));
+  text-shadow:
+    2px 2px 0 var(--color-shadow),
+    4px 4px 0 var(--color-shadow);
+}
+
+.list[data-pop] > .clear {
+  font-size: calc(var(--cell-size, 32px) * 0.75 * var(--growth));
+}
+
+.list[data-pop] > li:nth-child(2) {
+  animation: pop var(--duration-quick, 180ms) 60ms var(--ease-bounce, ease-out) both;
+}
+
+.list[data-pop] > li:nth-child(n + 3) {
+  animation: pop var(--duration-quick, 180ms) 120ms var(--ease-bounce, ease-out) both;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}

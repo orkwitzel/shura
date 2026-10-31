@@ -1,0 +1,134 @@
+import { act, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, test } from 'vitest';
+import { AppRouter } from '@/app/router';
+import { personalBest } from '../support/records';
+import { renderWithStores } from '../support/render-with-stores';
+
+const menu = () => screen.getByRole('menu', { name: 'Main menu' });
+const item = (name: string) => within(menu()).getByRole('menuitem', { name });
+
+describe('the main menu, at /', () => {
+  test('shows the logo, Play online (coming soon), the three modes and Settings, and no Quit', () => {
+    renderWithStores(<AppRouter />);
+    expect(screen.getByRole('heading', { name: 'Shura' })).toBeInTheDocument();
+    expect(item('Play online')).toBeDisabled();
+    expect(item('Play online')).toHaveAccessibleDescription('coming soon');
+    expect(within(menu()).getAllByRole('menuitem')).toHaveLength(5);
+    expect(item('Sprint')).toBeEnabled();
+    expect(item('Marathon')).toBeEnabled();
+    expect(item('Ultra')).toBeEnabled();
+    expect(item('Settings')).toBeEnabled();
+    expect(within(menu()).queryByRole('menuitem', { name: 'Quit' })).not.toBeInTheDocument();
+  });
+
+  test('shows each mode with its personal best beside it', () => {
+    const records = { version: 1, sprint: personalBest({ frames: 3_000 }) };
+    renderWithStores(<AppRouter />, { stored: { records } });
+    expect(item('Sprint')).toHaveAccessibleDescription('0:50.000');
+    expect(item('Marathon')).toHaveAccessibleDescription('no record yet');
+    expect(item('Ultra')).toHaveAccessibleDescription('no record yet');
+  });
+
+  test('shows all three personal bests: Sprint’s time, Marathon’s score, level and lines, Ultra’s score', () => {
+    const records = {
+      version: 1,
+      sprint: personalBest({ frames: 3_000 }),
+      marathon: personalBest({ outcome: 'gameOver', score: 54_321, lines: 87, level: 9 }),
+      ultra: personalBest({ score: 21_449, lines: 101, frames: 7_200 }),
+    };
+    renderWithStores(<AppRouter />, { stored: { records } });
+    expect(item('Sprint')).toHaveAccessibleDescription('0:50.000');
+    expect(item('Marathon')).toHaveAccessibleDescription('54,321 (level 9, 87 lines)');
+    expect(item('Ultra')).toHaveAccessibleDescription('21,449');
+  });
+
+  test('starts on Sprint, past the disabled Play online', () => {
+    renderWithStores(<AppRouter />);
+    expect(item('Sprint')).toHaveFocus();
+  });
+
+  test('the arrows and Enter open Settings', async () => {
+    const app = renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    expect(app.location()).toBe('/settings');
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  test.each([
+    ['Sprint', 0],
+    ['Marathon', 1],
+    ['Ultra', 2],
+  ])('the arrows and Enter open %s', async (mode, downs) => {
+    const app = renderWithStores(<AppRouter />);
+    await userEvent.keyboard(`${'{ArrowDown}'.repeat(downs)}{Enter}`);
+    expect(app.location()).toBe(`/solo/${mode.toLowerCase()}`);
+    expect(await screen.findByRole('heading', { name: mode })).toBeInTheDocument();
+  });
+
+  test('comes back on the mode the player left it for, as the CLI does', async () => {
+    const app = renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await screen.findByRole('heading', { name: 'Marathon' });
+    act(() => app.navigate('/'));
+    expect(item('Marathon')).toHaveFocus();
+  });
+
+  test('comes back on Settings after the settings', async () => {
+    renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    await userEvent.keyboard('{Escape}');
+    expect(item('Settings')).toHaveFocus();
+  });
+
+  test('tells the player when the stored settings or records could not be used', () => {
+    renderWithStores(<AppRouter />, { stored: { settings: 'not json', records: 'not json' } });
+    const notices = screen.getByRole('status');
+    expect(notices).toHaveTextContent(/the settings can't be used .* using the defaults/);
+    expect(notices).toHaveTextContent(/the records can't be used .* moved to records backup/);
+  });
+
+  test('shows no notices when storage is fine', () => {
+    renderWithStores(<AppRouter />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});
+
+describe('the other routes', () => {
+  test('/settings shows the settings, and Esc leads back to the menu', async () => {
+    const app = renderWithStores(<AppRouter />, { path: '/settings' });
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'DAS' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(app.location()).toBe('/');
+    expect(menu()).toBeInTheDocument();
+  });
+
+  test('/settings has a Back button to the menu too', async () => {
+    const app = renderWithStores(<AppRouter />, { path: '/settings' });
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(app.location()).toBe('/');
+  });
+
+  test.each([
+    ['marathon', 'Marathon', 'Level'],
+    ['ultra', 'Ultra', 'Time left'],
+  ])('/solo/%s plays %s, with its HUD', async (mode, name, stat) => {
+    renderWithStores(<AppRouter />, { path: `/solo/${mode}` });
+    expect(await screen.findByRole('heading', { name })).toBeInTheDocument();
+    expect(screen.getByText(stat, { selector: 'dt' })).toBeInTheDocument();
+  });
+
+  test('/solo/tetris redirects to /, replacing itself so Back never returns to it', () => {
+    const app = renderWithStores(<AppRouter />, { path: '/solo/tetris' });
+    expect(app.location()).toBe('/');
+    expect(app.history).toEqual(['/']);
+    expect(menu()).toBeInTheDocument();
+  });
+
+  test('an unknown route redirects to /', () => {
+    const app = renderWithStores(<AppRouter />, { path: '/nowhere' });
+    expect(app.location()).toBe('/');
+    expect(menu()).toBeInTheDocument();
+  });
+});

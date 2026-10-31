@@ -1,6 +1,6 @@
-import { ActionType } from '@shura/engine';
+import { ActionType, createEngine, type EngineEvent } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { createSoloSession, type SoloMode } from '../src/index';
+import { createSoloSession, SOLO_PRESETS, type SoloMode } from '../src/index';
 import { fakeClock } from './support/fake-clock';
 import {
   MARATHON_ACTIONS,
@@ -441,18 +441,91 @@ describe('the store', () => {
 });
 
 describe('engine events', () => {
-  // A stub until the engine reports events (design §5.2): listeners can register and unregister,
-  // and nothing calls them yet.
-  it('takes listeners, which hear nothing until the engine reports events', () => {
+  it('reach listeners once each, in frame order: a whole game’s, as the engine reports them', () => {
+    const heard: EngineEvent[][] = [];
+    const { session } = playRecorded('sprint', SPRINT_SEED, SPRINT_ACTIONS, (playing) =>
+      playing.onEvents((events) => heard.push([...events])),
+    );
+    expect(session.getState().phase).toBe('ended');
+    // The engine on its own, stepped to the end in one go, reports the game's events.
+    const engine = createEngine(SOLO_PRESETS.sprint, SPRINT_SEED, 0);
+    const expected = engine.step(SPRINT_FINISH_FRAME, SPRINT_ACTIONS).events;
+    expect(expected.filter(({ type }) => type === 'lock').length).toBeGreaterThan(100);
+    expect(heard.flat()).toEqual(expected);
+    for (const events of heard) expect(events.length).toBeGreaterThan(0);
+  });
+
+  it('of a late wake that steps several frames reach listeners together, in frame order', () => {
     const { clock, session } = sprint();
-    const heard: unknown[] = [];
+    const heard: EngineEvent[][] = [];
+    session.onEvents((events) => heard.push([...events]));
+    clock.run(COUNTDOWN_MS + 100);
+    // Two hard drops, at frames 7 and 9, that no wake has stepped yet: one late wake steps both.
+    session.act(ActionType.HardDrop, clock.now());
+    clock.pass(34);
+    session.act(ActionType.HardDrop, clock.now());
+    clock.advance(66);
+    expect(heard).toHaveLength(1);
+    expect(heard[0]?.map(({ type, frame }) => [type, frame])).toEqual([
+      ['hardDrop', 7],
+      ['lock', 7],
+      ['hardDrop', 9],
+      ['lock', 9],
+    ]);
+  });
+
+  it('never come during the countdown or while paused', () => {
+    const { clock, session } = sprint();
+    const heard: EngineEvent[] = [];
+    session.onEvents((events) => heard.push(...events));
+    // An action that arrives in the countdown waits for frame 1: the engine doesn't step before Go.
+    session.act(ActionType.HardDrop, clock.now());
+    clock.run(COUNTDOWN_MS - 1);
+    expect(heard).toEqual([]);
+
+    clock.run(101);
+    expect(heard.map(({ type, frame }) => [type, frame])).toEqual([
+      ['hardDrop', 1],
+      ['lock', 1],
+    ]);
+    heard.length = 0;
+
+    session.pause();
+    session.act(ActionType.HardDrop, clock.now());
+    clock.run(3_000);
+    session.resume();
+    clock.run(COUNTDOWN_MS - 1);
+    expect(heard).toEqual([]);
+
+    session.act(ActionType.HardDrop, clock.now());
+    clock.run(100);
+    expect(heard.map(({ type }) => type)).toEqual(['hardDrop', 'lock']);
+  });
+
+  it('of the frames a pause steps reach listeners at the pause', () => {
+    const { clock, session } = sprint();
+    const heard: EngineEvent[] = [];
+    session.onEvents((events) => heard.push(...events));
+    clock.run(COUNTDOWN_MS + 100);
+    session.act(ActionType.HardDrop, clock.now());
+    clock.pass(20);
+    session.pause();
+    expect(heard.map(({ type, frame }) => [type, frame])).toEqual([
+      ['hardDrop', 7],
+      ['lock', 7],
+    ]);
+  });
+
+  it('stop reaching a listener once it is removed', () => {
+    const { clock, session } = sprint();
+    const heard: EngineEvent[] = [];
     const unsubscribe = session.onEvents((events) => heard.push(...events));
     clock.run(COUNTDOWN_MS + 100);
+    unsubscribe();
     session.act(ActionType.HardDrop, clock.now());
     clock.run(100);
     expect(session.getState().engine.piecesPlaced).toBe(1);
     expect(heard).toEqual([]);
-    expect(unsubscribe()).toBeUndefined();
   });
 });
 

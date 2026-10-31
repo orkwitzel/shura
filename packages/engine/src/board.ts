@@ -52,6 +52,15 @@ export function isEmpty(board: ReadonlyBoard): boolean {
   return board.every((row) => row.every((cell) => cell === null));
 }
 
+/** The full rows, bottom row first: each one's index and a copy of its cells. */
+export function fullRows(board: ReadonlyBoard): { row: number; cells: BoardCell[] }[] {
+  const full: { row: number; cells: BoardCell[] }[] = [];
+  board.forEach((cells, row) => {
+    if (cells.every((cell) => cell !== null)) full.push({ row, cells: [...cells] });
+  });
+  return full;
+}
+
 /** Removes full rows, moving the rows above down. Returns how many rows cleared. */
 export function clearLines(board: Board): ClearedLines {
   const kept = board.filter((row) => row.some((cell) => cell === null));

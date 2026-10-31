@@ -1,0 +1,197 @@
+import {
+  type Effects,
+  SKINS,
+  type SkinId,
+  type SoloSession,
+  type SoloSessionState,
+  THEMES,
+  type ThemeId,
+  trackBackToBack,
+} from '@shura/client-core';
+import { useSettings } from '@shura/client-core/react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react';
+import { useEffects } from '@/hooks/use-effects';
+import { createPixiApp, destroyPixiApp, type PixiSize, resizePixiApp } from '@/lib/pixi/pixi-app';
+import { createEffectsPainter } from '../effects/pixi/effects-painter';
+import type { EffectView } from '../effects/utils/effect-frame';
+import { effectsForEvents } from '../effects/utils/effects-for-events';
+import { useViewport } from '../hooks/use-viewport';
+import { createBoardPainter } from '../pixi/board-painter';
+import { type BoardFit, fitBoard } from '../utils/cell-size';
+import { boardRegions, LAYOUT_CELLS, layoutBoard, type Rect } from '../utils/layout-board';
+import styles from './board-canvas.module.css';
+
+export interface BoardCanvasProps {
+  /** The game to draw. */
+  readonly session: SoloSession;
+  /** Shown over the well (the visible 20 rows): the countdown, the end of the game. */
+  readonly overlay?: ReactNode;
+  /** Shown in the column under the hold: the HUD and the callouts. */
+  readonly aside?: ReactNode;
+  /**
+   * Called once, on the tick after the first paint: the board has been drawn on screen, and
+   * Pixi's start-up (which can hold the main thread for a second on a slow machine) is over.
+   */
+  readonly onShown?: () => void;
+}
+
+/** What the board is drawn with, besides the game: the settings and the window. */
+interface Look {
+  readonly theme: ThemeId;
+  readonly skin: SkinId;
+  readonly ghost: boolean;
+  readonly effects: Effects;
+  readonly fit: BoardFit;
+}
+
+const sizeOf = ({ cellSize }: BoardFit, resolution: number): PixiSize => ({
+  width: LAYOUT_CELLS.width * cellSize,
+  height: LAYOUT_CELLS.height * cellSize,
+  resolution,
+});
+
+const place = ({ x, y, width, height }: Rect): CSSProperties => ({
+  left: x,
+  top: y,
+  width,
+  height,
+});
+
+/**
+ * A session's board, hold and preview, drawn by Pixi (design §13.2, Boards), centred in the window
+ * at the largest cell size that fits it. A Pixi application is made on mount and destroyed on
+ * unmount. On each tick of Pixi's own ticker, outside React's render cycle, it reads the session's
+ * store and repaints when the game, the settings or the window changed, so React never re-renders
+ * per frame. React draws the labels and whatever is given to show over the well and beside it.
+ * `onShown` says when the first board has been on screen, so a game can start its clock then.
+ *
+ * It also draws the effects (design §13.2, Effects) from the session's engine events, under the
+ * *Effects* setting in force, over the board on the same ticker. They live in the effects painter,
+ * not in the session's store, and never touch the game. A new game drops them.
+ */
+export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasProps) {
+  const theme = useSettings((settings) => settings.theme);
+  const skin = useSettings((settings) => settings.skin);
+  const ghost = useSettings((settings) => settings.ghost);
+  const effects = useEffects();
+  const viewport = useViewport();
+  const fit = useMemo(() => fitBoard(viewport), [viewport]);
+  const regions = boardRegions(fit.cellSize);
+  const host = useRef<HTMLDivElement>(null);
+
+  // The ticker reads the look from here, so a change needs no new application.
+  const look = useRef<Look>({ theme, skin, ghost, effects, fit });
+  const resolution = useRef(viewport.pixelRatio);
+  const shown = useRef(onShown);
+  useLayoutEffect(() => {
+    look.current = { theme, skin, ghost, effects, fit };
+    resolution.current = viewport.pixelRatio;
+    shown.current = onShown;
+  }, [theme, skin, ghost, effects, fit, viewport.pixelRatio, onShown]);
+
+  useEffect(() => {
+    let gone = false;
+    let stop = () => {};
+    void createPixiApp(sizeOf(look.current.fit, resolution.current)).then((app) => {
+      if (gone) {
+        destroyPixiApp(app);
+        return;
+      }
+      host.current?.appendChild(app.canvas);
+      const painter = createBoardPainter(app);
+      const effectsPainter = createEffectsPainter(app);
+      let drawn: { state: SoloSessionState; look: Look; view: EffectView } | null = null;
+      let told = false;
+      const draw = () => {
+        if (drawn !== null && !told) {
+          told = true;
+          shown.current?.();
+        }
+        const state = session.getState();
+        const now = look.current;
+        if (drawn?.state !== state || drawn.look !== now) {
+          if (drawn?.look.fit !== now.fit) resizePixiApp(app, sizeOf(now.fit, resolution.current));
+          const { theme, skin, ghost, effects, fit } = now;
+          const layout = layoutBoard(state.engine, THEMES[theme], SKINS[skin], fit.cellSize, {
+            ghost,
+          });
+          painter.paint(layout);
+          if (effects === 'off') effectsPainter.clear();
+          drawn = {
+            state,
+            look: now,
+            view: { layout, cellSize: fit.cellSize, theme: THEMES[theme], skin: SKINS[skin] },
+          };
+        }
+        effectsPainter.paint(drawn.view, performance.now());
+      };
+      app.ticker.add(draw);
+
+      // The effects of each wake's engine events. A back-to-back needs the status before each lock.
+      const backToBack = trackBackToBack(session);
+      const stopHearing = session.onEvents((events) => {
+        effectsPainter.add(
+          effectsForEvents(events, look.current.effects, backToBack.next),
+          performance.now(),
+        );
+      });
+      // A game at frame 0 has locked nothing: a restart (or the first countdown) drops the effects.
+      const stopWatching = session.subscribe(({ engine }) => {
+        if (engine.frame === 0) effectsPainter.clear();
+      });
+      stop = () => {
+        stopHearing();
+        stopWatching();
+        backToBack.stop();
+        app.ticker.remove(draw);
+        destroyPixiApp(app);
+      };
+    });
+    return () => {
+      gone = true;
+      stop();
+    };
+  }, [session]);
+
+  const layoutStyle = {
+    left: fit.x,
+    top: fit.y,
+    width: LAYOUT_CELLS.width * fit.cellSize,
+    height: LAYOUT_CELLS.height * fit.cellSize,
+    '--cell-size': `${fit.cellSize}px`,
+  } as CSSProperties;
+  /** A box's label, in the cell above its frame. */
+  const labelOf = (box: Rect): CSSProperties => ({
+    ...place({ ...box, y: box.y - fit.cellSize, height: fit.cellSize * 0.8 }),
+  });
+  return (
+    <div className={styles.stage}>
+      <div className={styles.layout} style={layoutStyle}>
+        <div ref={host} className={styles.canvas} />
+        <span className={styles.label} style={labelOf(regions.hold)}>
+          Hold
+        </span>
+        <span className={styles.label} style={labelOf(regions.preview)}>
+          Next
+        </span>
+        {aside !== undefined && (
+          <div className={styles.aside} style={place(regions.aside)}>
+            {aside}
+          </div>
+        )}
+        {overlay !== undefined && (
+          <div className={styles.overlay} style={place(regions.well)}>
+            {overlay}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

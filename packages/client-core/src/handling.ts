@@ -54,6 +54,26 @@ export const DEFAULT_HANDLING: Handling = handlingFrames(DEFAULT_HANDLING_SETTIN
 const SOFT_DROP_STEPS: readonly (number | 'instant')[] = [5, 10, 15, 20, 25, 30, 35, 40, 'instant'];
 
 /**
+ * Every value a handling setting can take, in order (design §7.2), for a slider: DAS and ARR each
+ * whole frame in their range (in ms, rounded), the soft-drop factor ×5, ×10 … ×40, instant.
+ */
+export function handlingSteps(field: 'das' | 'arr'): readonly number[];
+export function handlingSteps(
+  field: keyof HandlingSettings,
+): readonly HandlingSettings[keyof HandlingSettings][];
+export function handlingSteps(
+  field: keyof HandlingSettings,
+): readonly HandlingSettings[keyof HandlingSettings][] {
+  if (field === 'softDropFactor') return SOFT_DROP_STEPS;
+  const { min, max } = HANDLING_RANGES[field];
+  const steps: number[] = [];
+  for (let frames = wholeFrames(min); Math.round(framesToMs(frames)) <= max; frames++) {
+    steps.push(Math.round(framesToMs(frames)));
+  }
+  return steps;
+}
+
+/**
  * One handling setting a step up or down, within its range (design §7.2): DAS and ARR a frame at a
  * time (in ms, rounded), the soft-drop factor through ×5, ×10 … ×40, instant.
  */

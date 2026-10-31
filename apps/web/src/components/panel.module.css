@@ -1,0 +1,11 @@
+.panel {
+  position: relative;
+  width: min(470px, 100%);
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  display: grid;
+  gap: var(--space-5);
+  justify-items: center;
+  background: var(--color-panel);
+  border: var(--border);
+  box-shadow: var(--shadow-large);
+}
