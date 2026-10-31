@@ -115,7 +115,7 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
     <main className={styles.match}>
       <MatchCanvas
         session={session}
-        top={SPECTATING_BANNER_SPACE}
+        top={banner ? SPECTATING_BANNER_SPACE : 0}
         name={(playerId) => (
           <PlayerName
             name={names.get(playerId) ?? '?'}

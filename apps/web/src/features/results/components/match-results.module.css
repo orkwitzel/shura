@@ -47,6 +47,7 @@
 .row td {
   padding: var(--space-1) var(--space-3);
   text-align: right;
+  vertical-align: middle;
   background: var(--color-deep);
   border-block: var(--border-width-small) solid var(--color-border);
   text-shadow: 2px 2px 0 var(--color-shadow);

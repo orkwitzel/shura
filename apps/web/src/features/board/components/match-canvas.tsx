@@ -56,7 +56,7 @@ import styles from './match-canvas.module.css';
 export interface MatchCanvasProps {
   /** The online session whose current match to draw: one you play in, or one you spectate. */
   readonly session: OnlineSession;
-  /** CSS pixels kept clear across the top while you spectate, for the banner. */
+  /** CSS pixels kept clear across the top, for the spectating banner while it shows. */
   readonly top?: number;
   /** Shown in the row over each player's board: their name. */
   readonly name: (playerId: string) => ReactNode;
@@ -151,7 +151,7 @@ const place = ({ x, y, width, height }: Rect): CSSProperties => ({
  * make no effects. As in `BoardCanvas`, Pixi's ticker reads the session's store and repaints,
  * outside React's render cycle, and React draws the labels and what is given to show over the
  * boards. Spectating a match (design §13.2, Spectating), there is no board of your own: every
- * player's board is the same size in a grid under `top`.
+ * player's board is the same size in a grid. The boards stay under `top`, clear of a banner.
  */
 export function MatchCanvas({
   session,
@@ -173,10 +173,7 @@ export function MatchCanvas({
     return { own: mine === '' ? null : mine, opponents };
   }, [cast]);
   const layout = useMemo(
-    () =>
-      own === null
-        ? layoutOpponents(viewport, opponents.length, { own: false, top })
-        : layoutOpponents(viewport, opponents.length),
+    () => layoutOpponents(viewport, opponents.length, { own: own !== null, top }),
     [viewport, own, opponents, top],
   );
   const boards = useMemo(() => boardsOf(layout, own, opponents), [layout, own, opponents]);
@@ -233,6 +230,9 @@ export function MatchCanvas({
           const placed = boardsOf(current.layout, own, opponents);
           if (drawn?.look.viewport !== current.viewport) {
             resizePixiApp(app, sizeOf(current.viewport, current.viewport.pixelRatio));
+          }
+          // The layout changes with the window, and as a banner comes and goes.
+          if (drawn?.look.layout !== current.layout) {
             for (const board of placed) {
               const layer = layers.get(board.playerId);
               if (layer) placeLayer(layer.outer, board.x, board.y);

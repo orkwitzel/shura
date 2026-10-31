@@ -136,7 +136,7 @@ describe('layoutOpponents: an FFA', () => {
 });
 
 describe('layoutOpponents: spectating, with no board of your own (design §13.2, Spectating)', () => {
-  const BANNER = 96;
+  const BANNER = 104;
   const cases = [
     // A 1v1's two boards side by side, with their hold and preview.
     { viewport: W1600, count: 2, kind: 'full', cell: 32, columns: 2, rows: 1 },
