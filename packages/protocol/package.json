@@ -7,12 +7,19 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc",
-    "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache"
+    "typecheck": "tsc && tsc -p tsconfig.test.json",
+    "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache",
+    "record-shape": "tsx scripts/record-shape.ts"
   },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@shura/engine": "workspace:*",
+    "zod": "catalog:"
   }
 }

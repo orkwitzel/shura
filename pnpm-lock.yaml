@@ -457,10 +457,23 @@ importers:
         version: 5.0.5(@types/node@26.6.6)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/protocol:
+    dependencies:
+      '@shura/engine':
+        specifier: workspace:*
+        version: link:../engine
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@shura/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
