@@ -30,15 +30,3 @@ export function Hud({ state }: { state: SoloSessionState }) {
       return <SprintHud state={state} />;
   }
 }
-
-/** The game's headline once it ends (the results screen shows the rest). */
-export function Headline({ state }: { state: SoloSessionState }) {
-  const { finished, frame } = state.engine;
-  return (
-    <Box flexDirection="column">
-      <Text bold>{finished ? 'FINISHED' : 'GAME OVER'}</Text>
-      {finished && state.mode === 'sprint' && <Text bold>{formatFrames(frame)}</Text>}
-      <Text dimColor>Ctrl+C quits</Text>
-    </Box>
-  );
-}

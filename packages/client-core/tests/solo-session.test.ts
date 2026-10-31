@@ -189,6 +189,79 @@ describe('pausing', () => {
   });
 });
 
+describe('restarting', () => {
+  it('starts a new game of the same mode through the countdown, with an empty action log', () => {
+    const { clock, session } = sprint();
+    clock.run(COUNTDOWN_MS + 100);
+    session.act(ActionType.HardDrop, clock.now());
+    clock.run(100);
+    expect(session.getState().engine.piecesPlaced).toBe(1);
+
+    session.restart(9);
+    expect(session.getState()).toMatchObject({
+      mode: 'sprint',
+      seed: 9,
+      phase: 'countdown',
+      countdown: 90,
+      actions: [],
+      engine: { frame: 0, piecesPlaced: 0 },
+    });
+    clock.run(COUNTDOWN_MS);
+    expect(session.getState()).toMatchObject({ phase: 'playing', engine: { frame: 0 } });
+    clock.advance(17);
+    expect(session.getState().engine.frame).toBe(1);
+  });
+
+  it('without a seed, plays from a fresh one', () => {
+    const { session } = sprint();
+    const seeds = new Set([7]);
+    for (let i = 0; i < 3; i++) {
+      session.restart();
+      seeds.add(session.getState().seed);
+    }
+    expect(seeds.size).toBe(4);
+  });
+
+  it('from the menu, starts the new game where the paused one would have resumed', () => {
+    const { clock, session } = sprint();
+    clock.run(COUNTDOWN_MS + 100);
+    session.pause();
+    clock.advance(10_000);
+    session.restart(7);
+    expect(session.getState()).toMatchObject({ phase: 'countdown', countdown: 90 });
+    clock.run(COUNTDOWN_MS + 17);
+    expect(session.getState()).toMatchObject({ phase: 'playing', engine: { frame: 1 } });
+    expect(clock.pending).toBe(1);
+  });
+
+  it('after the game ended, wakes again', () => {
+    const { clock, session } = sprint();
+    clock.run(COUNTDOWN_MS);
+    for (let i = 0; i < 30; i++) {
+      session.act(ActionType.HardDrop, clock.now());
+      clock.advance(17);
+    }
+    expect(session.getState().phase).toBe('ended');
+    expect(clock.pending).toBe(0);
+
+    session.restart(7);
+    expect(clock.pending).toBe(1);
+    clock.run(COUNTDOWN_MS + 17);
+    expect(session.getState()).toMatchObject({
+      phase: 'playing',
+      engine: { frame: 1, toppedOut: false },
+    });
+  });
+
+  it('keeps a single wake when restarted mid-game', () => {
+    const { clock, session } = sprint();
+    clock.run(COUNTDOWN_MS + 100);
+    session.restart(7);
+    session.restart(7);
+    expect(clock.pending).toBe(1);
+  });
+});
+
 describe('a wake', () => {
   it('30 frames late steps them all', () => {
     const { clock, session } = sprint();

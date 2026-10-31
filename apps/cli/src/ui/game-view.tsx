@@ -1,9 +1,10 @@
 import type { SoloSessionState } from '@shura/client-core';
 import { Box, Text } from 'ink';
 import { boardRows, HIDDEN_ROWS_SHOWN } from '../render/board';
+import { overlayRows } from '../render/overlay';
 import type { ColorMode } from '../render/palette';
 import { NO_PIECE, pieceRows } from '../render/piece';
-import { Headline, Hud } from './hud';
+import { Hud } from './hud';
 
 export interface GameViewProps {
   readonly state: SoloSessionState;
@@ -12,6 +13,8 @@ export interface GameViewProps {
   readonly ghost: boolean;
   /** The input adapter, for the status line. */
   readonly input: string;
+  /** Lines drawn over the middle of the board: the countdown, or the in-game menu. */
+  readonly overlay?: readonly string[];
 }
 
 /** Rows of pre-coloured strings, one `<Text>` each (design §13.3). */
@@ -59,18 +62,20 @@ export function StatusLine({ input }: { input: string }) {
   return <Text dimColor>input: {input}</Text>;
 }
 
-/** A single-player game: hold and the HUD, the board, the preview, and the status line. */
-export function GameView({ state, colors, ghost, input }: GameViewProps) {
+/**
+ * A single-player game: hold and the HUD, the board (with the countdown or the menu over it), the
+ * preview, and the status line.
+ */
+export function GameView({ state, colors, ghost, input, overlay = [] }: GameViewProps) {
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
         <Box flexDirection="column" width={14} marginTop={HIDDEN_ROWS_SHOWN}>
           <Hold state={state} colors={colors} />
           <Hud state={state} />
-          {state.phase === 'ended' && <Headline state={state} />}
         </Box>
         <Box flexDirection="column" marginRight={2}>
-          <Rows rows={boardRows(state.engine, { colors, ghost })} />
+          <Rows rows={overlayRows(boardRows(state.engine, { colors, ghost }), overlay)} />
         </Box>
         <Box flexDirection="column" width={10} marginTop={HIDDEN_ROWS_SHOWN}>
           <Preview state={state} colors={colors} />

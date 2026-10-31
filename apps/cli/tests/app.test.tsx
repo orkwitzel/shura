@@ -1,38 +1,19 @@
-import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
-import { App } from '../src/ui/app';
-import { fakeClock } from './support/fake-clock';
 import { resize, settle, visibleRows } from './support/ink';
+import { COUNTDOWN_MS, KEYS, soloSprint } from './support/solo-app';
 
-/** The countdown before Go: 1.5 s. */
-const COUNTDOWN_MS = 1_500;
+const RIGHT = KEYS.right;
+const RIGHT_UP = KEYS.rightUp;
+const SPACE = KEYS.space;
 
-const RIGHT = '\x1b[C';
-const RIGHT_UP = '\x1b[1;1:3C';
-const SPACE = '\x1b[32u';
-
-let app: ReturnType<typeof render> | undefined;
+let app: Awaited<ReturnType<typeof soloSprint>>['app'] | undefined;
 afterEach(() => app?.unmount());
 
 /** `shura solo sprint` with seed 7 (O first, in columns 4–5) on a fake clock, at 80×24. */
 async function sprint() {
-  const clock = fakeClock(1_000);
-  app = render(<App mode="sprint" clock={clock} seed={7} colors="none" />);
-  resize(app, 80, 24);
-  await settle();
-  const rendered = app;
-  return {
-    clock,
-    app: rendered,
-    async type(bytes: string) {
-      rendered.stdin.write(bytes);
-      await settle();
-    },
-    async run(ms: number) {
-      clock.run(ms);
-      await settle();
-    },
-  };
+  const game = await soloSprint();
+  app = game.app;
+  return game;
 }
 
 describe('shura solo sprint', () => {

@@ -442,7 +442,7 @@ describe('keys and the menu', () => {
     expect(framesOf(MoveLeft)).toEqual([13, 15, 17, 19]);
   });
 
-  it('are ignored once the game has ended', () => {
+  it('that arrive once the game has ended wait for a restart, without waking the session', () => {
     const { session, clock, playTo } = game();
     playTo(1);
     for (let i = 0; i < 30; i++) {
@@ -454,5 +454,30 @@ describe('keys and the menu', () => {
     session.key({ action: MoveLeft, kind: 'press', time: clock.now() });
     expect(session.getState()).toBe(ended);
     expect(clock.pending).toBe(0);
+  });
+
+  it('a direction held into a restart is charged at Go of the new game', () => {
+    const { session, clock, press, playTo, framesOf } = game();
+    press(MoveLeft, 10);
+    playTo(30);
+    session.pause();
+    session.restart(7);
+    clock.run(COUNTDOWN_MS + 500);
+    expect(framesOf(MoveLeft)).toEqual([1, 3, 5, 7]);
+  });
+
+  it('a direction released after the game ended stays released after a restart', () => {
+    const { session, clock, press, playTo, framesOf } = game();
+    press(MoveLeft, 10);
+    playTo(30);
+    for (let i = 0; i < 30; i++) {
+      session.act(ActionType.HardDrop, clock.now());
+      clock.advance(17);
+    }
+    expect(session.getState().phase).toBe('ended');
+    session.key({ action: MoveLeft, kind: 'release', time: clock.now() });
+    session.restart(7);
+    clock.run(COUNTDOWN_MS + 500);
+    expect(framesOf(MoveLeft)).toEqual([]);
   });
 });

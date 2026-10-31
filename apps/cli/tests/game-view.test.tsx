@@ -109,24 +109,6 @@ describe('game view, without colour (glyphs)', () => {
     ]);
   });
 
-  it("shows a finished Sprint's headline: its time", () => {
-    const engine = sprint();
-    const finished = { ...engine.state, finished: true, frame: 1_222, linesCleared: 40 };
-    const text = view(engine, { state: stateOf(engine, { phase: 'ended', engine: finished }) });
-    expect(text).toContain('FINISHED');
-    expect(text.match(/0:20\.367/g)).toHaveLength(2); // the HUD's time, and the headline's
-  });
-
-  it('shows Game over after a top-out', () => {
-    const engine = sprint();
-    for (let frame = 1; !engine.state.toppedOut; frame++) {
-      engine.step(frame, [{ frame, type: ActionType.HardDrop }]);
-    }
-    const text = view(engine, { state: stateOf(engine, { phase: 'ended' }) });
-    expect(text).toContain('GAME OVER');
-    expect(text).not.toContain('FINISHED');
-  });
-
   it("shows Sprint's time and lines, and the input status line", () => {
     const engine = sprint();
     for (let frame = 1; frame <= 600; frame++) engine.step(frame, []);

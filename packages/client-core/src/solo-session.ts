@@ -99,6 +99,13 @@ export interface SoloSession extends Store<SoloSessionState> {
    */
   resume(): void;
   /**
+   * Starts a new game of the same mode from `seed` (without one, a fresh seed), through the
+   * countdown, whatever the phase: from the menu or from the results. The action log starts empty,
+   * and the input engine carries on, so a key held into the restart (or released after the game
+   * ended) is held (or released) in the new game, and a held direction is charged at Go.
+   */
+  restart(seed?: number): void;
+  /**
    * Adds a listener for engine events, which each wake passes on in frame order (design §13.1).
    * Events are moments, not state, so they don't go through the store. Returns a function that
    * removes the listener. Nothing calls listeners until the engine reports events (M3).
@@ -128,7 +135,7 @@ export function createSoloSession(options: SoloSessionOptions): SoloSession {
 
 class Session implements SoloSession {
   readonly #clock: Clock;
-  readonly #engine: Engine;
+  #engine: Engine;
   readonly #store: StoreApi<SoloSessionState>;
   /** The clock's time at the start of frame 0. */
   #start: number;
@@ -139,13 +146,13 @@ class Session implements SoloSession {
   #cancelWake: () => void;
   /** Actions waiting for their frame, in frame order. */
   #pending: PieceAction[] = [];
-  readonly #log: PieceAction[] = [];
+  #log: PieceAction[] = [];
   readonly #input: InputEngine;
   /** Key events waiting for the frame the input engine takes them at, in frame order. */
   #keys: { event: KeyEvent; frame: number }[] = [];
   readonly #eventListeners = new Set<SessionEventListener>();
   readonly #mode: SoloMode;
-  readonly #seed: number;
+  #seed: number;
 
   constructor({ mode, clock, seed = freshSeed(), handling, autoShift }: SoloSessionOptions) {
     this.#clock = clock;
@@ -173,7 +180,7 @@ class Session implements SoloSession {
   };
 
   key = (event: KeyEvent): void => {
-    if (this.#over()) return;
+    // Once the game has ended, keys still count, for a restart: they wait without waking anything.
     const last = this.#keys.at(-1)?.frame ?? -Infinity;
     const frame = Math.max(frameAt(event.time - this.#start) + 1, this.#frame + 1, last);
     this.#keys.push({ event, frame });
@@ -199,6 +206,21 @@ class Session implements SoloSession {
     this.#pausedAt = null;
     // Keys pressed or released at the pause or during it reach the input engine as the countdown
     // starts, so a direction held through it is charged at Go.
+    for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
+    this.#publish();
+    this.#cancelWake = this.#clock.schedule(this.#wake);
+  };
+
+  restart = (seed: number = freshSeed()): void => {
+    this.#cancelWake();
+    this.#seed = seed;
+    this.#engine = createEngine(PRESETS[this.#mode], seed, 0);
+    this.#pending = [];
+    this.#log = [];
+    this.#pausedAt = null;
+    this.#frame = -COUNTDOWN_FRAMES;
+    this.#start = this.#clock.now() + timeOf(COUNTDOWN_FRAMES);
+    // As on resuming, waiting keys reach the input engine as the countdown starts.
     for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
     this.#publish();
     this.#cancelWake = this.#clock.schedule(this.#wake);

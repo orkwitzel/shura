@@ -1,5 +1,5 @@
 import type { Clock, SoloMode } from '@shura/client-core';
-import { Box } from 'ink';
+import { Box, useApp } from 'ink';
 import type { ColorMode } from '../render/palette';
 import { SoloScreen } from './solo-screen';
 import { EnlargeMessage, useTerminalSize } from './terminal-size';
@@ -14,10 +14,11 @@ export interface AppProps {
 
 /**
  * The CLI's root: the screen being shown, centred, or the enlarge message on top while the
- * terminal is too small. The screen stays mounted under the message, so a game isn't lost.
+ * terminal is too small. The screen stays mounted under the message, paused, so a game isn't lost.
  */
 export function App({ mode, clock, seed, colors }: AppProps) {
   const size = useTerminalSize();
+  const { exit } = useApp();
   return (
     <Box flexDirection="column" width={size.columns}>
       {!size.bigEnough && <EnlargeMessage {...size} />}
@@ -27,6 +28,9 @@ export function App({ mode, clock, seed, colors }: AppProps) {
           clock={clock}
           {...(seed !== undefined && { seed })}
           colors={colors}
+          visible={size.bigEnough}
+          // There is no main menu yet (#33): quitting to it quits.
+          onQuit={() => exit()}
         />
       </Box>
     </Box>
