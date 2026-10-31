@@ -93,6 +93,20 @@ describeStores('RateLimiter', (harness) => {
     expect(await limiter.count('ip:1')).toBe(0);
   });
 
+  test('a refresh restarts a count’s TTL without counting, and never brings one back', async () => {
+    const { stores, peer, advance } = harness();
+    const limiter = stores.rateLimiter;
+    await limiter.acquire('ip:1', 5, COUNT_TTL);
+    await advance(COUNT_TTL * 0.6);
+    await peer().rateLimiter.refresh('ip:1', COUNT_TTL);
+    await advance(COUNT_TTL * 0.6);
+    expect(await limiter.count('ip:1')).toBe(1);
+    await advance(COUNT_TTL * 0.6);
+    expect(await limiter.count('ip:1')).toBe(0);
+    await limiter.refresh('ip:1', COUNT_TTL);
+    expect(await limiter.count('ip:1')).toBe(0);
+  });
+
   test('concurrent acquires from several gateways never pass the limit', async () => {
     const { stores, peer } = harness();
     const gateways = [stores, peer(), peer()];

@@ -25,6 +25,11 @@ export interface RateLimiter {
    * Returns false, counting nothing, at the limit.
    */
   acquire(key: string, limit: number, ttlMs: number): Promise<boolean>;
+  /**
+   * Restarts the TTL of `key`'s count without counting, for counts that outlive their TTL (such as
+   * a long connection's). Does nothing if nothing is counted.
+   */
+  refresh(key: string, ttlMs: number): Promise<void>;
   /** Counts one fewer under `key`, never below zero. */
   release(key: string): Promise<void>;
   /** How many are counted under `key`. */
