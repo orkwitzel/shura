@@ -1,8 +1,18 @@
-import { ActionType } from '@shura/engine';
+import { ActionType, type PieceAction } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { createSoloSession } from '../src/index';
-import { fakeClock } from './support/fake-clock';
-import { SPRINT_ACTIONS, SPRINT_FINISH_FRAME, SPRINT_SEED } from './support/recorded-sprint';
+import { createSoloSession, type SoloMode, type SoloSession } from '../src/index';
+import { type FakeClock, fakeClock } from './support/fake-clock';
+import {
+  MARATHON_ACTIONS,
+  MARATHON_FINISH,
+  MARATHON_SEED,
+  SPRINT_ACTIONS,
+  SPRINT_FINISH_FRAME,
+  SPRINT_SEED,
+  ULTRA_ACTIONS,
+  ULTRA_SCORE,
+  ULTRA_SEED,
+} from './support/recorded-games';
 
 /** The countdown before Go: 90 frames, 1.5 s. */
 const COUNTDOWN_MS = 1_500;
@@ -218,18 +228,38 @@ describe('a wake', () => {
   });
 });
 
+/**
+ * A session of `mode` from `seed` on a fake clock, played through the countdown with `actions`, a
+ * recorded action log, and then for a second more.
+ */
+function playRecorded(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
+  const clock: FakeClock = fakeClock(1_000);
+  const session: SoloSession = createSoloSession({ mode, clock, seed });
+  const go = clock.now() + COUNTDOWN_MS;
+  // Each action arrives 1 ms into the frame before its own, after the wake that stepped it.
+  for (const { frame, type } of actions) {
+    clock.run(go + ((frame - 1) * 1000) / 60 + 1 - clock.now());
+    session.act(type, clock.now());
+  }
+  clock.run(1_000);
+  return { clock, session };
+}
+
+/** Hard drops, one a frame from Go, until the game tops out (12 pieces in one column at most). */
+function topOut(mode: SoloMode) {
+  const clock = fakeClock(1_000);
+  const session = createSoloSession({ mode, clock, seed: 7 });
+  clock.run(COUNTDOWN_MS);
+  for (let i = 0; i < 30; i++) {
+    session.act(ActionType.HardDrop, clock.now());
+    clock.advance(17);
+  }
+  return { clock, session };
+}
+
 describe('a Sprint', () => {
   it('runs from the countdown to the finish, its time counted from Go', () => {
-    const clock = fakeClock(1_000);
-    const session = createSoloSession({ mode: 'sprint', clock, seed: SPRINT_SEED });
-    const go = clock.now() + COUNTDOWN_MS;
-
-    // Each action arrives 1 ms into the frame before its own, after the wake that stepped it.
-    for (const { frame, type } of SPRINT_ACTIONS) {
-      clock.run(go + ((frame - 1) * 1000) / 60 + 1 - clock.now());
-      session.act(type, clock.now());
-    }
-    clock.run(1_000);
+    const { session } = playRecorded('sprint', SPRINT_SEED, SPRINT_ACTIONS);
 
     const state = session.getState();
     expect(state.actions).toEqual(SPRINT_ACTIONS);
@@ -240,13 +270,7 @@ describe('a Sprint', () => {
   });
 
   it('stops waking once the game ends, and ignores pause and resume', () => {
-    const { clock, session } = sprint();
-    clock.run(COUNTDOWN_MS);
-    // Hard drops in one column top out within 12 pieces.
-    for (let i = 0; i < 30; i++) {
-      session.act(ActionType.HardDrop, clock.now());
-      clock.advance(17);
-    }
+    const { clock, session } = topOut('sprint');
     expect(session.getState()).toMatchObject({ phase: 'ended', engine: { toppedOut: true } });
     expect(clock.pending).toBe(0);
 
@@ -254,6 +278,77 @@ describe('a Sprint', () => {
     session.pause();
     session.resume();
     expect(session.getState()).toBe(ended);
+  });
+});
+
+describe('a Marathon', () => {
+  it('plays 15 levels of 10 lines, from level 1', () => {
+    const session = createSoloSession({ mode: 'marathon', clock: fakeClock(), seed: 7 });
+    expect(session.getState()).toMatchObject({ mode: 'marathon', engine: { level: 1 } });
+    expect(session.getState().engine.settings).toMatchObject({
+      lineGoal: 150,
+      linesPerLevel: 10,
+      frameLimit: null,
+    });
+    expect(session.getState().engine.settings.gravity.speeds).toHaveLength(15);
+  });
+
+  it('runs to the lock that clears 150 lines, at level 15', () => {
+    const { clock, session } = playRecorded('marathon', MARATHON_SEED, MARATHON_ACTIONS);
+    expect(session.getState().actions).toEqual(MARATHON_ACTIONS);
+    expect(session.getState()).toMatchObject({
+      phase: 'ended',
+      engine: {
+        finished: true,
+        toppedOut: false,
+        linesCleared: 150,
+        level: 15,
+        frame: MARATHON_FINISH.frame,
+        score: MARATHON_FINISH.score,
+      },
+    });
+    expect(clock.pending).toBe(0);
+  });
+
+  it('ends at a top-out, unfinished', () => {
+    const { clock, session } = topOut('marathon');
+    expect(session.getState()).toMatchObject({
+      phase: 'ended',
+      engine: { toppedOut: true, finished: false },
+    });
+    expect(clock.pending).toBe(0);
+  });
+});
+
+describe('an Ultra', () => {
+  it('plays 2 minutes at level 1', () => {
+    const session = createSoloSession({ mode: 'ultra', clock: fakeClock(), seed: 7 });
+    expect(session.getState()).toMatchObject({ mode: 'ultra', engine: { level: 1 } });
+    expect(session.getState().engine.settings).toMatchObject({
+      frameLimit: 7_200,
+      lineGoal: null,
+      linesPerLevel: null,
+    });
+  });
+
+  it('runs to the end of frame 7,200, counting an action in that frame', () => {
+    const { clock, session } = playRecorded('ultra', ULTRA_SEED, ULTRA_ACTIONS);
+    expect(session.getState().actions).toEqual(ULTRA_ACTIONS);
+    expect(ULTRA_ACTIONS.at(-1)).toEqual({ frame: 7_200, type: ActionType.HardDrop });
+    expect(session.getState()).toMatchObject({
+      phase: 'ended',
+      engine: { finished: true, toppedOut: false, frame: 7_200, score: ULTRA_SCORE, level: 1 },
+    });
+    expect(clock.pending).toBe(0);
+  });
+
+  it('ends at a top-out before 2:00, unfinished', () => {
+    const { session } = topOut('ultra');
+    expect(session.getState()).toMatchObject({
+      phase: 'ended',
+      engine: { toppedOut: true, finished: false },
+    });
+    expect(session.getState().engine.frame).toBeLessThan(7_200);
   });
 });
 

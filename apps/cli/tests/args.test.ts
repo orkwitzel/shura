@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseCommand } from '../src/args';
+import { HELP, parseCommand } from '../src/args';
 
 test('--version and -v print the version', () => {
   expect(parseCommand(['--version'])).toEqual({ kind: 'version' });
@@ -25,6 +25,16 @@ describe('solo', () => {
       mode: 'sprint',
       noColor: false,
     });
+  });
+
+  test.each(['marathon', 'ultra'] as const)('solo %s plays that mode', (mode) => {
+    expect(parseCommand(['solo', mode])).toEqual({ kind: 'solo', mode, noColor: false });
+  });
+
+  test('help lists every solo mode', () => {
+    expect(HELP).toMatch(/solo marathon/);
+    expect(HELP).toMatch(/solo sprint/);
+    expect(HELP).toMatch(/solo ultra/);
   });
 
   test('--no-color goes anywhere', () => {

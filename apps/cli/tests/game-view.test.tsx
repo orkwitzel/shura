@@ -1,5 +1,13 @@
 import type { SoloSessionState } from '@shura/client-core';
-import { ActionType, createEngine, type Engine, type PieceAction, SPRINT } from '@shura/engine';
+import {
+  ActionType,
+  createEngine,
+  type Engine,
+  MARATHON,
+  type PieceAction,
+  SPRINT,
+  ULTRA,
+} from '@shura/engine';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { boardRows } from '../src/render/board';
@@ -134,6 +142,104 @@ describe('game view, without colour (glyphs)', () => {
     expect(text).toContain('0:10.000');
     expect(text).toContain('0/40');
     expect(text).toContain('input: precise');
+  });
+});
+
+/** The HUD's lines under hold (the left column below HOLD and its two piece rows), blanks kept. */
+function hudLines(frame: string): string[] {
+  return beside(frame, 'left').slice(4);
+}
+
+/** A game of the preset, played `frames` frames with no actions. */
+function playedFor(preset: typeof MARATHON, frames: number): Engine {
+  const engine = createEngine(preset, 7, 0);
+  for (let frame = 1; frame <= frames; frame++) engine.step(frame, []);
+  return engine;
+}
+
+describe("Marathon's HUD", () => {
+  it('shows the level, the lines towards 150 and the score, from the start', () => {
+    const engine = createEngine(MARATHON, 7, 0);
+    const text = view(engine, { state: stateOf(engine, { mode: 'marathon' }) });
+    expect(hudLines(text).slice(0, 8)).toEqual([
+      'LEVEL',
+      '1',
+      '',
+      'LINES',
+      '0/150',
+      '',
+      'SCORE',
+      '0',
+    ]);
+  });
+
+  it("follows the engine's level, lines and score, the score in thousands", () => {
+    const engine = createEngine(MARATHON, 7, 0);
+    const later = { ...engine.state, level: 15, linesCleared: 147, score: 171_349 };
+    const text = view(engine, { state: stateOf(engine, { mode: 'marathon', engine: later }) });
+    expect(hudLines(text).slice(0, 8)).toEqual([
+      'LEVEL',
+      '15',
+      '',
+      'LINES',
+      '147/150',
+      '',
+      'SCORE',
+      '171,349',
+    ]);
+  });
+
+  it("scores a hard drop's rows as the engine does", () => {
+    const engine = createEngine(MARATHON, 7, 0);
+    engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
+    // The O falls from rows 19–20 to the floor, 19 rows, 2 points each (design §3).
+    expect(engine.state.score).toBe(38);
+    const text = view(engine, { state: stateOf(engine, { mode: 'marathon' }) });
+    expect(hudLines(text).slice(6, 8)).toEqual(['SCORE', '38']);
+  });
+
+  it('shows Finished and the score at 150 lines', () => {
+    const engine = createEngine(MARATHON, 7, 0);
+    const done = { ...engine.state, finished: true, level: 15, linesCleared: 150, score: 9_876 };
+    const state = stateOf(engine, { mode: 'marathon', phase: 'ended', engine: done });
+    const text = view(engine, { state });
+    expect(text).toContain('FINISHED');
+    expect(text.match(/9,876/g)).toHaveLength(2); // the HUD's score, and the headline's
+  });
+
+  it('shows Game over at a top-out', () => {
+    const engine = createEngine(MARATHON, 7, 0);
+    for (let frame = 1; !engine.state.toppedOut; frame++) {
+      engine.step(frame, [{ frame, type: ActionType.HardDrop }]);
+    }
+    const text = view(engine, { state: stateOf(engine, { mode: 'marathon', phase: 'ended' }) });
+    expect(text).toContain('GAME OVER');
+    expect(text).not.toContain('FINISHED');
+  });
+});
+
+describe("Ultra's HUD", () => {
+  it('shows the 2 minutes left and the score at Go', () => {
+    const engine = createEngine(ULTRA, 7, 0);
+    const text = view(engine, { state: stateOf(engine, { mode: 'ultra' }) });
+    expect(hudLines(text).slice(0, 5)).toEqual(['TIME LEFT', '2:00.000', '', 'SCORE', '0']);
+  });
+
+  it('counts the time left down with the frame', () => {
+    const engine = playedFor(ULTRA, 630);
+    const text = view(engine, { state: stateOf(engine, { mode: 'ultra' }) });
+    expect(hudLines(text).slice(0, 2)).toEqual(['TIME LEFT', '1:49.500']);
+  });
+
+  it('shows Finished, no time left and the score at 2:00', () => {
+    const engine = createEngine(ULTRA, 7, 0);
+    const done = { ...engine.state, finished: true, frame: 7_200, score: 21_449 };
+    const text = view(engine, {
+      state: stateOf(engine, { mode: 'ultra', phase: 'ended', engine: done }),
+    });
+    expect(hudLines(text).slice(0, 5)).toEqual(['TIME LEFT', '0:00.000', '', 'SCORE', '21,449']);
+    expect(text).toContain('FINISHED');
+    expect(text.match(/21,449/g)).toHaveLength(2);
   });
 });
 
