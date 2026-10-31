@@ -12,6 +12,7 @@ import {
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { TimerClock } from './clock';
 import { ClockSync } from './clock-sync';
+import { errorText } from './error-text';
 import { DEFAULT_HANDLING, type Handling } from './handling';
 import {
   type AutoShift,
@@ -335,7 +336,8 @@ class Session implements OnlineSession {
    * An `error`. Before the `welcome`, the server closes the connection after it, so it's why the
    * connection failed (a version mismatch, an invalid nickname); after, it's for the UI to show.
    */
-  #error({ code, message }: ServerMessageOf<'error'>): void {
+  #error({ code, message: serverMessage }: ServerMessageOf<'error'>): void {
+    const message = errorText(code, serverMessage);
     if (this.getState().connection.status === 'connecting') {
       this.#fail(code, message);
       return;

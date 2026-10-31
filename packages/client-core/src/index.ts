@@ -19,6 +19,7 @@ export {
 export type { Clock, TimerClock } from './clock';
 export { ClockSync, PING_SAMPLES, type PingSample } from './clock-sync';
 export { countdownLabel } from './countdown';
+export { errorText } from './error-text';
 export { formatFrames, formatHeadline, formatScore } from './format';
 export { FRAMES_PER_SECOND, frameAt, framesToMs, msToFrames } from './frames';
 export {
