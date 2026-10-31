@@ -17,13 +17,10 @@ import type { ServerClock } from './clock';
 import { type ConnectionLimits, DEFAULT_LIMITS, type GatewayLimits, Limits } from './limits';
 import type { Logger } from './logger';
 import type { DialGame, Peer } from './peer';
-import { placeRoom, randomRoomCode } from './placement';
+import { claimRoomCode, placeRoom } from './placement';
 import { QuickMatching } from './quick-match';
 import { RoomLinks, type RoomMember } from './room-links';
 import { restoreSession } from './sessions';
-
-/** How many random codes a new room tries before giving up. 920k codes make a clash rare. */
-const CODE_TRIES = 10;
 
 export interface GatewayOptions {
   readonly clock: ServerClock;
@@ -52,7 +49,6 @@ export function createGateway(options: GatewayOptions): Gateway {
   const guard = new Limits({
     limits,
     rateLimiter: options.stores.rateLimiter,
-    registry: options.stores.registry,
     clock: options.clock,
     logger: options.logger,
   });
@@ -168,10 +164,8 @@ class Connection implements RoomMember {
     switch (message.type) {
       case 'ping':
         return this.#send({ type: 'pong', id: message.id, serverTime: this.#options.clock.now() });
-      case 'createRoom': {
-        const refusal = await this.#limits.createRoom(session.id, this.#roomCode);
-        return refusal ? this.#send(refusal) : this.#createRoom(session, message.mode);
-      }
+      case 'createRoom':
+        return this.#createRoom(session, message.mode);
       case 'joinRoom': {
         const refusal = await this.#limits.joinRoom();
         if (refusal) return this.#send(refusal);
@@ -263,32 +257,36 @@ class Connection implements RoomMember {
     this.#send(error('room_not_found', 'Your room is gone.'));
   }
 
-  /** A new room on the least-loaded pod (design §9.2), with this session as its host. */
+  /**
+   * A new room on the least-loaded pod (design §9.2), with this session as its host. A session is
+   * in one room at a time, so it hosts at most one (design §11).
+   */
   async #createRoom(session: Session, mode: RoomMode): Promise<void> {
     if (this.#roomCode) return this.#send(error('wrong_phase', 'Leave your room first.'));
+    const refusal = await this.#limits.createRoom();
+    if (refusal) return this.#send(refusal);
     const { registry, podHealth } = this.#options.stores;
     const pod = await placeRoom(podHealth);
     if (!pod) return this.#send(error('unavailable', 'No game server can take a room right now.'));
-    for (let tries = 0; tries < CODE_TRIES; tries++) {
-      const code = randomRoomCode();
-      const room = {
-        podAddress: pod.address,
-        epoch: 0,
-        mode,
-        phase: 'lobby' as const,
-        hostId: session.id,
-      };
-      if (!(await registry.create(code, room))) continue;
-      this.#logger.info({ sessionId: session.id, roomCode: code, mode }, 'room created');
-      return this.#enter(session, code, room, {
-        type: 'createRoom',
-        roomCode: code,
-        epoch: 0,
-        mode,
-        hostId: session.id,
-      });
+    const room = {
+      podAddress: pod.address,
+      epoch: 0,
+      mode,
+      phase: 'lobby' as const,
+      hostId: session.id,
+    };
+    const code = await claimRoomCode(registry, room);
+    if (code === undefined) {
+      return this.#send(error('unavailable', "Couldn't find a free room code. Try again."));
     }
-    this.#send(error('unavailable', "Couldn't find a free room code. Try again."));
+    this.#logger.info({ sessionId: session.id, roomCode: code, mode }, 'room created');
+    return this.#enter(session, code, room, {
+      type: 'createRoom',
+      roomCode: code,
+      epoch: 0,
+      mode,
+      hostId: session.id,
+    });
   }
 
   async #joinRoom(session: Session, typed: string): Promise<void> {

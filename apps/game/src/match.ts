@@ -107,9 +107,6 @@ const PLAY_SETTINGS = { '1v1': ONE_VS_ONE, ffa: FFA } as const;
  * `garbageQueued`, checked when the target's batches receive it, and timed until they accept it.
  * Every verified batch and routing goes into the match log, and a batch is acknowledged only once
  * the append holding it has succeeded (design §9.6).
- *
- * Seams for later tickets:
- * - #64 reconnects and snapshots: `snapshot()` and the `seq` already acknowledged in `receive`.
  */
 export class Match {
   readonly matchId: string;
@@ -251,7 +248,7 @@ export class Match {
   receive(playerId: string, { seq, frames }: ClientMessageOf<'inputBatch'>): void {
     const player = this.#players.get(playerId);
     if (!player || player.out || this.#ended) return;
-    // A batch sent again after a reconnect (#64) has been verified already: ack it again.
+    // A batch sent again after a reconnect has been verified already: ack it again.
     if (seq < player.nextSeq) {
       this.#acknowledge(player, seq);
       return;

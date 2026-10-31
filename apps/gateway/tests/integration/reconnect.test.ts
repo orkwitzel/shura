@@ -41,7 +41,7 @@ async function playToEnd(
   throw new Error('the match never ended');
 }
 
-test('a dropped connection is retried at once, then after 250 ms, 500 ms, 1 s, then every 2 s', async () => {
+test('a dropped connection is retried at once, every 250 ms for 3 s, then after 1 s, then every 2 s', async () => {
   const world = await onlineWorld();
   const ada = world.client('Ada');
   await world.time.settle();
@@ -50,53 +50,64 @@ test('a dropped connection is retried at once, then after 250 ms, 500 ms, 1 s, t
   await world.time.settle();
   expect(ada.getState().connection).toEqual({ status: 'reconnecting' });
   const dials: number[] = [line.dials];
-  for (const wait of [249, 1, 499, 1, 999, 1, 1999, 1, 2000]) {
-    await world.time.advance(wait);
+  // 249 ms and 1 ms short of each try, then on it: 250 ms to 3 s, 1 s later, then 2 s later twice.
+  const tries = [...Array<number>(12).fill(250), 1000, 2000, 2000];
+  for (const wait of tries) {
+    await world.time.advance(wait - 1);
+    dials.push(line.dials);
+    await world.time.advance(1);
     dials.push(line.dials);
   }
-  expect(dials).toEqual([2, 2, 3, 3, 4, 4, 5, 5, 6, 7]);
+  // The first connection and the try at once, then one more on each wait's end, never before.
+  expect(dials).toEqual([2, ...tries.flatMap((_, at) => [2 + at, 3 + at])]);
 });
 
-test('a client whose socket drops for 1 s mid-match reconnects, plays on and is verified exactly', async () => {
-  const world = await onlineWorld();
-  const ada = world.client('Ada');
-  const bo = world.client('Bo');
-  const code = await openRoom(world, '1v1', ada, bo);
-  await startMatch(world, ada, bo);
-  const drops: [OnlineSession, number][] = [
-    [ada, 8],
-    [bo, 10],
-  ];
-  // 3 s of countdown, then 1 s of play.
-  let count = 0;
-  for (; count < 80; count++) await step(world, count, drops);
+test.each([
+  [1000, 20],
+  [2500, 50],
+])(
+  'a client whose socket drops for %i ms mid-match reconnects, plays on and is verified exactly',
+  async (_ms, steps) => {
+    const world = await onlineWorld();
+    const ada = world.client('Ada');
+    const bo = world.client('Bo');
+    const code = await openRoom(world, '1v1', ada, bo);
+    await startMatch(world, ada, bo);
+    const drops: [OnlineSession, number][] = [
+      [ada, 8],
+      [bo, 10],
+    ];
+    // 3 s of countdown, then 1 s of play.
+    let count = 0;
+    for (; count < 80; count++) await step(world, count, drops);
 
-  world.line(ada).cut();
-  await world.time.settle();
-  expect(ada.getState().connection).toEqual({ status: 'reconnecting' });
-  for (const end = count + 20; count < end; count++) await step(world, count, drops);
-  world.line(ada).restore();
-  const frameBack = ownGame(ada).engine.frame;
-  for (const end = count + 20; count < end; count++) await step(world, count, drops);
-  expect(ada.getState().connection).toEqual({ status: 'connected' });
-  expect(ada.getState().room?.code).toBe(code);
-  expect(ownGame(ada).out).toBeNull();
+    world.line(ada).cut();
+    await world.time.settle();
+    expect(ada.getState().connection).toEqual({ status: 'reconnecting' });
+    for (const end = count + steps; count < end; count++) await step(world, count, drops);
+    world.line(ada).restore();
+    const frameBack = ownGame(ada).engine.frame;
+    for (const end = count + 20; count < end; count++) await step(world, count, drops);
+    expect(ada.getState().connection).toEqual({ status: 'connected' });
+    expect(ada.getState().room?.code).toBe(code);
+    expect(ownGame(ada).out).toBeNull();
 
-  await playToEnd(world, [ada, bo], drops, count);
-  // She played on after coming back, and the server verified every frame of it.
-  expect(ownGame(ada).engine.frame).toBeGreaterThan(frameBack);
-  for (const session of [ada, bo]) {
-    const server = verifiedGameOf(world, code, session);
-    expect(server.frame).toBe(ownGame(session).engine.frame);
-    expect(server.hash).toBe(hashOf(ownGame(session).engine));
-  }
-  // Each saw the other's game as the server verified it, the frames she missed included.
-  const boId = bo.getState().sessionId;
-  expect(hashOf(gameOf(ada, boId).engine)).toBe(verifiedGameOf(world, code, bo).hash);
-  expect(hashOf(gameOf(bo, ada.getState().sessionId).engine)).toBe(
-    verifiedGameOf(world, code, ada).hash,
-  );
-});
+    await playToEnd(world, [ada, bo], drops, count);
+    // She played on after coming back, and the server verified every frame of it.
+    expect(ownGame(ada).engine.frame).toBeGreaterThan(frameBack);
+    for (const session of [ada, bo]) {
+      const server = verifiedGameOf(world, code, session);
+      expect(server.frame).toBe(ownGame(session).engine.frame);
+      expect(server.hash).toBe(hashOf(ownGame(session).engine));
+    }
+    // Each saw the other's game as the server verified it, the frames she missed included.
+    const boId = bo.getState().sessionId;
+    expect(hashOf(gameOf(ada, boId).engine)).toBe(verifiedGameOf(world, code, bo).hash);
+    expect(hashOf(gameOf(bo, ada.getState().sessionId).engine)).toBe(
+      verifiedGameOf(world, code, ada).hash,
+    );
+  },
+);
 
 test('a late joiner gets a snapshot and sees the same boards as the players', async () => {
   const world = await onlineWorld();

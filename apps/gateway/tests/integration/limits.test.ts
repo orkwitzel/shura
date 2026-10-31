@@ -188,13 +188,13 @@ describe('per IP (design §11)', () => {
 });
 
 describe('per session and per room (design §11)', () => {
-  test('a session hosts one room at a time, with room_limit', async () => {
+  test('a session hosts one room at a time: its host is told to leave it first', async () => {
     const { time, connected, createRoom } = await world({ exemptIps: [IP] });
     const ada = await connected();
     await createRoom(ada);
     ada.send({ type: 'createRoom', mode: 'ffa' });
     await time.settle();
-    expect(ada.errors()).toEqual(['room_limit']);
+    expect(ada.errors()).toEqual(['wrong_phase']);
     ada.send({ type: 'leaveRoom' });
     await time.settle();
     await createRoom(ada);

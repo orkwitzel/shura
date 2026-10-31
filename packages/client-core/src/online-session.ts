@@ -2,6 +2,7 @@ import { ENGINE_VERSION, type PieceActionType } from '@shura/engine';
 import {
   type ClientMessage,
   type ErrorCode,
+  LAG_OUT_MS,
   type PlayerKind,
   PROTOCOL_VERSION,
   type RoomMode,
@@ -33,10 +34,14 @@ const CONNECT_PINGS = 5;
 export const PING_EVERY_MS = 2000;
 
 /**
- * The waits between attempts to reconnect after the connection drops (design §10.2): the first
- * attempt is at once, then 250 ms, 500 ms and 1 s, then every 2 s (the last, repeated).
+ * The wait between attempts to reconnect while the drop is inside the lag-out window (design
+ * §10.2): the first attempt is at once, then one every 250 ms until 3 s after the drop, so a player
+ * back within the window is back before the server lags them out.
  */
-export const RECONNECT_DELAYS_MS: readonly number[] = [250, 500, 1000, 2000];
+export const RECONNECT_QUICK_MS = 250;
+
+/** The waits between attempts once the window has passed: 1 s, then every 2 s (the last, repeated). */
+export const RECONNECT_BACKOFF_MS: readonly number[] = [1000, 2000];
 
 /** Why a connection failed: the server's `error` code, or that it never opened. */
 export type ConnectionFailure = ErrorCode | 'unreachable';
@@ -191,8 +196,10 @@ class Session implements OnlineSession {
   readonly #options: OnlineSessionOptions;
   readonly #store: StoreApi<OnlineSessionState>;
   #socket: OnlineSocket;
-  /** Attempts to reconnect that failed since the connection dropped. */
-  #reconnects = 0;
+  /** When the connection dropped, on the session's clock. */
+  #droppedAt = 0;
+  /** Attempts to reconnect that failed after the lag-out window passed. */
+  #slowReconnects = 0;
   #cancelReconnect: () => void = () => {};
   readonly #sync = new ClockSync();
   readonly #input: InputEngine;
@@ -338,12 +345,17 @@ class Session implements OnlineSession {
       this.#fail('unreachable', "Can't reach the server.");
     } else if (status === 'connected') {
       this.#set({ connection: { status: 'reconnecting' } });
-      this.#reconnects = 0;
+      this.#droppedAt = this.#options.clock.now();
+      this.#slowReconnects = 0;
       this.#socket = this.#dial();
     } else if (status === 'reconnecting') {
-      const delays = RECONNECT_DELAYS_MS;
-      const delay = delays[Math.min(this.#reconnects, delays.length - 1)] ?? 0;
-      this.#reconnects++;
+      const sinceDrop = this.#options.clock.now() - this.#droppedAt;
+      let delay = RECONNECT_QUICK_MS;
+      if (sinceDrop + RECONNECT_QUICK_MS > LAG_OUT_MS) {
+        const backoff = RECONNECT_BACKOFF_MS;
+        delay = backoff[Math.min(this.#slowReconnects, backoff.length - 1)] ?? 0;
+        this.#slowReconnects++;
+      }
       this.#cancelReconnect = this.#options.clock.after(delay, () => {
         this.#cancelReconnect = () => {};
         if (this.getState().connection.status === 'reconnecting') this.#socket = this.#dial();

@@ -281,21 +281,12 @@ importers:
       '@shura/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@shura/game':
-        specifier: workspace:*
-        version: link:../game
-      '@shura/gateway':
-        specifier: workspace:*
-        version: link:../gateway
       '@shura/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@shura/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
-      '@shura/valkey':
-        specifier: workspace:*
-        version: link:../../packages/valkey
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

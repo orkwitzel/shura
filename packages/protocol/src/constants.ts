@@ -66,8 +66,6 @@ export const LIMIT_DEFAULTS = {
   newConnectionsPerIpPerMinute: 30,
   /** Rooms created from one IP per minute. */
   roomsPerIpPerMinute: 3,
-  /** Rooms one session hosts at a time. */
-  hostedRoomsPerSession: 1,
   /** Failed room joins from one IP per minute (room-code guessing). */
   failedJoinsPerIpPerMinute: 10,
   /** Spectators in one room. */

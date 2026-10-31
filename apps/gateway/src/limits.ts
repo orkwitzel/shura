@@ -1,5 +1,5 @@
 import { type ErrorCode, LIMIT_DEFAULTS, type ServerMessage } from '@shura/protocol';
-import type { RateLimiter, Registry, TokenBucket } from '@shura/valkey';
+import type { RateLimiter, TokenBucket } from '@shura/valkey';
 import { type AddressList, addressList, normalizeIp } from './client-ip';
 import type { ServerClock } from './clock';
 import type { Logger } from './logger';
@@ -14,7 +14,6 @@ export interface GatewayLimits {
   readonly connectionsPerIp: number;
   readonly newConnectionsPerIpPerMinute: number;
   readonly roomsPerIpPerMinute: number;
-  readonly hostedRoomsPerSession: number;
   readonly failedJoinsPerIpPerMinute: number;
   readonly maxSpectators: number;
   readonly quickMatchCooldownMs: number;
@@ -54,7 +53,6 @@ const error = (code: ErrorCode, message: string): ServerMessage => ({
 export interface LimitsOptions {
   readonly limits: GatewayLimits;
   readonly rateLimiter: RateLimiter;
-  readonly registry: Pick<Registry, 'get'>;
   readonly clock: ServerClock;
   readonly logger: Logger;
 }
@@ -63,7 +61,7 @@ export interface LimitsOptions {
  * The abuse limits (design §11). Per IP, counted in Valkey through `RateLimiter` so they hold
  * across gateway pods, and skipped for `LIMITS_EXEMPT_IPS`: connections, rooms created and failed
  * joins. Per connection, counted where the connection is, and never skipped: invalid messages and
- * the message-rate bucket. Per session: the rooms it hosts.
+ * the message-rate bucket.
  */
 export class Limits {
   readonly #options: LimitsOptions;
@@ -190,18 +188,10 @@ export class ConnectionLimits {
     return this.#invalid >= this.#options.limits.invalidMessagesBeforeDisconnect;
   }
 
-  /**
-   * Whether `sessionId` may create a room while in `roomCode` (null if in none): the error to
-   * answer if not. A session is in one room at a time, so the room it hosts is the one it's in.
-   * Out of a room, creating one takes from its IP's rooms a minute.
-   */
-  async createRoom(sessionId: string, roomCode: string | null): Promise<ServerMessage | null> {
-    const { limits, registry, rateLimiter } = this.#options;
-    const hosts = roomCode !== null && (await registry.get(roomCode))?.hostId === sessionId;
-    if ((hosts ? 1 : 0) >= limits.hostedRoomsPerSession) {
-      return error('room_limit', 'You already host a room.');
-    }
-    if (roomCode !== null || this.#exempt) return null;
+  /** Whether the connection may create a room: the error to answer if its IP made too many. */
+  async createRoom(): Promise<ServerMessage | null> {
+    const { limits, rateLimiter } = this.#options;
+    if (this.#exempt) return null;
     const take = await rateLimiter.take(
       `ip:${this.#ip}:rooms`,
       perMinute(limits.roomsPerIpPerMinute),
