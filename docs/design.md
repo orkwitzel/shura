@@ -192,7 +192,7 @@ Composite actions such as "shift to the wall" or "drop to the stack" were consid
 Each UI feeds the input engine through an adapter. An adapter is a pure function from timestamped raw input (DOM events, or terminal bytes) to key events, so each one is tested against recorded input:
 
 - **Web adapter:** `keydown` / `keyup`, with browser key repeat ignored.
-- **CLI precise adapter:** Ink 8 with the Kitty keyboard protocol (`kittyKeyboard: { mode: 'auto', flags: ['disambiguateEscapeCodes', 'reportEventTypes'] }`). This gives real press, repeat and release events. It's used when `key.eventType` is present.
+- **CLI precise adapter:** Ink 8 with the Kitty keyboard protocol (`kittyKeyboard: { mode: 'auto', flags: ['disambiguateEscapeCodes', 'reportEventTypes', 'reportAllKeysAsEscapeCodes'] }`). This gives real press, repeat and release events. `reportAllKeysAsEscapeCodes` is needed because without it the protocol sends keys that type text (letters, Space) as plain text, with no repeat or release events, so a held X or Space would read as a stream of presses. The protocol leaves the event type out of an unmodified press of an arrow (`CSI D`), so a key without one counts as a press. It's used when `key.eventType` is present.
 - **CLI basic adapter:** for terminals without release events (GNOME Terminal/VTE, Konsole, anything inside tmux). The first press moves once, and the OS key-repeat stream then drives repeated movement. A release is assumed after about 2× the repeat interval with no events (longer before the first repeat, about 500 ms). Precise DAS/ARR settings don't apply in this mode.
 - The CLI chooses an adapter automatically from the first key event and shows it in the status line (`input: precise` / `input: basic`). `--input precise|basic` overrides the choice.
 - The CLI adapters' tests replay byte streams recorded from real terminals (Kitty-protocol press, repeat and release from kitty and Ghostty; legacy sequences with OS key repeat from GNOME Terminal and tmux), kept in `apps/cli/tests/support/`. A hidden `--debug-input` flag shows the raw events, the chosen adapter and the actions emitted in a side panel: it's how the recordings are captured, and what to ask for in an input bug report.
@@ -477,7 +477,7 @@ Each record keeps the date, the headline stats, `engineVersion`, and the seed an
 
 ### 13.3 CLI
 
-- **Your board:** 10×20 cells, each 2 characters wide (`██`), with hold on the left and the 5-piece preview on the right.
+- **Your board:** 10×20 cells, each 2 characters wide (`██`), with hold on the left and the 5-piece preview on the right. The 2 rows above the visible 20 are drawn too, without walls, so a piece that has just spawned is seen whole. The HUD sits under hold, and the status line (`input: precise`) under the board.
 - **Opponent boards:** half-block characters (`▀`/`▄` with foreground/background colors), so each takes 10×10 characters plus a name and garbage meter. Up to 7 fit beside your board on a ~120×30 terminal. Smaller terminals show opponents as a list (name, stack height, alive or out).
 - **Minimum size:** 80×24. Below that the CLI shows "please enlarge the terminal". If the terminal shrinks below it during a single-player game, the game opens the menu behind the message.
 - **Color:** 24-bit when supported, otherwise the 16 ANSI colors. `--no-color` / `NO_COLOR` draws cells as glyphs instead.

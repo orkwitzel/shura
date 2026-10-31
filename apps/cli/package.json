@@ -16,14 +16,20 @@
   },
   "scripts": {
     "dev": "tsx src/main.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --banner:js='#!/usr/bin/env node' --outfile=dist/shura.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --alias:react-devtools-core=./build/react-devtools-core.js --banner:js='#!/usr/bin/env node\nimport { createRequire } from \"node:module\"; const require = createRequire(import.meta.url);' --outfile=dist/shura.js",
     "typecheck": "tsc",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@shura/client-core": "workspace:*",
+    "@shura/engine": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@types/react": "19.3.0",
     "esbuild": "catalog:",
+    "ink": "8.0.0",
+    "ink-testing-library": "4.0.0",
+    "react": "19.3.1",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

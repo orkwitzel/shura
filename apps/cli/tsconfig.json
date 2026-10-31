@@ -1,3 +1,6 @@
 {
-  "extends": "@shura/tsconfig/node.json"
+  "extends": "@shura/tsconfig/node.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
 }
