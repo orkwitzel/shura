@@ -54,6 +54,8 @@ export const ERROR_CODES = [
   'wrong_phase',
   /** `takeSeat` when every seat is taken. */
   'no_free_seat',
+  /** No game server can take a new room right now: none is live, or every one is draining. */
+  'unavailable',
 ] as const;
 export const errorCodeSchema = z.enum(ERROR_CODES);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;

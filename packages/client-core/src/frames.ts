@@ -10,3 +10,8 @@ export function framesToMs(frames: number): number {
 export function msToFrames(ms: number): number {
   return (ms * FRAMES_PER_SECOND) / 1000;
 }
+
+/** The frame that has started `elapsed` milliseconds after frame 0 started. */
+export function frameAt(elapsed: number): number {
+  return Math.floor(msToFrames(elapsed));
+}

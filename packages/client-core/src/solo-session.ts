@@ -8,7 +8,7 @@ import {
 } from '@shura/engine';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Clock } from './clock';
-import { framesToMs, msToFrames } from './frames';
+import { frameAt, framesToMs } from './frames';
 import { DEFAULT_HANDLING, type Handling } from './handling';
 import {
   type AutoShift,
@@ -117,11 +117,6 @@ export interface SoloSession extends Store<SoloSessionState> {
    * the listener.
    */
   onActions(listener: AppliedActionsListener): () => void;
-}
-
-/** The frame at `elapsed` milliseconds after frame 0 started. */
-function frameAt(elapsed: number): number {
-  return Math.floor(msToFrames(elapsed));
 }
 
 /** A random 32-bit unsigned seed. Only the engine needs determinism, not the choice of seed. */

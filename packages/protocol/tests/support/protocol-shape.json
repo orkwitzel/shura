@@ -55,7 +55,7 @@
         "players[].index": "number:safeint"
       },
       "error": {
-        "code": "enum(version_mismatch|invalid_message|room_not_found|room_full|nickname_invalid|rate_limited|too_many_connections|room_limit|not_host|not_in_room|wrong_phase|no_free_seat)",
+        "code": "enum(version_mismatch|invalid_message|room_not_found|room_full|nickname_invalid|rate_limited|too_many_connections|room_limit|not_host|not_in_room|wrong_phase|no_free_seat|unavailable)",
         "message": "string"
       },
       "garbageQueued": {

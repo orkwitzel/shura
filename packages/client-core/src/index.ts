@@ -16,10 +16,11 @@ export {
   lockCallouts,
   onCallouts,
 } from './callouts';
-export type { Clock } from './clock';
+export type { Clock, TimerClock } from './clock';
+export { ClockSync, PING_SAMPLES, type PingSample } from './clock-sync';
 export { countdownLabel } from './countdown';
 export { formatFrames, formatHeadline, formatScore } from './format';
-export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './frames';
+export { FRAMES_PER_SECOND, frameAt, framesToMs, msToFrames } from './frames';
 export {
   DEFAULT_HANDLING,
   DEFAULT_HANDLING_SETTINGS,
@@ -38,6 +39,29 @@ export {
   type KeyEvent,
 } from './input-engine';
 export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './modes';
+export type {
+  OnlineMatchPhase,
+  OnlineMatchState,
+  OnlinePlayerGame,
+  PlayerOut,
+} from './online-match';
+export {
+  type ConnectionFailure,
+  createOnlineSession,
+  type OnlineConnection,
+  type OnlineRoom,
+  type OnlineSession,
+  type OnlineSessionOptions,
+  type OnlineSessionState,
+  PING_EVERY_MS,
+} from './online-session';
+export {
+  type Connect,
+  type OnlineSocket,
+  type SocketHandlers,
+  type StandardWebSocket,
+  webSocketConnect,
+} from './online-socket';
 export { personalBestLine, personalBestSummary } from './personal-best';
 export {
   createRecordsStore,

@@ -5,20 +5,31 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --outfile=dist/main.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --external:bufferutil --outfile=dist/main.js",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc",
     "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache"
   },
   "dependencies": {
+    "@shura/engine": "workspace:*",
+    "@shura/protocol": "workspace:*",
+    "@shura/valkey": "workspace:*",
+    "bufferutil": "4.1.0",
+    "pino": "10.4.0",
+    "ws": "8.22.0",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shura/client-core": "workspace:*",
+    "@shura/game": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@types/ws": "8.18.1",
     "esbuild": "catalog:",
+    "pino-pretty": "13.2.0",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zustand": "catalog:"
   }
 }
