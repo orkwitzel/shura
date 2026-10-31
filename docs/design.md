@@ -221,7 +221,7 @@ Terminals known to report key releases (as of Oct 2026): kitty, foot ≥ 1.10.3,
 
 Terminals can't report Ctrl or Shift on their own, so the CLI defaults leave them out. Binding a key that's already in use swaps the two actions.
 
-During a game the menu is the only binding besides the game controls. Everything else lives inside the menu, which has its own fixed shortcuts: **Resume** (Esc, Enter), **Restart** (R), **Settings** (S) and **Quit to menu** (Q). Restart is therefore always two keys (Esc, then R) and asks for no confirmation. Changing settings mid-game is safe, because a game's log holds actions, not handling: the changes apply when the game resumes.
+During a game the menu is the only binding besides the game controls. Everything else lives inside the menu, which has its own fixed shortcuts: **Resume** (Esc, Enter), **Restart** (R), **Settings** (S) and **Quit to menu** (Q). Restart is therefore always two keys (Esc, then R) and asks for no confirmation. Changing settings mid-game is safe, because a game's log holds actions, not handling: the changes apply when the game resumes. Settings opens the settings screen in the game's place, and leaving it goes back to the menu, still paused. While it's open no key reaches the game, and every held key is let go as it opens, since releases made there would be missed: a key held into the settings has to be pressed again after them. New bindings take effect at once, with the input adapter already chosen (§7.3).
 
 ---
 
@@ -528,7 +528,13 @@ global flags: --server <url>  --name <nickname>  --input precise|basic  --no-col
 
 Until online play exists (M4), the menu shows *Play online* disabled with "coming soon", `quick`, `create` and `join` parse their arguments but print "online play isn't available yet" and exit with code 1, and `--server` and `--name` parse but have no effect.
 
-**Settings screen:** handling (DAS, ARR and soft-drop factor, stepped within the §7.2 ranges), a "press a key" rebind for each action with the swap rule, the ghost toggle, and the theme and skin pickers. It's reached from the main menu and from the in-game menu.
+**Settings screen:** handling (DAS, ARR and soft-drop factor, stepped within the §7.2 ranges), a "press a key" rebind for each action with the swap rule, the ghost toggle, and the theme and skin pickers. Volume and effects are the web's (§13.1) and aren't shown. It's reached from the main menu and from the in-game menu, and fits 80×24 beside the `--debug-input` panel.
+
+- ↑/↓ choose a row and ←/→ change it. DAS and ARR show their milliseconds and frames (`167 ms (10 frames)`), the soft-drop factor `×20` or `instant`, and each skin its cell (`Bevelled ▓▓`). An arrow beside a value shows which ways it can still change: the steppers and pickers stop at their ends.
+- Each action's row lists its keys. ←/→ choose one of them, or the empty slot after the last, which adds a key. Enter asks for a key ("Press a key for Hold"), and the next key pressed is bound there with the swap rule, the line under the screen saying what the other action got or lost ("Rotate CW gets C."). Esc cancels the prompt. Backspace or Delete clears the chosen key.
+- Refused, with a message, while the prompt waits for another key: a key the terminal can't report on its own (anything with Ctrl, Alt, Super or Hyper, Tab, Backspace, the function and editing keys), P, which opens the menu (as Esc does, which cancels the prompt instead), and a key pressed with Shift, which both adapters read as the key alone (the precise adapter drops the modifier, the basic adapter reads a capital as its small letter), so Shift+X would bind X.
+- Each change goes to the settings store and is saved at once, so it survives Ctrl+C. A save that fails says why on the screen, and the change still holds for this run. Esc leaves.
+- While the terminal is too small to show it, its keys do nothing, like the menu's.
 
 **Quitting:** Ctrl+C quits at once from anywhere and restores the terminal (cursor, keyboard protocol, alternate screen). A game in progress is dropped.
 

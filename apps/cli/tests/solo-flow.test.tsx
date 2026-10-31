@@ -61,6 +61,7 @@ describe('the in-game menu', () => {
       'PAUSED',
       'Esc  Resume',
       'R    Restart',
+      'S    Settings',
       'Q    Quit to menu',
     ]);
     const paused = time(game.frame());

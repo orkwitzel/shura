@@ -1,11 +1,16 @@
 import type { EventEmitter } from 'node:events';
 import type { AutoShift, Clock, SoloSession } from '@shura/client-core';
 import { useInput, useStdin } from 'ink';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Bindings } from '../input/bindings';
 import type { CaptureEntry, CaptureFile } from '../input/capture';
 import { createInputAdapter, type InputChoice } from '../input/detect';
-import type { AdapterName, InputSignal, TerminalInput } from '../input/terminal-input';
+import type {
+  AdapterName,
+  InputAdapter,
+  InputSignal,
+  TerminalInput,
+} from '../input/terminal-input';
 
 /** How keys are read: the adapter choice and the hidden `--debug-input` (design §7.3). */
 export interface InputOptions {
@@ -39,12 +44,19 @@ interface TerminalInputProps {
    * results'). Returns whether it took the key, which then never reaches the adapter.
    */
   readonly shortcut?: ((raw: TerminalInput) => boolean) | undefined;
+  /**
+   * Whether keys reach the session (`true` by default). While another screen takes the keys (the
+   * settings), none do, and every game control is let go as it starts, since the releases would be
+   * missed.
+   */
+  readonly active?: boolean;
 }
 
 /**
  * Feeds the terminal's keys to `session` through the adapter `options` asks for: its key events to
  * `session.key`, its auto-shift to `session.setInput` (again once an auto adapter has chosen), and
- * polls it while it owes an inferred release.
+ * polls it while it owes an inferred release. New bindings get a new adapter of the kind already
+ * chosen, and let go of every game control, since the old adapter's holds are gone with it.
  */
 export function useTerminalInput({
   session,
@@ -53,18 +65,23 @@ export function useTerminalInput({
   options,
   onMenu,
   shortcut,
+  active = true,
 }: TerminalInputProps): TerminalInputState {
-  const [adapter] = useState(() => createInputAdapter(options.choice, bindings));
-  const [name, setName] = useState(adapter.name);
+  // The adapter in use, replaced when the bindings change.
+  const [reading] = useState<{ adapter: InputAdapter }>(() => ({
+    adapter: createInputAdapter(options.choice, bindings),
+  }));
+  const [name, setName] = useState(reading.adapter.name);
   const [log, setLog] = useState<readonly CaptureEntry[]>([]);
   const autoShift = useRef<AutoShift | null>(null);
   const wake = useRef<(() => void) | null>(null);
   const bytes = useRef<string | null>(null);
-  const shown = useRef(adapter.name);
+  const shown = useRef(reading.adapter.name);
   const menu = useRef(onMenu);
   menu.current = onMenu;
 
   const deliver = (signals: readonly InputSignal[], raw: string | null, time: number) => {
+    const { adapter } = reading;
     if (adapter.autoShift !== autoShift.current) {
       autoShift.current = adapter.autoShift;
       session.setInput({ autoShift: adapter.autoShift });
@@ -85,18 +102,47 @@ export function useTerminalInput({
       wake.current = clock.schedule(() => {
         wake.current = null;
         const now = clock.now();
-        deliver(adapter.poll(now), null, now);
+        deliver(reading.adapter.poll(now), null, now);
       });
     }
   };
 
-  // The session's input engine auto-shifts as the adapter needs from the start (once: the adapter
-  // and session last as long as the screen).
+  // The session's input engine auto-shifts as the adapter needs from the start (and again for a new
+  // adapter, through `deliver`).
   useEffect(() => {
-    autoShift.current = adapter.autoShift;
-    session.setInput({ autoShift: adapter.autoShift });
+    autoShift.current = reading.adapter.autoShift;
+    session.setInput({ autoShift: reading.adapter.autoShift });
     return () => wake.current?.();
   }, []);
+
+  /** Releases every game control, so none is left held. */
+  const releaseAll = () => {
+    const time = clock.now();
+    for (const action of Object.keys(bindings) as (keyof Bindings)[]) {
+      session.key({ action, kind: 'release', time });
+    }
+  };
+
+  // Bindings changed in the settings apply from now (design §7.4): a new adapter of the kind
+  // already chosen, so an auto adapter that has chosen doesn't start over.
+  // A settings change makes new bindings objects even when they are the same, so compare contents.
+  const bindingsKey = JSON.stringify(bindings);
+  const built = useRef(bindingsKey);
+  useLayoutEffect(() => {
+    if (built.current === bindingsKey) return;
+    built.current = bindingsKey;
+    wake.current?.();
+    wake.current = null;
+    const { name } = reading.adapter;
+    reading.adapter = createInputAdapter(name === 'auto' ? options.choice : name, bindings);
+    releaseAll();
+    deliver([], null, clock.now());
+  }, [bindingsKey]);
+
+  // Another screen takes the keys from here: the releases of keys held now would be missed.
+  useLayoutEffect(() => {
+    if (!active) releaseAll();
+  }, [active]);
 
   // The raw bytes of each key, for the debug log. Ink parses them before `useInput` sees the key and
   // keeps them to itself, so this listens where Ink hands each key's bytes to `useInput`; it is
@@ -105,7 +151,7 @@ export function useTerminalInput({
     internal_eventEmitter?: EventEmitter;
   };
   useEffect(() => {
-    if (!options.debug || !keys) return;
+    if (!options.debug || !keys || !active) return;
     const onKey = (data: unknown) => {
       bytes.current = String(data);
     };
@@ -113,15 +159,18 @@ export function useTerminalInput({
     return () => {
       keys.off('input', onKey);
     };
-  }, [options.debug, keys]);
+  }, [options.debug, keys, active]);
 
-  useInput((input, key) => {
-    const time = clock.now();
-    const raw = bytes.current ?? input;
-    bytes.current = null;
-    if (shortcut?.({ input, key, time })) return;
-    deliver(adapter.feed({ input, key, time }), raw, time);
-  });
+  useInput(
+    (input, key) => {
+      const time = clock.now();
+      const raw = bytes.current ?? input;
+      bytes.current = null;
+      if (shortcut?.({ input, key, time })) return;
+      deliver(reading.adapter.feed({ input, key, time }), raw, time);
+    },
+    { isActive: active },
+  );
 
   return { adapter: name, log };
 }

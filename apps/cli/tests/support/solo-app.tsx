@@ -1,6 +1,7 @@
 import type { SoloMode } from '@shura/client-core';
 import { render } from 'ink-testing-library';
 import { App } from '../../src/ui/app';
+import type { InputOptions } from '../../src/ui/use-terminal-input';
 import { fakeClock } from './fake-clock';
 import { resize, settle } from './ink';
 import { memoryStores } from './stores';
@@ -20,17 +21,21 @@ export const KEYS = {
 };
 
 /**
- * `shura solo <mode>` with seed 7 (O first, in columns 4–5) on a fake clock, at 80×24. Unmount it
- * at the end of the test.
+ * `shura solo <mode>` with seed 7 (O first, in columns 4–5) on a fake clock, at 80×24, with the
+ * `auto` adapter unless `input` says otherwise. Unmount it at the end of the test.
  */
-export async function soloGame(mode: SoloMode = 'sprint') {
+export async function soloGame(mode: SoloMode = 'sprint', input?: InputOptions) {
   const clock = fakeClock(1_000);
-  const app = render(<App mode={mode} clock={clock} seed={7} colors="none" {...memoryStores()} />);
+  const stores = memoryStores();
+  const app = render(
+    <App mode={mode} clock={clock} seed={7} colors="none" {...(input && { input })} {...stores} />,
+  );
   resize(app, 80, 24);
   await settle();
   return {
     clock,
     app,
+    stores,
     frame: () => app.lastFrame() ?? '',
     async type(bytes: string) {
       app.stdin.write(bytes);

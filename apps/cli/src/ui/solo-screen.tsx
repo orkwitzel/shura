@@ -18,6 +18,7 @@ import { DebugPanel } from './debug-panel';
 import { commandFor, type MenuCommand, menuLines } from './game-menu';
 import { GameView } from './game-view';
 import { ResultsScreen } from './results';
+import { SettingsScreen } from './settings-screen';
 import { type InputOptions, useTerminalInput } from './use-terminal-input';
 
 export interface SoloScreenProps {
@@ -42,12 +43,13 @@ export interface SoloScreenProps {
 
 /**
  * Single-player games of one mode, from mount to unmount: the countdown, the game, the in-game menu
- * over the board while paused, and the results once a game ends, with the debug panel beside them
- * if asked for. Keys come from the terminal through an input adapter. During a game only the game
- * controls and the menu binding (Esc, P) act; the menu and the results have their own shortcuts.
- * The settings (handling, bindings, ghost, theme and skin) come from the settings store, and each
- * game that ends goes to the records store, whose verdict the results show. Unmounting stops the
- * session's loop.
+ * over the board while paused, the settings screen in the game's place when the menu opens it, and
+ * the results once a game ends, with the debug panel beside them if asked for. While the settings
+ * are open no key reaches the game, and what changed there applies when the game resumes. Keys
+ * come from the terminal through an input adapter. During a game only the game controls and the
+ * menu binding (Esc, P) act; the menu and the results have their own shortcuts. The settings
+ * (handling, bindings, ghost, theme and skin) come from the settings store, and each game that ends
+ * goes to the records store, whose verdict the results show. Unmounting stops the session's loop.
  */
 export function SoloScreen({
   mode,
@@ -93,6 +95,8 @@ export function SoloScreen({
     [colors, theme, skin],
   );
   const countdown = useCountdownLabel(state);
+  // The settings screen, opened from the menu, takes the game's place and every key until it closes.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const restart = () => session.restart(seed);
   const quit = () => onQuit?.();
@@ -100,6 +104,7 @@ export function SoloScreen({
   const menu: MenuCommand[] = [
     { keys: ['escape', 'enter'], hint: 'Esc', label: 'Resume', run: session.resume },
     { keys: ['r'], hint: 'R', label: 'Restart', run: restart },
+    { keys: ['s'], hint: 'S', label: 'Settings', run: () => setSettingsOpen(true) },
     { keys: ['q'], hint: 'Q', label: 'Quit to menu', run: quit },
   ];
   // The results' keys (design §13.1), as the results screen lists them.
@@ -129,13 +134,16 @@ export function SoloScreen({
     options: input,
     onMenu: session.pause,
     shortcut,
+    active: !settingsOpen,
   });
 
   const overlay =
     state.phase === 'paused' ? menuLines('PAUSED', menu) : countdown ? ['', countdown, ''] : [];
   return (
     <Box flexDirection="row">
-      {state.phase === 'ended' ? (
+      {settingsOpen ? (
+        <SettingsScreen onClose={() => setSettingsOpen(false)} active={visible} />
+      ) : state.phase === 'ended' ? (
         <ResultsScreen
           state={state}
           keys={results}
