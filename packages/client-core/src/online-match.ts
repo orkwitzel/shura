@@ -319,7 +319,7 @@ export class OnlineMatch {
    */
   #playFrame(frame: number): void {
     this.#frame = frame;
-    if (frame > 0) this.#phase = 'playing';
+    if (frame >= 0) this.#phase = 'playing';
     let keys = 0;
     while ((this.#keys[keys]?.frame ?? Number.POSITIVE_INFINITY) <= frame) keys++;
     const keyEvents = this.#keys.splice(0, keys).map(({ event }) => event);
