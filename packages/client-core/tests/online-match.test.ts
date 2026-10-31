@@ -1,12 +1,13 @@
-import { ActionType } from '@shura/engine';
+import { type Action, ActionType } from '@shura/engine';
 import type { ClientMessageOf } from '@shura/protocol';
 import { expect, it } from 'vitest';
+import versus from '../../engine/recorded-matches/versus-1v1.json';
 import { createInputEngine, DEFAULT_HANDLING } from '../src/index';
 import { OnlineMatch } from '../src/online-match';
 import { fakeClock } from './support/fake-clock';
 
 /** A 1v1 you play as `me`, frame 0 at time 0, its batches kept in `sent`. */
-function match() {
+function match({ seed = 7 }: { seed?: number } = {}) {
   const clock = fakeClock(0);
   const sent: ClientMessageOf<'inputBatch'>[] = [];
   const online = new OnlineMatch({
@@ -15,7 +16,7 @@ function match() {
     countdown: {
       type: 'countdown',
       startAt: 0,
-      seed: 7,
+      seed,
       matchId: 'm',
       players: [
         { id: 'me', index: 0 },
@@ -54,4 +55,17 @@ it('receives an attack sent again after a reconnect only once', () => {
     .flatMap(({ frames }) => frames.flatMap(({ actions }) => actions))
     .filter(({ type }) => type === ActionType.GarbageReceived);
   expect(received).toEqual([expect.objectContaining({ id: 3, lines: 2, holeSeed: 11 })]);
+});
+
+it("counts the lines each player's locks send, from their relays (the HUD's lines sent)", () => {
+  const { online } = match({ seed: versus.seed });
+  const theirs = (versus.players[1]?.actions ?? []) as Action[];
+  const frames = Array.from({ length: versus.lastFrame }, (_, at) => ({
+    frame: at + 1,
+    actions: theirs.filter(({ frame }) => frame === at + 1),
+  }));
+  online.relay({ type: 'relay', playerId: 'them', frames });
+  // The recorded match's harness passed 44 lines of theirs on to player 0.
+  const them = online.snapshot().players.find(({ playerId }) => playerId === 'them');
+  expect(them?.linesSent).toBe(44);
 });

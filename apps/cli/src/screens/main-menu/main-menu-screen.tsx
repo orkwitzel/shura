@@ -7,12 +7,14 @@ import { useScreenKeys } from '../../platform/input/use-screen-keys';
 /**
  * Where the player comes back to the menu from: the settings, or a game of a mode (design §13.3).
  */
-export type MenuReturn = 'settings' | SoloMode;
+export type MenuReturn = 'settings' | 'online' | SoloMode;
 
 export interface MainMenuScreenProps {
   /** Start a game of `mode`. */
   readonly onPlay: (mode: SoloMode) => void;
   readonly onSettings: () => void;
+  /** Open *Play online*. Without it, the entry is off. */
+  readonly onOnline?: () => void;
   readonly onQuit: () => void;
   /** Whether it takes keys (`true` by default): not while the enlarge message hides it. */
   readonly active?: boolean;
@@ -46,6 +48,7 @@ const MODE_NAMES: Record<SoloMode, string> = {
 const WIDTH = 48;
 const LABEL_WIDTH = 16;
 /** The main page's entries, by name, for the cursor. */
+const PLAY_ONLINE = 0;
 const SINGLE_PLAYER = 1;
 const SETTINGS = 2;
 
@@ -58,7 +61,7 @@ function nextEntry(entries: readonly Entry[], at: number, direction: Direction):
 }
 
 /**
- * The main menu (design §13.3): Play online (disabled until online play exists), Single player,
+ * The main menu (design §13.3): Play online (off without a server: tests), Single player,
  * Settings and Quit. Single player lists the modes, each with its personal best. ↑/↓ move the
  * cursor, Enter chooses, and Esc goes back from Single player. Only presses act (and the key
  * repeat, for ↑/↓), so a key's release, which comes after the screen it opened is gone, does
@@ -67,16 +70,17 @@ function nextEntry(entries: readonly Entry[], at: number, direction: Direction):
 export function MainMenuScreen({
   onPlay,
   onSettings,
+  onOnline,
   onQuit,
   active = true,
   from,
   notices = [],
 }: MainMenuScreenProps) {
   const records = useRecords();
-  const played = from === 'settings' ? undefined : from;
+  const played = from === 'settings' || from === 'online' ? undefined : from;
   const [page, setPage] = useState<Page>(played ? 'single' : 'main');
   const [cursors, setCursors] = useState<Record<Page, number>>({
-    main: from === 'settings' ? SETTINGS : SINGLE_PLAYER,
+    main: from === 'settings' ? SETTINGS : from === 'online' ? PLAY_ONLINE : SINGLE_PLAYER,
     single: played ? SOLO_MODES.indexOf(played) : 0,
   });
   const cursor = cursors[page];
@@ -86,7 +90,9 @@ export function MainMenuScreen({
       title: 'SHURA',
       hint: '↑↓ choose  Enter select',
       entries: [
-        { label: 'Play online', detail: 'coming soon', disabled: true, run: () => {} },
+        onOnline
+          ? { label: 'Play online', run: onOnline }
+          : { label: 'Play online', detail: 'no server', disabled: true, run: () => {} },
         { label: 'Single player', run: () => setPage('single') },
         { label: 'Settings', run: onSettings },
         { label: 'Quit', run: onQuit },

@@ -11,6 +11,7 @@ import {
   type PieceActionType,
   type ReadonlyEngineState,
   restoreEngine,
+  type SentGarbage,
 } from '@shura/engine';
 import {
   BATCH_FRAMES,
@@ -28,6 +29,11 @@ type FrameActions = ClientMessageOf<'inputBatch'>['frames'][number];
 
 const PLAY_SETTINGS = { '1v1': ONE_VS_ONE, ffa: FFA } as const;
 
+/** The lines a step's locks sent on. */
+function linesOf(sent: readonly SentGarbage[]): number {
+  return sent.reduce((sum, { lines }) => sum + lines, 0);
+}
+
 /** How a player went out of the match, and at which frame (design §10.1). */
 export interface PlayerOut {
   readonly reason: OutReason;
@@ -43,6 +49,12 @@ export interface OnlinePlayerGame {
   readonly engine: ReadonlyEngineState;
   /** Set once the server says they're out (`playerOut`). */
   readonly out: PlayerOut | null;
+  /**
+   * The garbage lines their locks have sent on, after cancelling their own meter, as this client
+   * played or relayed them (the HUD's lines sent). A snapshot doesn't carry it, so a game restored
+   * from one counts from there.
+   */
+  readonly linesSent: number;
 }
 
 /**
@@ -92,6 +104,7 @@ interface Game {
   readonly index: number;
   engine: Engine;
   out: PlayerOut | null;
+  linesSent: number;
 }
 
 /**
@@ -143,6 +156,7 @@ export class OnlineMatch {
         index,
         engine: createEngine(PLAY_SETTINGS[mode], countdown.seed, index),
         out: null,
+        linesSent: 0,
       }));
     this.#me = this.#games.find((game) => game.playerId === playerId);
     // A countdown that arrived late starts at the frame its time has reached.
@@ -188,10 +202,11 @@ export class OnlineMatch {
     if (last === undefined) return;
     // Someone watching has no loop of their own: the first relay says play has started.
     if (this.#phase === 'countdown') this.#phase = 'playing';
-    game.engine.step(
+    const { sent } = game.engine.step(
       last,
       fresh.flatMap((entry) => entry.actions),
     );
+    game.linesSent += linesOf(sent);
     this.#options.changed();
   }
 
@@ -268,11 +283,12 @@ export class OnlineMatch {
       countdown: this.#phase === 'countdown' ? -this.#frame : 0,
       goFrame: 0,
       playerId: this.#me?.playerId ?? null,
-      players: this.#games.map(({ playerId, index, engine, out }) => ({
+      players: this.#games.map(({ playerId, index, engine, out, linesSent }) => ({
         playerId,
         index,
         engine: engine.state,
         out,
+        linesSent,
       })),
       actions: this.#log,
       result: this.#result,
@@ -309,9 +325,10 @@ export class OnlineMatch {
     for (const type of emitted) moves.push({ frame, type });
     const received = this.#incoming.map((action) => ({ ...action, frame }));
     this.#incoming = [];
-    const { events, accepted } = engine.step(frame, [...received, ...moves], {
+    const { events, accepted, sent } = engine.step(frame, [...received, ...moves], {
       acceptGarbage: true,
     });
+    if (this.#me) this.#me.linesSent += linesOf(sent);
     const actions: Action[] = [...received, ...moves, ...accepted];
     this.#unsent.push({ frame, actions });
     this.#log.push(...actions);

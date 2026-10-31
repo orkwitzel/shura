@@ -9,9 +9,13 @@ import {
 import { type Paint, paintRow } from './cells';
 import { type Look, WALLS } from './look';
 
-/** How to draw a board: the look of its cells, and whether to show the ghost (a setting). */
+/**
+ * How to draw a board: the look of its cells, whether to show the ghost (a setting), and whether
+ * it's greyed, as the board of a player out of an online match is (design §10.1).
+ */
 export interface BoardStyle extends Look {
   readonly ghost: boolean;
+  readonly grey?: boolean;
 }
 
 /**
@@ -28,7 +32,8 @@ function dropDistance(state: ReadonlyEngineState): number {
 }
 
 /** Each shown cell's paint, top row first. */
-function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
+function cellGrid(state: ReadonlyEngineState, ghost: boolean, grey: boolean): Paint[][] {
+  const solid = grey ? 'grey' : 'solid';
   const top = VISIBLE_ROWS + HIDDEN_ROWS_SHOWN - 1;
   const grid: Paint[][] = [];
   for (let row = top; row >= 0; row--) {
@@ -37,7 +42,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
       Array.from({ length: BOARD_WIDTH }, (_, col): Paint => {
         const cell = state.board[row]?.[col] ?? null;
         if (cell === null) return { fill };
-        return { fill: 'solid', kind: cell };
+        return { fill: solid, kind: cell };
       }),
     );
   }
@@ -47,7 +52,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
   };
   const { active } = state;
   const over = hasEnded(state);
-  if (ghost && !over) {
+  if (ghost && !over && !grey) {
     const fall = dropDistance(state);
     for (const { col, row } of pieceCells(active)) {
       put(col, row - fall, { fill: 'ghost', kind: active.kind });
@@ -56,7 +61,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
   // A game that finished or locked out leaves the piece that locked as the active piece, already
   // drawn as locked cells; a block out leaves the one that couldn't spawn, overlapping the stack.
   for (const { col, row } of pieceCells(active)) {
-    put(col, row, { fill: 'solid', kind: active.kind });
+    put(col, row, { fill: solid, kind: active.kind });
   }
   return grid;
 }
@@ -66,7 +71,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
  * the 20 visible rows between the walls, then the floor.
  */
 export function boardRows(state: ReadonlyEngineState, style: BoardStyle): string[] {
-  const grid = cellGrid(state, style.ghost);
+  const grid = cellGrid(state, style.ghost, style.grey ?? false);
   const rows = grid.map((cells, index) => {
     const painted = paintRow(cells, style);
     return index < HIDDEN_ROWS_SHOWN ? ` ${painted} ` : `${WALLS.side}${painted}${WALLS.side}`;

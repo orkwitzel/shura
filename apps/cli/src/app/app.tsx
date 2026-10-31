@@ -1,4 +1,4 @@
-import type { Clock, Connect, SoloMode, TimerClock } from '@shura/client-core';
+import type { Clock, SoloMode } from '@shura/client-core';
 import { ClientCoreProvider } from '@shura/client-core/react';
 import { Box, useApp } from 'ink';
 import { useState } from 'react';
@@ -6,7 +6,8 @@ import type { InputOptions } from '../platform/input/use-terminal-input';
 import type { ColorMode } from '../platform/terminal/color-mode';
 import { EnlargeMessage, useTerminalSize } from '../platform/terminal/terminal-size';
 import { MainMenuScreen, type MenuReturn } from '../screens/main-menu/main-menu-screen';
-import { OnlineScreen, type RoomStart } from '../screens/online/online-screen';
+import { type OnlineNetwork, OnlineScreen } from '../screens/online/online-screen';
+import type { OnlineStart } from '../screens/online/online-start';
 import { SettingsScreen } from '../screens/settings/settings-screen';
 import { SoloScreen } from '../screens/solo/solo-screen';
 import type { CliStores } from './stores';
@@ -20,21 +21,12 @@ export interface AppProps extends CliStores {
   readonly colors: ColorMode;
   /** How keys are read (`--input`, `--debug-input`). */
   readonly input?: InputOptions;
-  /** `shura create` or `shura join`: the app opens on that room. */
-  readonly online?: OnlineOptions;
+  /** Where and how online play connects. Without it, *Play online* is off (tests). */
+  readonly online?: OnlineNetwork;
+  /** `shura quick`, `create` or `join`: the app opens on *Play online*, doing that. */
+  readonly start?: OnlineStart;
   /** Quit with an exit code and a message to print once the terminal is back (a version mismatch). */
   readonly onExit?: (code: number, message: string) => void;
-}
-
-/** What online play needs: where to connect, as whom, and the room to open on. */
-export interface OnlineOptions {
-  readonly start: RoomStart;
-  readonly server: string;
-  readonly nickname: string;
-  readonly clientVersion: string;
-  readonly connect: Connect;
-  /** The clock, with the timers an online session's pings need. */
-  readonly clock: TimerClock;
 }
 
 /** The screen the app shows. The menu opens where the player left it, if they did. */
@@ -42,7 +34,7 @@ type Screen =
   | { kind: 'menu'; from?: MenuReturn }
   | { kind: 'settings' }
   | { kind: 'solo'; mode: SoloMode }
-  | { kind: 'online'; start: RoomStart };
+  | { kind: 'online'; start?: OnlineStart };
 
 /**
  * The CLI's root: the main menu, the settings screen or a game, centred, or the enlarge message
@@ -56,6 +48,7 @@ export function App({
   colors,
   input = { choice: 'auto' },
   online,
+  start,
   onExit,
   settings,
   records,
@@ -64,15 +57,14 @@ export function App({
   const size = useTerminalSize();
   const { exit } = useApp();
   const [screen, setScreen] = useState<Screen>(
-    online
-      ? { kind: 'online', start: online.start }
-      : mode
-        ? { kind: 'solo', mode }
-        : { kind: 'menu' },
+    online && start ? { kind: 'online', start } : mode ? { kind: 'solo', mode } : { kind: 'menu' },
   );
   // Back to the menu, which opens where it was left: on Settings, or on the mode played.
   const toMenu = () =>
-    setScreen({ kind: 'menu', from: screen.kind === 'solo' ? screen.mode : 'settings' });
+    setScreen({
+      kind: 'menu',
+      from: screen.kind === 'solo' ? screen.mode : screen.kind === 'online' ? 'online' : 'settings',
+    });
   // The adapter asked for, until the first game chooses one for every game after it: the terminal
   // doesn't change.
   const [choice, setChoice] = useState(input.choice);
@@ -86,6 +78,7 @@ export function App({
             <MainMenuScreen
               onPlay={(played) => setScreen({ kind: 'solo', mode: played })}
               onSettings={() => setScreen({ kind: 'settings' })}
+              {...(online && { onOnline: () => setScreen({ kind: 'online' }) })}
               onQuit={() => exit()}
               active={size.bigEnough}
               from={screen.from}
@@ -97,12 +90,13 @@ export function App({
           )}
           {screen.kind === 'online' && online && (
             <OnlineScreen
-              {...online}
+              network={online}
               start={screen.start}
               colors={colors}
               input={{ ...input, choice }}
               visible={size.bigEnough}
-              onLeave={() => setScreen({ kind: 'menu' })}
+              onLeave={toMenu}
+              onInputChosen={setChoice}
               onExit={(code, message) => {
                 onExit?.(code, message);
                 exit();
