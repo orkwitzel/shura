@@ -23,7 +23,6 @@ export function createBasicAdapter(
     changes.flatMap(({ name, kind, time }) => signal(name, kind, time) ?? []);
   return {
     name: 'basic',
-    autoShift: 'keyRepeat',
     feed: (raw) => signals(reader.feed(raw)),
     poll: (time) => signals(reader.poll(time)),
     get deadline() {

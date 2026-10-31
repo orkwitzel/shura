@@ -2,7 +2,11 @@ import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
 import { createInputAdapter, type InputChoice } from '../../../src/platform/input/detect';
-import type { InputAdapter, InputSignal } from '../../../src/platform/input/terminal-input';
+import {
+  autoShiftOf,
+  type InputAdapter,
+  type InputSignal,
+} from '../../../src/platform/input/terminal-input';
 import { keySignal } from '../../support/signals';
 import { parseTimedBytes } from '../../support/terminal-bytes';
 
@@ -28,7 +32,7 @@ function adapter(choice: InputChoice) {
   };
 }
 
-const status = ({ name, autoShift }: InputAdapter) => ({ name, autoShift });
+const status = ({ name }: InputAdapter) => ({ name, autoShift: autoShiftOf(name) });
 
 describe('auto-detection', () => {
   it('starts out choosing, auto-shifting by key repeat', () => {

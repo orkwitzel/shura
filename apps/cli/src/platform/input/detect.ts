@@ -70,9 +70,6 @@ function createAutoAdapter(bindings: Bindings): InputAdapter {
     get name() {
       return chosen?.name ?? 'auto';
     },
-    get autoShift() {
-      return current().autoShift;
-    },
     get deadline() {
       const deadline = current().deadline;
       if (chosen !== null || unproven === null) return deadline;

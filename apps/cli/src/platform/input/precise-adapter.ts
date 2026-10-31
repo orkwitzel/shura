@@ -12,7 +12,6 @@ export function createPreciseAdapter(bindings: Bindings): InputAdapter {
   const signal = boundSignals(bindings);
   return {
     name: 'precise',
-    autoShift: 'handling',
     feed: (raw) => {
       const name = keyName(raw);
       const made = name === null ? null : signal(name, raw.key.eventType ?? 'press', raw.time);

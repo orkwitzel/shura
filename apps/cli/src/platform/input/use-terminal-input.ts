@@ -1,10 +1,16 @@
 import type { EventEmitter } from 'node:events';
-import type { AutoShift, Bindings, Clock, SoloSession } from '@shura/client-core';
+import type { Bindings, Clock, SoloSession } from '@shura/client-core';
 import { useInput, useStdin } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ActionsEntry, CaptureEntry, CaptureFile, KeyEntry } from './capture';
 import { createInputAdapter, type InputChoice } from './detect';
-import type { AdapterName, InputAdapter, InputSignal, TerminalInput } from './terminal-input';
+import {
+  type AdapterName,
+  autoShiftOf,
+  type InputAdapter,
+  type InputSignal,
+  type TerminalInput,
+} from './terminal-input';
 
 /** How keys are read: the adapter choice and the hidden `--debug-input` (design §7.3). */
 export interface InputOptions {
@@ -72,7 +78,6 @@ export function useTerminalInput({
   }));
   const [name, setName] = useState(current.adapter.name);
   const [log, setLog] = useState<readonly CaptureEntry[]>([]);
-  const autoShift = useRef<AutoShift | null>(null);
   const wake = useRef<(() => void) | null>(null);
   const bytes = useRef<string | null>(null);
   const shownName = useRef(current.adapter.name);
@@ -105,16 +110,14 @@ export function useTerminalInput({
 
   const deliver = (signals: readonly InputSignal[], raw: string | null, time: number) => {
     const { adapter } = current;
-    if (adapter.autoShift !== autoShift.current) {
-      autoShift.current = adapter.autoShift;
-      session.setInput({ autoShift: adapter.autoShift });
-    }
+    // An adapter that has just chosen changes how the session auto-shifts (design §7.3).
+    const changed = adapter.name !== shownName.current;
+    shownName.current = adapter.name;
+    if (changed) session.setInput({ autoShift: autoShiftOf(adapter.name) });
     for (const signal of signals) {
       if (signal.kind === 'key') session.key(signal.event);
       else menu.current?.();
     }
-    const changed = adapter.name !== shownName.current;
-    shownName.current = adapter.name;
     if (changed && adapter.name !== 'auto') chosen.current?.(adapter.name);
     setName(adapter.name);
     if (options.debug && (raw !== null || signals.length > 0 || changed)) {
@@ -133,8 +136,7 @@ export function useTerminalInput({
   // The session's input engine auto-shifts as the adapter needs from the start (and again for a new
   // adapter, through `deliver`).
   useEffect(() => {
-    autoShift.current = current.adapter.autoShift;
-    session.setInput({ autoShift: current.adapter.autoShift });
+    session.setInput({ autoShift: autoShiftOf(current.adapter.name) });
     return () => wake.current?.();
   }, []);
 

@@ -45,14 +45,21 @@ export function keyName({ input, key }: RawKey): KeyName | null {
 export type AdapterName = 'precise' | 'basic' | 'auto';
 
 /**
+ * How the session's input engine should auto-shift for the key events an adapter makes (design
+ * §7.3): by DAS and ARR for the precise adapter's real repeats, and by the key repeat for the basic
+ * adapter, which an `auto` adapter works as until it has chosen.
+ */
+export function autoShiftOf(name: AdapterName): AutoShift {
+  return name === 'precise' ? 'handling' : 'keyRepeat';
+}
+
+/**
  * Turns terminal keys into key events for one session (design §7.3). The precise adapter is
  * stateless; the basic adapter infers releases from the key-repeat stream, so it also needs polling.
  */
 export interface InputAdapter {
   /** Shown in the status line (`input: precise`). Changes once an `auto` adapter has chosen. */
   readonly name: AdapterName;
-  /** How the session's input engine should auto-shift for the key events this adapter makes. */
-  readonly autoShift: AutoShift;
   /** The signals a terminal key makes, in order: releases that fell due before it come first. */
   feed(raw: TerminalInput): InputSignal[];
   /** The releases inferred by `time` (none from the precise adapter). */
