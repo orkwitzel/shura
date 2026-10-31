@@ -1,4 +1,5 @@
 import type { PieceActionType } from '@shura/engine';
+import { PIECE_ACTIONS } from './actions';
 
 /**
  * The keys bound to each game control, by the platform's own key names (the CLI's `left`, `x`; the
@@ -44,4 +45,34 @@ export function rebind(
 /** Removes the key in `action`'s `slot`, if there is one. */
 export function unbind(bindings: Bindings, action: PieceActionType, slot: number): Bindings {
   return { ...bindings, [action]: bindings[action].filter((_, index) => index !== slot) };
+}
+
+/**
+ * What a rebind did besides binding the key (design §7.4): the other action that had the key gets
+ * the key the slot had (a swap), or loses the key when the slot was empty.
+ */
+export type RebindSwap =
+  | { readonly action: PieceActionType; readonly gets: string }
+  | { readonly action: PieceActionType; readonly loses: string };
+
+/** A rebind's result: the new bindings, and the other action it changed, or `null`. */
+export interface RebindChange {
+  readonly bindings: Bindings;
+  readonly swap: RebindSwap | null;
+}
+
+/** `rebind`, saying which other action the swap rule changed, for the settings screen to say. */
+export function rebindChange(
+  bindings: Bindings,
+  action: PieceActionType,
+  slot: number,
+  key: string,
+): RebindChange {
+  const next = rebind(bindings, action, slot, key);
+  const other = PIECE_ACTIONS.find((each) => each !== action && bindings[each].includes(key));
+  if (other === undefined) return { bindings: next, swap: null };
+  const replaced = bindings[action][slot];
+  const swap =
+    replaced === undefined ? { action: other, loses: key } : { action: other, gets: replaced };
+  return { bindings: next, swap };
 }

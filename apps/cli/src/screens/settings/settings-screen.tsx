@@ -1,10 +1,11 @@
 import {
-  type Bindings,
+  ACTION_LABELS,
   type Clock,
   type Direction,
   type HandlingSettings,
   handlingFrames,
-  rebind,
+  type RebindChange,
+  rebindChange,
   type Settings,
   type SettingsChange,
   SKINS,
@@ -13,7 +14,7 @@ import {
   unbind,
 } from '@shura/client-core';
 import { useSettings, useSettingsStore } from '@shura/client-core/react';
-import { ActionType, type PieceActionType } from '@shura/engine';
+import type { PieceActionType } from '@shura/engine';
 import { Box, type Key, Text, useInput } from 'ink';
 import { useState } from 'react';
 import { bindableKey, keyLabel } from '../../platform/input/bindable';
@@ -103,18 +104,6 @@ const GHOST: ValueRow = {
   step: ({ ghost }) => ({ ghost: !ghost }),
 };
 
-/** The game controls, as design §7.4 lists them. */
-const CONTROLS: readonly [PieceActionType, string][] = [
-  [ActionType.MoveLeft, 'Move left'],
-  [ActionType.MoveRight, 'Move right'],
-  [ActionType.SoftDrop, 'Soft drop'],
-  [ActionType.HardDrop, 'Hard drop'],
-  [ActionType.RotateCW, 'Rotate CW'],
-  [ActionType.RotateCCW, 'Rotate CCW'],
-  [ActionType.Rotate180, 'Rotate 180°'],
-  [ActionType.Hold, 'Hold'],
-];
-
 /** The screen's sections and their rows, top to bottom. */
 const SECTIONS: readonly { title: string; rows: readonly Row[] }[] = [
   {
@@ -129,7 +118,11 @@ const SECTIONS: readonly { title: string; rows: readonly Row[] }[] = [
   },
   {
     title: 'KEYS',
-    rows: CONTROLS.map(([action, label]) => ({ kind: 'binding', action, label })),
+    rows: (Object.entries(ACTION_LABELS) as [PieceActionType, string][]).map(([action, label]) => ({
+      kind: 'binding',
+      action,
+      label,
+    })),
   },
   {
     title: 'DISPLAY',
@@ -160,15 +153,12 @@ const ROWS: readonly Row[] = SECTIONS.flatMap(({ rows }) => rows);
  * What a rebind did besides binding the key, for the message line: which control took the key this
  * slot had (a swap), or lost the key it had.
  */
-function rebindMessage(before: Bindings, after: Bindings, action: PieceActionType): string {
-  for (const [other, label] of CONTROLS) {
-    if (other === action) continue;
-    const gained = after[other].find((key) => !before[other].includes(key));
-    if (gained !== undefined) return `${label} gets ${keyLabel(gained)}.`;
-    const lost = before[other].find((key) => !after[other].includes(key));
-    if (lost !== undefined) return `${label} loses ${keyLabel(lost)}.`;
-  }
-  return '';
+function rebindMessage({ swap }: RebindChange): string {
+  if (!swap) return '';
+  const label = ACTION_LABELS[swap.action];
+  return 'gets' in swap
+    ? `${label} gets ${keyLabel(swap.gets)}.`
+    : `${label} loses ${keyLabel(swap.loses)}.`;
 }
 
 /**
@@ -232,9 +222,9 @@ export function SettingsScreen({
       setMessage(bindable.refused);
       return;
     }
-    const next = rebind(settings.bindings, action, slot, bindable.key);
+    const rebound = rebindChange(settings.bindings, action, slot, bindable.key);
     setCapturing(false);
-    change({ bindings: next }, rebindMessage(settings.bindings, next, action));
+    change({ bindings: rebound.bindings }, rebindMessage(rebound));
   };
 
   // Keys that come while it can't be seen are dropped here, rather than by unsubscribing: with no

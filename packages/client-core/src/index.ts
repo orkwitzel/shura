@@ -1,6 +1,13 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
-export { type Direction, PIECE_ACTIONS } from './actions';
-export { type Bindings, rebind, unbind } from './bindings';
+export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './actions';
+export {
+  type Bindings,
+  type RebindChange,
+  type RebindSwap,
+  rebind,
+  rebindChange,
+  unbind,
+} from './bindings';
 export type { Clock } from './clock';
 export { countdownLabel } from './countdown';
 export { formatFrames, formatHeadline, formatScore } from './format';

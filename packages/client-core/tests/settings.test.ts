@@ -7,6 +7,7 @@ import {
   type HandlingSettings,
   handlingFrames,
   rebind,
+  rebindChange,
   SETTINGS_VERSION,
   stepHandling,
   unbind,
@@ -262,6 +263,23 @@ describe('rebinding', () => {
 
   test('can unbind a slot', () => {
     expect(unbind(BINDINGS, ActionType.RotateCW, 0).rotateCW).toEqual(['x']);
+  });
+
+  test('says which other action a swap gave a key to, or took one from', () => {
+    expect(rebindChange(BINDINGS, ActionType.Hold, 0, 'z')).toEqual({
+      bindings: rebind(BINDINGS, ActionType.Hold, 0, 'z'),
+      swap: { action: ActionType.RotateCCW, gets: 'c' },
+    });
+    expect(rebindChange(BINDINGS, ActionType.Hold, 1, 'x').swap).toEqual({
+      action: ActionType.RotateCW,
+      loses: 'x',
+    });
+  });
+
+  test('says nothing changed besides the slot for a free key, or one of its own', () => {
+    expect(rebindChange(BINDINGS, ActionType.Hold, 0, 'v').swap).toBeNull();
+    expect(rebindChange(BINDINGS, ActionType.RotateCW, 0, 'x').swap).toBeNull();
+    expect(rebindChange(BINDINGS, ActionType.Hold, 0, 'c').swap).toBeNull();
   });
 
   test('gives bindings the settings accept', () => {
