@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BINDINGS } from '../src/input/bindings';
 import { createInputAdapter, type InputChoice } from '../src/input/detect';
 import type { InputAdapter, InputSignal } from '../src/input/terminal-input';
+import { keySignal } from './support/signals';
 import { parseTimedBytes } from './support/terminal-bytes';
 
 const { MoveLeft } = ActionType;
@@ -29,11 +30,6 @@ function adapter(choice: InputChoice) {
 
 const status = ({ name, autoShift }: InputAdapter) => ({ name, autoShift });
 
-const key = (action: string, kind: string, time: number) => ({
-  kind: 'key',
-  event: { action, kind, time },
-});
-
 describe('auto-detection', () => {
   it('starts out choosing, auto-shifting by key repeat', () => {
     expect(status(adapter('auto').input)).toEqual({ name: 'auto', autoShift: 'keyRepeat' });
@@ -41,9 +37,9 @@ describe('auto-detection', () => {
 
   it('picks precise at the first Kitty-protocol release, which it passes on', async () => {
     const auto = adapter('auto');
-    expect(await auto.feed([0, LEFT])).toEqual([key(MoveLeft, 'press', 0)]);
+    expect(await auto.feed([0, LEFT])).toEqual([keySignal(MoveLeft, 'press', 0)]);
     expect(status(auto.input).name).toBe('auto');
-    expect(await auto.feed([90, LEFT_RELEASE])).toEqual([key(MoveLeft, 'release', 90)]);
+    expect(await auto.feed([90, LEFT_RELEASE])).toEqual([keySignal(MoveLeft, 'release', 90)]);
     expect(status(auto.input)).toEqual({ name: 'precise', autoShift: 'handling' });
     expect(auto.input.deadline).toBeNull();
   });
@@ -69,8 +65,8 @@ describe('auto-detection', () => {
   it('picks basic at a legacy key repeat: an arrow sent again with no release between', async () => {
     const auto = adapter('auto');
     expect(await auto.feed([0, LEFT], [500, LEFT])).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'repeat', 500),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'repeat', 500),
     ]);
     expect(status(auto.input).name).toBe('basic');
   });
@@ -78,9 +74,9 @@ describe('auto-detection', () => {
   it('picks basic at a quick second tap of an arrow with no release between', async () => {
     const auto = adapter('auto');
     expect(await auto.feed([0, LEFT], [80, LEFT])).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'release', 80),
-      key(MoveLeft, 'press', 80),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'release', 80),
+      keySignal(MoveLeft, 'press', 80),
     ]);
     expect(status(auto.input).name).toBe('basic');
   });
@@ -91,7 +87,7 @@ describe('auto-detection', () => {
     expect(auto.input.deadline).toBe(1_000);
     expect(auto.input.poll(999)).toEqual([]);
     expect(status(auto.input).name).toBe('auto');
-    expect(auto.input.poll(1_000)).toEqual([key(MoveLeft, 'release', 1_000)]);
+    expect(auto.input.poll(1_000)).toEqual([keySignal(MoveLeft, 'release', 1_000)]);
     expect(status(auto.input).name).toBe('basic');
     expect(auto.input.deadline).toBeNull();
   });
@@ -99,9 +95,9 @@ describe('auto-detection', () => {
   it('keeps an arrow held through a Kitty terminal’s OS delay before its first repeat', async () => {
     const auto = adapter('auto');
     expect(await auto.feed([0, LEFT], [660, LEFT_REPEAT], [1_400, LEFT_RELEASE])).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'repeat', 660),
-      key(MoveLeft, 'release', 1_400),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'repeat', 660),
+      keySignal(MoveLeft, 'release', 1_400),
     ]);
   });
 

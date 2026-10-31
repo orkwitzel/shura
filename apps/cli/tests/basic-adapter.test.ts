@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createBasicAdapter } from '../src/input/basic';
 import { DEFAULT_BINDINGS } from '../src/input/bindings';
 import type { InputSignal } from '../src/input/terminal-input';
+import { keySignal } from './support/signals';
 import { parseTimedBytes } from './support/terminal-bytes';
 
 const { MoveLeft, MoveRight, SoftDrop, HardDrop, RotateCW } = ActionType;
@@ -26,16 +27,11 @@ async function signals(chunks: readonly [number, string][], until = 10_000) {
   return out;
 }
 
-const key = (action: string, kind: string, time: number) => ({
-  kind: 'key',
-  event: { action, kind, time },
-});
-
 describe('basic adapter', () => {
   it('turns a tap into a press, and a release about 500 ms later', async () => {
     expect(await signals([[0, LEFT]])).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'release', 550),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'release', 550),
     ]);
   });
 
@@ -49,12 +45,12 @@ describe('basic adapter', () => {
         [590, LEFT],
       ]),
     ).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'repeat', 500),
-      key(MoveLeft, 'repeat', 530),
-      key(MoveLeft, 'repeat', 560),
-      key(MoveLeft, 'repeat', 590),
-      key(MoveLeft, 'release', 650),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'repeat', 500),
+      keySignal(MoveLeft, 'repeat', 530),
+      keySignal(MoveLeft, 'repeat', 560),
+      keySignal(MoveLeft, 'repeat', 590),
+      keySignal(MoveLeft, 'release', 650),
     ]);
   });
 
@@ -68,9 +64,9 @@ describe('basic adapter', () => {
       [1_500, RIGHT],
     ]);
     expect(out.slice(-3)).toEqual([
-      key(MoveRight, 'press', 1_000),
-      key(MoveRight, 'repeat', 1_500),
-      key(MoveRight, 'release', 1_560),
+      keySignal(MoveRight, 'press', 1_000),
+      keySignal(MoveRight, 'repeat', 1_500),
+      keySignal(MoveRight, 'release', 1_560),
     ]);
   });
 
@@ -81,10 +77,10 @@ describe('basic adapter', () => {
         [800, LEFT],
       ]),
     ).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'release', 550),
-      key(MoveLeft, 'press', 800),
-      key(MoveLeft, 'release', 1_350),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'release', 550),
+      keySignal(MoveLeft, 'press', 800),
+      keySignal(MoveLeft, 'release', 1_350),
     ]);
   });
 
@@ -96,12 +92,12 @@ describe('basic adapter', () => {
         [160, ' '],
       ]),
     ).toEqual([
-      key(HardDrop, 'press', 0),
-      key(HardDrop, 'release', 80),
-      key(HardDrop, 'press', 80),
-      key(HardDrop, 'release', 160),
-      key(HardDrop, 'press', 160),
-      key(HardDrop, 'release', 710),
+      keySignal(HardDrop, 'press', 0),
+      keySignal(HardDrop, 'release', 80),
+      keySignal(HardDrop, 'press', 80),
+      keySignal(HardDrop, 'release', 160),
+      keySignal(HardDrop, 'press', 160),
+      keySignal(HardDrop, 'release', 710),
     ]);
   });
 
@@ -116,12 +112,12 @@ describe('basic adapter', () => {
         [180, 'x'],
       ]),
     ).toEqual([
-      key(RotateCW, 'press', 0),
-      key(RotateCW, 'release', 120),
-      key(RotateCW, 'press', 120),
-      key(RotateCW, 'repeat', 150),
-      key(RotateCW, 'repeat', 180),
-      key(RotateCW, 'release', 240),
+      keySignal(RotateCW, 'press', 0),
+      keySignal(RotateCW, 'release', 120),
+      keySignal(RotateCW, 'press', 120),
+      keySignal(RotateCW, 'repeat', 150),
+      keySignal(RotateCW, 'repeat', 180),
+      keySignal(RotateCW, 'release', 240),
     ]);
   });
 
@@ -137,11 +133,11 @@ describe('basic adapter', () => {
       [1_200, 'x'],
     ]);
     expect(out.slice(-4)).toEqual([
-      key(RotateCW, 'press', 1_000),
-      key(RotateCW, 'release', 1_200),
-      key(RotateCW, 'press', 1_200),
+      keySignal(RotateCW, 'press', 1_000),
+      keySignal(RotateCW, 'release', 1_200),
+      keySignal(RotateCW, 'press', 1_200),
       // The delay, with a margin: no longer the 550 ms assumed before any hold.
-      key(RotateCW, 'release', 1_200 + 350),
+      keySignal(RotateCW, 'release', 1_200 + 350),
     ]);
   });
 
@@ -155,9 +151,9 @@ describe('basic adapter', () => {
       [2_660, 'x'],
     ]);
     expect(out.slice(-3)).toEqual([
-      key(RotateCW, 'press', 2_000),
-      key(RotateCW, 'repeat', 2_660),
-      key(RotateCW, 'release', 2_660 + 80),
+      keySignal(RotateCW, 'press', 2_000),
+      keySignal(RotateCW, 'repeat', 2_660),
+      keySignal(RotateCW, 'release', 2_660 + 80),
     ]);
   });
 
@@ -171,9 +167,9 @@ describe('basic adapter', () => {
         [1_630, 'p'],
       ]),
     ).toEqual([
-      key(RotateCW, 'press', 0),
-      key(RotateCW, 'repeat', 500),
-      key(RotateCW, 'release', 1_050),
+      keySignal(RotateCW, 'press', 0),
+      keySignal(RotateCW, 'repeat', 500),
+      keySignal(RotateCW, 'release', 1_050),
       { kind: 'menu' },
     ]);
   });
@@ -187,12 +183,12 @@ describe('basic adapter', () => {
         [540, LEFT],
       ]),
     ).toEqual([
-      key(SoftDrop, 'press', 0),
-      key(SoftDrop, 'repeat', 500),
-      key(SoftDrop, 'repeat', 530),
-      key(MoveLeft, 'press', 540),
-      key(SoftDrop, 'release', 590),
-      key(MoveLeft, 'release', 1_090),
+      keySignal(SoftDrop, 'press', 0),
+      keySignal(SoftDrop, 'repeat', 500),
+      keySignal(SoftDrop, 'repeat', 530),
+      keySignal(MoveLeft, 'press', 540),
+      keySignal(SoftDrop, 'release', 590),
+      keySignal(MoveLeft, 'release', 1_090),
     ]);
   });
 
@@ -204,9 +200,9 @@ describe('basic adapter', () => {
         [530, `${CSI}1;1:3D`],
       ]),
     ).toEqual([
-      key(MoveLeft, 'press', 0),
-      key(MoveLeft, 'repeat', 500),
-      key(MoveLeft, 'release', 530),
+      keySignal(MoveLeft, 'press', 0),
+      keySignal(MoveLeft, 'repeat', 500),
+      keySignal(MoveLeft, 'release', 530),
     ]);
   });
 });

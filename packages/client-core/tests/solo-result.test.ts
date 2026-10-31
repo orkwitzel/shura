@@ -3,13 +3,12 @@ import {
   createEngine,
   type Engine,
   MARATHON,
-  type ModeSettings,
   type PieceAction,
   SPRINT,
   ULTRA,
 } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { hasEnded, type SoloMode, soloResult, timeLeft } from '../src/index';
+import { hasEnded, SOLO_PRESETS, type SoloMode, soloResult, timeLeft } from '../src/index';
 import {
   MARATHON_ACTIONS,
   MARATHON_FINISH,
@@ -22,15 +21,9 @@ import {
   ULTRA_SEED,
 } from './support/recorded-games';
 
-const PRESETS: Record<SoloMode, ModeSettings> = {
-  marathon: MARATHON,
-  sprint: SPRINT,
-  ultra: ULTRA,
-};
-
 /** A game of `mode` from `seed`, played with a recorded action log until it ends. */
 function played(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
-  const engine = createEngine(PRESETS[mode], seed, 0);
+  const engine = createEngine(SOLO_PRESETS[mode], seed, 0);
   const last = actions.at(-1)?.frame ?? 0;
   for (let frame = 1; frame <= last; frame++) {
     engine.step(
@@ -43,7 +36,7 @@ function played(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
 
 /** A game of `mode` hard dropped one a frame until it tops out. */
 function toppedOut(mode: SoloMode) {
-  const engine: Engine = createEngine(PRESETS[mode], 7, 0);
+  const engine: Engine = createEngine(SOLO_PRESETS[mode], 7, 0);
   for (let frame = 1; !engine.state.toppedOut; frame++) {
     engine.step(frame, [{ frame, type: ActionType.HardDrop }]);
   }

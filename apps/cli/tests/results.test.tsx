@@ -1,10 +1,8 @@
-import type { SoloSessionState } from '@shura/client-core';
-import { createEngine, MARATHON, SPRINT, ULTRA } from '@shura/engine';
+import { SOLO_PRESETS, type SoloSessionState } from '@shura/client-core';
+import { createEngine } from '@shura/engine';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { ResultsScreen } from '../src/ui/results';
-
-const PRESETS = { sprint: SPRINT, marathon: MARATHON, ultra: ULTRA };
 
 /** An ended game of `mode` (Sprint unless given), its engine state's numbers replaced by `engine`. */
 function ended(
@@ -16,7 +14,7 @@ function ended(
     seed: 7,
     phase: 'ended',
     countdown: 0,
-    engine: { ...createEngine(PRESETS[mode], 7, 0).state, ...engine },
+    engine: { ...createEngine(SOLO_PRESETS[mode], 7, 0).state, ...engine },
     actions: [],
   };
 }
