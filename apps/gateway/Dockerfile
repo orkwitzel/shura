@@ -16,6 +16,9 @@ RUN pnpm --filter @shura/gateway build
 FROM node:26-slim
 ENV NODE_ENV=production
 WORKDIR /app
+# Left out of the bundle (design §14): ws loads it if it's there. Its prebuilt binaries need no
+# compiler.
+RUN npm install --no-save --no-package-lock bufferutil@4.1.0
 COPY --from=build /repo/apps/gateway/dist/ ./
 USER node
 EXPOSE 8080
