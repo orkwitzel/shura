@@ -9,6 +9,7 @@ An online multiplayer falling-block puzzle game (guideline rules) with a web cli
 - `docs/glossary.md`: the project's terms. Use them in code, comments and docs.
 - `apps/web/AGENTS.md`: where code and tests go in the web client. Read it before adding or moving a web file.
 - `CONTRIBUTING.md`: branch, PR and release rules. Follow them exactly.
+- `apps/cli/AGENTS.md`: where code and tests go in the terminal client. Read it before adding or moving a CLI file.
 
 ## Determinism (packages/engine)
 

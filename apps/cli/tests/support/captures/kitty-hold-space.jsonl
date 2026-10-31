@@ -1,0 +1,6 @@
+{"capture":"shura-input","version":1,"terminal":"synthetic: Kitty protocol, 660 ms repeat delay, 25 repeats/s (X11 defaults)","protocol":"kitty","gesture":"hold","key":"space","input":"auto"}
+{"time":0,"bytes":"\u001b[32u","adapter":"auto","signals":[]}
+{"time":660,"bytes":"\u001b[32;1:2u","adapter":"auto","signals":[]}
+{"time":700,"bytes":"\u001b[32;1:2u","adapter":"auto","signals":[]}
+{"time":740,"bytes":"\u001b[32;1:2u","adapter":"auto","signals":[]}
+{"time":771,"bytes":"\u001b[32;1:3u","adapter":"auto","signals":[]}

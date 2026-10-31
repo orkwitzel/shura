@@ -5,11 +5,17 @@ packages:
 # Versions shared by several packages. Reference them as "catalog:" in package.json.
 catalog:
   "@types/node": 26.6.6
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
   esbuild: 0.28.2
+  happy-dom: 21.0.4
+  react: 19.3.1
+  react-dom: 19.3.1
   tsx: 4.23.15
   typescript: 7.0.2
   vitest: 5.0.5
   zod: 4.6.7
+  zustand: 5.0.16
 
 # Dependencies allowed to run install scripts (pnpm blocks all others).
 allowBuilds:

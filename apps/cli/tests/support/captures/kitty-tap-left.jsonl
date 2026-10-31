@@ -1,0 +1,3 @@
+{"capture":"shura-input","version":1,"terminal":"synthetic: Kitty protocol, 660 ms repeat delay, 25 repeats/s (X11 defaults)","protocol":"kitty","gesture":"tap","key":"left","input":"auto"}
+{"time":0,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":95,"bytes":"\u001b[1;1:3D","adapter":"auto","signals":[]}

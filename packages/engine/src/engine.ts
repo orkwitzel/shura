@@ -383,7 +383,7 @@ function applyGravity(s: EngineState, context: LockContext): void {
     if (s.lockTimer >= s.settings.lockDelay) lock(s, context);
     return;
   }
-  s.gravityCounter += gravityAt(s);
+  s.gravityCounter += gravityAt(s, s.frame);
   while (s.gravityCounter >= SUBROWS_PER_ROW) {
     s.gravityCounter -= SUBROWS_PER_ROW;
     if (!tryMove(s, 0, -1)) {
@@ -411,10 +411,20 @@ function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
 }
 
 /**
- * The gravity curve's speed at the current level, or at the level cap above it. With a curve that
- * follows time, its speed at the current frame, or its last speed once the frame is past its end.
+ * The gravity the next frame builds up, in sub-rows per frame, unless a lock in that frame raises
+ * the level first: the gravity curve's speed at the current level, or with a curve that follows
+ * time, its speed at the next frame. A pure helper, so the client's input engine can set the
+ * soft-drop speed from it (design §7.3).
  */
-function gravityAt({ settings: { gravity }, level, frame }: EngineState): number {
+export function currentGravity(s: ReadonlyEngineState): number {
+  return gravityAt(s, s.frame + 1);
+}
+
+/**
+ * The gravity curve's speed at the current level, or at the level cap above it. With a curve that
+ * follows time, its speed at `frame`, or its last speed once `frame` is past its end.
+ */
+function gravityAt({ settings: { gravity }, level }: ReadonlyEngineState, frame: number): number {
   const { speeds, interval } = gravity;
   // Both whole numbers, so the quotient floors exactly.
   const index = interval === null ? level - 1 : Math.floor(frame / interval);
@@ -440,7 +450,12 @@ function onStack(s: EngineState): boolean {
   return !canMove(s, 0, -1);
 }
 
-function canMove(s: EngineState, cols: number, rows: number): boolean {
+/**
+ * Whether the active piece fits on the board moved by `cols` columns right and `rows` rows up
+ * (negative for left and down): inside the walls and the floor, and clear of the stack. A pure
+ * helper, so the client's input engine can emit only moves that take effect (design §7.3).
+ */
+export function canMove(s: ReadonlyEngineState, cols: number, rows: number): boolean {
   return !collides(s.board, moved(s.active, cols, rows));
 }
 
