@@ -42,6 +42,7 @@ function ended(playerId: string | null = 'me'): OnlineMatchState {
     mode: 'ffa',
     phase: 'ended',
     countdown: 0,
+    countdownStep: 60,
     goFrame: 0,
     playerId,
     players: ['bo', 'me', 'cy'].map((id, index) => ({

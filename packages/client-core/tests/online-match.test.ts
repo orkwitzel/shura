@@ -69,3 +69,8 @@ it("counts the lines each player's locks send, from their relays (the HUD's line
   const them = online.snapshot().players.find(({ playerId }) => playerId === 'them');
   expect(them?.linesSent).toBe(44);
 });
+
+it('counts its 3 s countdown a second a step, as countdownLabel reads it', () => {
+  const { online } = match();
+  expect(online.snapshot()).toMatchObject({ countdownStep: 60 });
+});
