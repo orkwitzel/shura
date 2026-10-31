@@ -30,6 +30,19 @@ describe('the main menu, at /', () => {
     expect(item('Ultra')).toHaveAccessibleDescription('no record yet');
   });
 
+  test('shows all three personal bests: Sprint’s time, Marathon’s score, level and lines, Ultra’s score', () => {
+    const records = {
+      version: 1,
+      sprint: personalBest({ frames: 3_000 }),
+      marathon: personalBest({ outcome: 'gameOver', score: 54_321, lines: 87, level: 9 }),
+      ultra: personalBest({ score: 21_449, lines: 101, frames: 7_200 }),
+    };
+    renderWithStores(<AppRouter />, { stored: { records } });
+    expect(item('Sprint')).toHaveAccessibleDescription('0:50.000');
+    expect(item('Marathon')).toHaveAccessibleDescription('54,321 (level 9, 87 lines)');
+    expect(item('Ultra')).toHaveAccessibleDescription('21,449');
+  });
+
   test('starts on Sprint, past the disabled Play online', () => {
     renderWithStores(<AppRouter />);
     expect(item('Sprint')).toHaveFocus();
