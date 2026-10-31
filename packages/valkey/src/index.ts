@@ -1,6 +1,7 @@
 // The shared state `gateway` and `game` use, each interface with an in-memory and a Valkey
 // version (docs/design.md §9.5, §9.6, §11).
 export { type ValkeyKeys, valkeyKeys } from './keys';
+export type { PodHealth, PodHeartbeat } from './pod-health';
 export type { Registry, RoomMode, RoomPhase, RoomRecord, RoomUpdate } from './registry';
 export type { SessionRecord, SessionStore, SessionUpdate } from './session-store';
 export {

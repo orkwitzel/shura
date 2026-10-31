@@ -1,9 +1,12 @@
 import Valkey from 'iovalkey';
 import { valkeyKeys } from './keys';
+import { createMemoryPodHealth } from './memory/pod-health';
 import { createMemoryRegistry } from './memory/registry';
 import { createMemorySessionStore } from './memory/session-store';
+import type { PodHealth } from './pod-health';
 import type { Registry } from './registry';
 import type { SessionStore } from './session-store';
+import { createValkeyPodHealth } from './valkey/pod-health';
 import { createValkeyRegistry } from './valkey/registry';
 import { createValkeySessionStore } from './valkey/session-store';
 
@@ -35,16 +38,18 @@ const DEFAULTS = {
 export interface Stores {
   readonly registry: Registry;
   readonly sessions: SessionStore;
+  readonly podHealth: PodHealth;
   /** Closes the connections. The memory version has none. */
   close(): Promise<void>;
 }
 
 /** Stores in this process's memory: for tests, and gateway and game run in one process. */
 export function createMemoryStores(options: StoreOptions = {}): Stores {
-  const { now, sessionTtlMs } = { ...DEFAULTS, ...options };
+  const { now, sessionTtlMs, podTtlMs } = { ...DEFAULTS, ...options };
   return {
     registry: createMemoryRegistry(),
     sessions: createMemorySessionStore(now, sessionTtlMs),
+    podHealth: createMemoryPodHealth(now, podTtlMs),
     async close() {},
   };
 }
@@ -53,11 +58,12 @@ export function createMemoryStores(options: StoreOptions = {}): Stores {
 export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}): Stores {
   const client = new Valkey(url, { enableAutoPipelining: true });
   const keys = valkeyKeys(options.prefix);
-  const { sessionTtlMs } = { ...DEFAULTS, ...options };
+  const { sessionTtlMs, podTtlMs } = { ...DEFAULTS, ...options };
   let closed = false;
   return {
     registry: createValkeyRegistry(client, keys),
     sessions: createValkeySessionStore(client, keys, sessionTtlMs),
+    podHealth: createValkeyPodHealth(client, keys, podTtlMs),
     async close() {
       if (closed) return;
       closed = true;
