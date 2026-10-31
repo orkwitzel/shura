@@ -9,6 +9,7 @@ import {
   srs,
   VISIBLE_ROWS,
 } from '@shura/engine';
+import { shade } from '@/utils/color';
 
 /** A rectangle, in the layout's pixels (CSS pixels), from its top-left corner. */
 export interface Rect {
@@ -19,7 +20,15 @@ export interface Rect {
 }
 
 /** What a shape is part of, so effects and tests can find it. */
-export type BoardPart = 'frame' | 'well' | 'locked' | 'ghost' | 'active' | 'hold' | 'preview';
+export type BoardPart =
+  | 'frame'
+  | 'well'
+  | 'locked'
+  | 'ghost'
+  | 'active'
+  | 'hold'
+  | 'preview'
+  | 'meter';
 
 /** A plain filled rectangle. */
 export interface RectShape extends Rect {
@@ -65,6 +74,23 @@ export interface BoardLayout {
 export interface LayoutOptions {
   /** Whether to draw the ghost (a setting). */
   readonly ghost: boolean;
+  /** Whether to draw the garbage meter, left of the well: online only. */
+  readonly meter?: boolean;
+  /** The id of the meter's attack to draw in the flash colour, as it flashes on arriving. */
+  readonly flash?: number | undefined;
+  /** Whether the game is out (design §13.2, Match): every filled cell grey, and no ghost. */
+  readonly grey?: boolean;
+}
+
+/** What a small board takes: no ghost, and always its meter. */
+export type SmallLayoutOptions = Pick<LayoutOptions, 'flash' | 'grey'>;
+
+/** A small board laid out: an FFA opponent's well and meter (design §13.2, Match). */
+export interface SmallBoardLayout {
+  readonly width: number;
+  readonly height: number;
+  readonly regions: { readonly well: Rect };
+  readonly shapes: readonly BoardShape[];
 }
 
 /**
@@ -102,10 +128,28 @@ export const LAYOUT_CELLS = {
   height: HIDDEN_ROWS_SHOWN + VISIBLE_ROWS + MARGIN,
 } as const;
 
+/**
+ * A small board's layout, in cells: half a cell of margin round it, and a cell left of the well for
+ * the meter.
+ */
+const SMALL_WELL_LEFT = MARGIN + 1;
+export const SMALL_LAYOUT_CELLS = {
+  width: SMALL_WELL_LEFT + BOARD_WIDTH + MARGIN,
+  height: MARGIN + VISIBLE_ROWS + MARGIN,
+} as const;
+
 /** The frames' border and the well's shadow, in art pixels (an eighth of a cell). */
 const BORDER = 1;
 const WELL_SHADOW = 2;
 const BOX_SHADOW = 1;
+
+/**
+ * The meter's width in art pixels, on a full board (in the gap between the hold's shadow and the
+ * well's border) and on a small one; an art pixel clear of the well's border.
+ */
+const METER_WIDTH = { full: 3, small: 4 } as const;
+/** How far a segment's colour sits inside its lines' cells, at the top and the bottom. */
+const SEGMENT_INSET = 1;
 
 /** How far the active piece can fall: where the ghost goes. */
 function dropDistance(state: ReadonlyEngineState): number {
@@ -145,28 +189,13 @@ export function boardRegions(cellSize: number): BoardLayout['regions'] {
   return { well, hold, preview, aside };
 }
 
-/**
- * The shapes that draw a board (design §13.2, Boards): the checkered well, the locked cells
- * (garbage in the theme's garbage colour), the ghost when `ghost` is on, the active piece, the hold
- * on the left (greyed out once used) and the next 5 pieces on the right, each in a frame. Every
- * position is a whole number of art pixels (an eighth of `cellSize`), so a cell size of a multiple
- * of 8 physical pixels keeps the art sharp. Filled cells are drawn in `skin`'s canvas drawing, and
- * the ghost the same in every skin.
- */
-export function layoutBoard(
-  state: ReadonlyEngineState,
-  theme: Theme,
-  skin: Skin,
-  cellSize: number,
-  { ghost }: LayoutOptions,
-): BoardLayout {
+/** Draws shapes at one cell size, in one theme and skin, a game out or not. */
+function shapesFor(theme: Theme, skin: Skin, cellSize: number, grey: boolean) {
   const c = cellSize;
   const art = c / 8;
-  const drawing = skin.canvas;
   const shapes: BoardShape[] = [];
-  const regions = boardRegions(cellSize);
-  const { well, hold, preview } = regions;
-
+  /** Out boards draw every filled cell in one grey, as a top-out's fade does. */
+  const greyed = shade(theme.web.muted, -0.55);
   const rect = (part: BoardPart, { x, y, width, height }: Rect, color: Rgb) =>
     shapes.push({ type: 'rect', part, x, y, width, height, color });
   /** A frame round `box`: a hard shadow, a border in the theme's border colour, then `fill`. */
@@ -183,13 +212,116 @@ export function layoutBoard(
     rect('frame', outer, theme.chrome.border.rgb);
     if (fill) rect('frame', box, fill);
   };
-  const cell = (part: BoardPart, x: number, y: number, color: Rgb, art = drawing) =>
-    shapes.push({ type: 'cell', part, x, y, size: c, color, drawing: art });
-  /** A cell of the board at `col`, `row` (row 0 at the bottom). */
-  const boardCell = (part: BoardPart, col: number, row: number, color: Rgb, art = drawing) =>
-    cell(part, well.x + col * c, well.y + (VISIBLE_ROWS - 1 - row) * c, color, art);
+  const cell = (part: BoardPart, x: number, y: number, color: Rgb, drawing = skin.canvas) =>
+    shapes.push({ type: 'cell', part, x, y, size: c, color: grey ? greyed : color, drawing });
   const colorOf = (kind: Exclude<BoardCell, null>): Rgb =>
     kind === 'G' ? theme.garbage.rgb : theme.pieces[kind].rgb;
+
+  /** The well: its frame, then a checker of the theme's two well colours. */
+  const wellOf = (well: Rect) => {
+    frame(well, WELL_SHADOW);
+    const [wellA, wellB] = theme.web.well;
+    for (let row = 0; row < VISIBLE_ROWS; row++) {
+      for (let col = 0; col < BOARD_WIDTH; col++) {
+        const x = well.x + col * c;
+        const y = well.y + row * c;
+        rect('well', { x, y, width: c, height: c }, (col + row) % 2 === 0 ? wellA : wellB);
+      }
+    }
+  };
+
+  /**
+   * The game in `well`: its locked cells and active piece in the bottom `rows` rows (the hidden
+   * rows shown included, or not), and the ghost if `ghost`.
+   */
+  const gameIn = (well: Rect, state: ReadonlyEngineState, rows: number, ghost: boolean) => {
+    /** A cell of the board at `col`, `row` (row 0 at the bottom). */
+    const boardCell = (
+      part: BoardPart,
+      col: number,
+      row: number,
+      color: Rgb,
+      drawing?: CanvasDrawing,
+    ) => cell(part, well.x + col * c, well.y + (VISIBLE_ROWS - 1 - row) * c, color, drawing);
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < BOARD_WIDTH; col++) {
+        const kind = state.board[row]?.[col] ?? null;
+        if (kind !== null) boardCell('locked', col, row, colorOf(kind));
+      }
+    }
+    // The ghost, then the active piece. A game that has ended leaves the piece that locked (already
+    // drawn as locked cells) or the one that couldn't spawn as the active piece: it has no ghost.
+    const { active } = state;
+    const activeColor = theme.pieces[active.kind].rgb;
+    if (ghost && !grey && !hasEnded(state)) {
+      const fall = dropDistance(state);
+      for (const { col, row } of pieceCells(active)) {
+        boardCell('ghost', col, row - fall, activeColor, GHOST_DRAWING);
+      }
+    }
+    for (const { col, row } of pieceCells(active)) {
+      if (row < rows) boardCell('active', col, row, activeColor);
+    }
+  };
+
+  /**
+   * The garbage meter (design §13.2, Match), `width` art pixels wide, an art pixel left of `well`'s
+   * border: a dark track, then one segment per attack in the meter, bottom up, a cell high per line
+   * and stopping at the top of the well, in the garbage colour (the one flashing in the flash
+   * colour), each a darker edge round its colour.
+   */
+  const meterOf = (
+    well: Rect,
+    meter: ReadonlyEngineState['garbageMeter'],
+    width: number,
+    flash: number | undefined,
+  ) => {
+    const x = well.x - (BORDER + 1 + width) * art;
+    rect('meter', { x, y: well.y, width: width * art, height: well.height }, theme.web.shadow);
+    let bottom = well.y + well.height;
+    for (const { id, lines } of meter) {
+      const top = Math.max(bottom - lines * c, well.y);
+      if (top >= bottom) break;
+      const color = id === flash ? theme.pieces.Z.rgb : theme.garbage.rgb;
+      const height = bottom - top;
+      rect('meter', { x, y: top, width: width * art, height }, shade(color, -0.45));
+      const inset = SEGMENT_INSET * art;
+      rect(
+        'meter',
+        { x, y: top + inset, width: (width - 1) * art, height: height - 2 * inset },
+        color,
+      );
+      bottom = top;
+    }
+  };
+
+  return { shapes, frame, cell, wellOf, gameIn, meterOf };
+}
+
+/**
+ * The shapes that draw a board (design §13.2, Boards): the checkered well, the locked cells
+ * (garbage in the theme's garbage colour), the ghost when `ghost` is on, the active piece, the hold
+ * on the left (greyed out once used) and the next 5 pieces on the right, each in a frame. Every
+ * position is a whole number of art pixels (an eighth of `cellSize`), so a cell size of a multiple
+ * of 8 physical pixels keeps the art sharp. Filled cells are drawn in `skin`'s canvas drawing, and
+ * the ghost the same in every skin.
+ *
+ * Online (design §13.2, Match), `meter` draws the garbage meter left of the well, `flash` names the
+ * attack in it drawn flashing, and `grey` draws an out game's every filled cell grey.
+ */
+export function layoutBoard(
+  state: ReadonlyEngineState,
+  theme: Theme,
+  skin: Skin,
+  cellSize: number,
+  { ghost, meter = false, flash, grey = false }: LayoutOptions,
+): BoardLayout {
+  const c = cellSize;
+  const draw = shapesFor(theme, skin, cellSize, grey);
+  const { frame, cell } = draw;
+  const regions = boardRegions(cellSize);
+  const { well, hold, preview } = regions;
+
   /** A piece in its spawn rotation, centred in the 4×2 box whose top-left is `x`, `y`. */
   const smallPiece = (part: BoardPart, kind: PieceKind, x: number, y: number, color: Rgb) => {
     const offsets = srs.cellOffsets(kind, 0);
@@ -205,38 +337,10 @@ export function layoutBoard(
       cell(part, dx + (col - left) * c, dy + (top - row) * c, color);
   };
 
-  // The well: its frame, then a checker of the theme's two well colours.
-  frame(well, WELL_SHADOW);
-  const [wellA, wellB] = theme.web.well;
-  for (let row = 0; row < VISIBLE_ROWS; row++) {
-    for (let col = 0; col < BOARD_WIDTH; col++) {
-      const x = well.x + col * c;
-      const y = well.y + row * c;
-      rect('well', { x, y, width: c, height: c }, (col + row) % 2 === 0 ? wellA : wellB);
-    }
-  }
-
-  // The locked cells, the hidden rows shown included.
-  for (let row = 0; row < VISIBLE_ROWS + HIDDEN_ROWS_SHOWN; row++) {
-    for (let col = 0; col < BOARD_WIDTH; col++) {
-      const kind = state.board[row]?.[col] ?? null;
-      if (kind !== null) boardCell('locked', col, row, colorOf(kind));
-    }
-  }
-
-  // The ghost, then the active piece. A game that has ended leaves the piece that locked (already
-  // drawn as locked cells) or the one that couldn't spawn as the active piece: it has no ghost.
-  const { active } = state;
-  const activeColor = theme.pieces[active.kind].rgb;
-  if (ghost && !hasEnded(state)) {
-    const fall = dropDistance(state);
-    for (const { col, row } of pieceCells(active)) {
-      boardCell('ghost', col, row - fall, activeColor, GHOST_DRAWING);
-    }
-  }
-  for (const { col, row } of pieceCells(active)) {
-    if (row < VISIBLE_ROWS + HIDDEN_ROWS_SHOWN) boardCell('active', col, row, activeColor);
-  }
+  draw.wellOf(well);
+  // The locked cells and the active piece, the hidden rows shown included.
+  draw.gameIn(well, state, VISIBLE_ROWS + HIDDEN_ROWS_SHOWN, ghost);
+  if (meter) draw.meterOf(well, state.garbageMeter, METER_WIDTH.full, flash);
 
   // The hold, greyed out once used for this piece.
   frame(hold, BOX_SHADOW, theme.web.deep);
@@ -256,6 +360,41 @@ export function layoutBoard(
     width: LAYOUT_CELLS.width * c,
     height: LAYOUT_CELLS.height * c,
     regions,
-    shapes,
+    shapes: draw.shapes,
+  };
+}
+
+/** Where a small board's well is at `cellSize`. */
+export function smallBoardWell(cellSize: number): Rect {
+  return {
+    x: SMALL_WELL_LEFT * cellSize,
+    y: MARGIN * cellSize,
+    width: BOARD_WIDTH * cellSize,
+    height: VISIBLE_ROWS * cellSize,
+  };
+}
+
+/**
+ * A small board (design §13.2, Match: an FFA opponent's): the checkered well with the locked cells
+ * and the active piece in its visible 20 rows, and the garbage meter left of it. No hold, preview or
+ * ghost. `flash` and `grey` as for `layoutBoard`.
+ */
+export function layoutSmallBoard(
+  state: ReadonlyEngineState,
+  theme: Theme,
+  skin: Skin,
+  cellSize: number,
+  { flash, grey = false }: SmallLayoutOptions,
+): SmallBoardLayout {
+  const draw = shapesFor(theme, skin, cellSize, grey);
+  const well = smallBoardWell(cellSize);
+  draw.wellOf(well);
+  draw.gameIn(well, state, VISIBLE_ROWS, false);
+  draw.meterOf(well, state.garbageMeter, METER_WIDTH.small, flash);
+  return {
+    width: SMALL_LAYOUT_CELLS.width * cellSize,
+    height: SMALL_LAYOUT_CELLS.height * cellSize,
+    regions: { well },
+    shapes: draw.shapes,
   };
 }
