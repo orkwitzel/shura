@@ -25,6 +25,7 @@
       "joinRoom": {
         "code": "string"
       },
+      "leaveMatch": {},
       "leaveRoom": {},
       "ping": {
         "id": "number:safeint"

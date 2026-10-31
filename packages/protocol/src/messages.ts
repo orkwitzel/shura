@@ -83,6 +83,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   /** The code as typed; the server parses it (`parseRoomCode`). */
   message('joinRoom', { code: z.string() }),
   message('leaveRoom', {}),
+  /**
+   * Out of the match you're playing, with `left`: you stay in the room and watch the rest of it
+   * (design §10.1).
+   */
+  message('leaveMatch', {}),
   message('ready', { ready: z.boolean() }),
   /** Host only: the host's own ready. */
   message('startMatch', {}),

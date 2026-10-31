@@ -53,8 +53,7 @@ export interface RoomOptions {
  * - #64: `detach` holds the seat (30 s in the lobby, the 3 s window in a match) instead of
  *   leaving, `attach` of a known session restores it with a snapshot, and `spectate`/`takeSeat`
  *   move seats;
- * - #65: quick-match rooms (no host, `rematch`);
- * - #63: lag-outs, through `Match.goOut`.
+ * - #65: quick-match rooms (no host, `rematch`).
  */
 export class Room {
   readonly code: string;
@@ -136,6 +135,9 @@ export class Room {
       case 'leaveRoom':
         this.leave(sessionId);
         return;
+      case 'leaveMatch':
+        this.#leaveMatch(member);
+        return;
       case 'inputBatch':
         this.#match?.receive(sessionId, message);
         return;
@@ -155,10 +157,7 @@ export class Room {
     if (!member) return;
     this.#members.delete(sessionId);
     this.#options.logger.info({ roomCode: this.code, sessionId }, 'left room');
-    if (this.#match?.has(sessionId)) {
-      const frame = this.#match.verifiedGames().find((game) => game.playerId === sessionId)?.frame;
-      this.#match.goOut(sessionId, 'left', frame ?? 0);
-    }
+    this.#match?.leave(sessionId);
     if (this.#hostId === sessionId) {
       const members = [...this.#members.values()];
       const next = members.find(({ seat }) => seat !== null) ?? members[0];
@@ -176,6 +175,15 @@ export class Room {
   /** Stops the room's timers, as the room is deleted. */
   close(): void {
     this.#stopMatch();
+  }
+
+  /** A player leaves the match but not the room: out with `left`, they watch the rest of it. */
+  #leaveMatch(member: Member): void {
+    if (!this.#match?.has(member.id)) {
+      this.#refuse(member, 'wrong_phase', "You're not playing a match.");
+      return;
+    }
+    this.#match.leave(member.id);
   }
 
   #ready(member: Member, ready: boolean): void {
@@ -211,11 +219,14 @@ export class Room {
     }
     const { matchId, seed } = this.#options.newMatch();
     const { clock } = this.#options;
+    const startAt = clock.now() + COUNTDOWN_MS;
     this.#match = new Match({
       matchId,
       mode: this.mode,
       seed,
       players,
+      clock,
+      startAt,
       output: {
         toPlayer: (id, message) => this.#send(id, message),
         toOthers: (id, message) => {
@@ -225,7 +236,6 @@ export class Room {
         ended: (result) => this.#ended(result),
       },
     });
-    const startAt = clock.now() + COUNTDOWN_MS;
     this.#setPhase('countdown');
     this.#options.logger.info({ roomCode: this.code, matchId }, 'match counting down');
     this.#broadcast({ type: 'countdown', startAt, seed, matchId, players: this.#match.players });
@@ -260,6 +270,7 @@ export class Room {
   #stopMatch(): void {
     for (const stop of this.#stopTimers) stop();
     this.#stopTimers = [];
+    this.#match?.stop();
     if (this.#match) this.#lastMatch = this.#match;
     this.#match = null;
   }
