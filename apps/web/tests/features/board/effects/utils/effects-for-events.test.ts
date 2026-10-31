@@ -2,7 +2,7 @@ import type { Effects } from '@shura/client-core';
 import { type LockEvent, TSpin } from '@shura/engine';
 import { describe, expect, test } from 'vitest';
 import { type Effect, effectsForEvents } from '@/features/board/effects/utils/effects-for-events';
-import { clearedRow, hardDropEvent, lockEvent } from '../../../support/engine-events';
+import { clearedRow, hardDropEvent, lockEvent } from '../../../../support/engine-events';
 
 /** The back-to-back status before each lock: off. */
 const noBackToBack = () => false;

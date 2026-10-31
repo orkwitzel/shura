@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { SkinPreview } from '@/features/settings/components/skin-preview';
-import { type Fake2d, installFake2d, paintedAt } from '../../support/fake-canvas-2d';
+import { type Fake2d, installFake2d, paintedAt } from '../../../support/fake-canvas-2d';
 
 let contexts: Fake2d[];
 beforeEach(() => {
