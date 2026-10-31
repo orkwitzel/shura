@@ -80,3 +80,17 @@ Run `pnpm dev` (Valkey, the gateway, the game service and the web), and `pnpm de
 - [ ] The ping chip in the lobby's corner is green on localhost. With Chrome's DevTools network throttling, it turns yellow, then red.
 - [ ] Nicknames in Hebrew (`שירה`) display correctly in the seats and in toasts.
 - [ ] Going back to the main menu closes the connection: the gateway logs the session leaving, and the other tab sees a "left" toast.
+
+## Online: the match (M4)
+
+As above, with `pnpm dev` and `pnpm dev:bot`. `pnpm bot join XXXX --count 2` fills an FFA room with two bots, which ready up on their own.
+
+- [ ] **A tab and 2 bots play an FFA.** *Create room* → *FFA*, add 2 bots, Enter starts once they're ready. The countdown over your well says 3, 2, 1 a second each, then GO. Your board is on the left with its HUD (Sent, PPS, Alive 3/3, the ping chip); the bots' small boards are on the right with their names and meters.
+- [ ] **Hidden tab.** Mid-match, switch to another tab (or minimise the window) for 5 s and come back: your board kept playing (the piece fell and locked under gravity), you weren't lagged out, and the online menu is open. DevTools' WebSocket frames show `inputBatch` going out the whole time.
+- [ ] **The online menu doesn't pause.** Esc (or P) opens *Menu* ("The match goes on"); the boards keep moving behind it, and no game key reaches your board. Esc or Enter goes back. Clicking outside the window opens it too.
+- [ ] **Attack streaks.** When a bot clears lines at someone, pixels fly from its board to the target's meter and burst there, and a segment blinks red in that meter. With *Effects: Off* in the settings, no streak flies (the meter still fills).
+- [ ] **Leave match** (Q in the menu) in a room by code: your board greys with your place and *left*, and a "Spectating" banner shows; Esc leaves the room for `/online`. In a quick-match room, *Leave match* leaves the room at once.
+- [ ] An opponent who tops out greys, with their place and *topped out* over their well.
+- [ ] **1v1 sizes.** In a 1600×900 window both full boards are at the same cell size; narrow the window and the opponent's board shrinks first, staying sharp (a multiple of 8 physical pixels) at every size and pixel ratio.
+- [ ] **Reconnecting.** Mid-match, DevTools' network *Offline* for a second, then back: "Reconnecting…" shows over your HUD (not across the top), the match carries on, and the bots' boards catch up.
+- [ ] No sound or callout plays for the opponents' locks; yours play as in single-player.

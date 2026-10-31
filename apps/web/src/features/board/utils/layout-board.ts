@@ -144,10 +144,10 @@ const WELL_SHADOW = 2;
 const BOX_SHADOW = 1;
 
 /**
- * The meter's width in art pixels, on a full board (in the gap between the hold's shadow and the
- * well's border) and on a small one; an art pixel clear of the well's border.
+ * The meter's width in art pixels: half a cell, an art pixel clear of the well's border. On a full
+ * board it fills the gap from the hold's shadow.
  */
-const METER_WIDTH = { full: 3, small: 4 } as const;
+const METER_WIDTH = 4;
 /** How far a segment's colour sits inside its lines' cells, at the top and the bottom. */
 const SEGMENT_INSET = 1;
 
@@ -190,16 +190,14 @@ export function boardRegions(cellSize: number): BoardLayout['regions'] {
 }
 
 /**
- * The garbage meter's bar beside `well` at `cellSize`: on a full board (in the gap between the hold
- * and the well) or a small one, an art pixel clear of the well's border.
+ * The garbage meter's bar beside `well` at `cellSize`, an art pixel clear of the well's border.
  */
-export function meterBar(well: Rect, cellSize: number, kind: 'full' | 'small'): Rect {
+export function meterBar(well: Rect, cellSize: number): Rect {
   const art = cellSize / 8;
-  const width = METER_WIDTH[kind];
   return {
-    x: well.x - (BORDER + 1 + width) * art,
+    x: well.x - (BORDER + 1 + METER_WIDTH) * art,
     y: well.y,
-    width: width * art,
+    width: METER_WIDTH * art,
     height: well.height,
   };
 }
@@ -211,10 +209,9 @@ export function meterBar(well: Rect, cellSize: number, kind: 'full' | 'small'): 
 export function meterTop(
   well: Rect,
   cellSize: number,
-  kind: 'full' | 'small',
   meter: ReadonlyEngineState['garbageMeter'],
 ): { readonly x: number; readonly y: number } {
-  const bar = meterBar(well, cellSize, kind);
+  const bar = meterBar(well, cellSize);
   const lines = meter.reduce((sum, { lines }) => sum + lines, 0);
   return {
     x: bar.x + bar.width / 2,
@@ -298,7 +295,7 @@ function shapesFor(theme: Theme, skin: Skin, cellSize: number, grey: boolean) {
   };
 
   /**
-   * The garbage meter (design §13.2, Match), `width` art pixels wide, an art pixel left of `well`'s
+   * The garbage meter (design §13.2, Match), half a cell wide, an art pixel left of `well`'s
    * border: a dark track, then one segment per attack in the meter, bottom up, a cell high per line
    * and stopping at the top of the well, in the garbage colour (the one flashing in the flash
    * colour), each a darker edge round its colour.
@@ -306,12 +303,11 @@ function shapesFor(theme: Theme, skin: Skin, cellSize: number, grey: boolean) {
   const meterOf = (
     well: Rect,
     meter: ReadonlyEngineState['garbageMeter'],
-    kind: keyof typeof METER_WIDTH,
     flash: number | undefined,
   ) => {
-    const bar = meterBar(well, c, kind);
+    const bar = meterBar(well, c);
     const { x } = bar;
-    const width = METER_WIDTH[kind];
+    const width = METER_WIDTH;
     rect('meter', bar, theme.web.shadow);
     let bottom = well.y + well.height;
     for (const { id, lines } of meter) {
@@ -375,7 +371,7 @@ export function layoutBoard(
   draw.wellOf(well);
   // The locked cells and the active piece, the hidden rows shown included.
   draw.gameIn(well, state, VISIBLE_ROWS + HIDDEN_ROWS_SHOWN, ghost);
-  if (meter) draw.meterOf(well, state.garbageMeter, 'full', flash);
+  if (meter) draw.meterOf(well, state.garbageMeter, flash);
 
   // The hold, greyed out once used for this piece.
   frame(hold, BOX_SHADOW, theme.web.deep);
@@ -425,7 +421,7 @@ export function layoutSmallBoard(
   const well = smallBoardWell(cellSize);
   draw.wellOf(well);
   draw.gameIn(well, state, VISIBLE_ROWS, false);
-  draw.meterOf(well, state.garbageMeter, 'small', flash);
+  draw.meterOf(well, state.garbageMeter, flash);
   return {
     width: SMALL_LAYOUT_CELLS.width * cellSize,
     height: SMALL_LAYOUT_CELLS.height * cellSize,

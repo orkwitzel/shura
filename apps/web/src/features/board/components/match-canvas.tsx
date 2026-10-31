@@ -260,8 +260,7 @@ export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: 
               const board = byId.get(id);
               const game = games.get(id);
               if (!board || !game) return null;
-              const kind = board.kind === 'small' ? 'small' : 'full';
-              const top = meterTop(wellOf(board), board.cellSize, kind, game.engine.garbageMeter);
+              const top = meterTop(wellOf(board), board.cellSize, game.engine.garbageMeter);
               return { x: board.x + top.x, y: board.y + top.y };
             },
             cellSize: ownCell,
