@@ -1,7 +1,9 @@
 import Valkey from 'iovalkey';
 import { valkeyKeys } from './keys';
 import type { MatchLog } from './match-log';
+import type { MatchQueue } from './match-queue';
 import { createMemoryMatchLog } from './memory/match-log';
+import { createMemoryMatchQueue } from './memory/match-queue';
 import { createMemoryPodHealth } from './memory/pod-health';
 import { createMemoryRegistry } from './memory/registry';
 import { createMemorySessionStore } from './memory/session-store';
@@ -9,6 +11,7 @@ import type { PodHealth } from './pod-health';
 import type { Registry } from './registry';
 import type { SessionStore } from './session-store';
 import { createValkeyMatchLog } from './valkey/match-log';
+import { createValkeyMatchQueue } from './valkey/match-queue';
 import { createValkeyPodHealth } from './valkey/pod-health';
 import { createValkeyRegistry } from './valkey/registry';
 import { createValkeySessionStore } from './valkey/session-store';
@@ -40,6 +43,7 @@ const DEFAULTS = {
 /** Every shared-state interface `gateway` and `game` use, on one backing store. */
 export interface Stores {
   readonly registry: Registry;
+  readonly matchQueue: MatchQueue;
   readonly sessions: SessionStore;
   readonly podHealth: PodHealth;
   readonly matchLog: MatchLog;
@@ -49,9 +53,10 @@ export interface Stores {
 
 /** Stores in this process's memory: for tests, and gateway and game run in one process. */
 export function createMemoryStores(options: StoreOptions = {}): Stores {
-  const { now, sessionTtlMs, podTtlMs } = { ...DEFAULTS, ...options };
+  const { now, sessionTtlMs, podTtlMs, requeueCooldownMs } = { ...DEFAULTS, ...options };
   return {
     registry: createMemoryRegistry(),
+    matchQueue: createMemoryMatchQueue(now, requeueCooldownMs),
     sessions: createMemorySessionStore(now, sessionTtlMs),
     podHealth: createMemoryPodHealth(now, podTtlMs),
     matchLog: createMemoryMatchLog(),
@@ -63,17 +68,19 @@ export function createMemoryStores(options: StoreOptions = {}): Stores {
 export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}): Stores {
   const client = new Valkey(url, { enableAutoPipelining: true });
   const keys = valkeyKeys(options.prefix);
-  const { sessionTtlMs, podTtlMs } = { ...DEFAULTS, ...options };
+  const { sessionTtlMs, podTtlMs, requeueCooldownMs } = { ...DEFAULTS, ...options };
+  const matchQueue = createValkeyMatchQueue(client, keys, requeueCooldownMs);
   let closed = false;
   return {
     registry: createValkeyRegistry(client, keys),
+    matchQueue,
     sessions: createValkeySessionStore(client, keys, sessionTtlMs),
     podHealth: createValkeyPodHealth(client, keys, podTtlMs),
     matchLog: createValkeyMatchLog(client, keys),
     async close() {
       if (closed) return;
       closed = true;
-      await client.quit();
+      await Promise.all([matchQueue.close(), client.quit()]);
     },
   };
 }
