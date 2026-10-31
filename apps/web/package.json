@@ -11,14 +11,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "6.1.2",
     "typescript": "catalog:",
     "vite": "8.3.5",

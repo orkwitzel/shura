@@ -9,8 +9,11 @@ export {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
+export { type SoloHeadline, type SoloResult, soloResult } from './solo-result';
 export {
   createSoloSession,
+  type SessionEvent,
+  type SessionEventListener,
   type SoloMode,
   type SoloPhase,
   type SoloSession,

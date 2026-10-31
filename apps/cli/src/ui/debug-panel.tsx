@@ -37,7 +37,7 @@ export function DebugPanel({ adapter, log, capture }: DebugPanelProps) {
       <Text>adapter: {adapter}</Text>
       {capture !== undefined && <Text wrap="truncate-start">{capture}</Text>}
       {log.map((entry, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: entries are rows in order, only appended
+        // Entries are rows in order, only ever appended: their index is their identity.
         <Text key={index} wrap="truncate-end">
           {showEntry(entry, log[index - 1])}
         </Text>

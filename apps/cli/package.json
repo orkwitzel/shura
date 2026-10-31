@@ -25,13 +25,14 @@
     "@shura/engine": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "@types/react": "19.3.0",
+    "@types/react": "catalog:",
     "esbuild": "catalog:",
     "ink": "8.0.0",
     "ink-testing-library": "4.0.0",
-    "react": "19.3.1",
+    "react": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zustand": "catalog:"
   }
 }

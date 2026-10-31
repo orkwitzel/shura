@@ -1,11 +1,11 @@
 import { type Clock, createSoloSession, type SoloMode } from '@shura/client-core';
+import { useSession } from '@shura/client-core/react';
 import { Box } from 'ink';
 import { useEffect, useState } from 'react';
 import { type Bindings, DEFAULT_BINDINGS } from '../input/bindings';
 import type { ColorMode } from '../render/palette';
 import { DebugPanel } from './debug-panel';
 import { GameView } from './game-view';
-import { useSession } from './use-session';
 import { type InputOptions, useTerminalInput } from './use-terminal-input';
 
 export interface SoloScreenProps {

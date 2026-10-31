@@ -1,12 +1,15 @@
 import {
   createEngine,
   type Engine,
+  MARATHON,
   type ModeSettings,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
   SPRINT,
+  ULTRA,
 } from '@shura/engine';
+import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Clock } from './clock';
 import {
   type AutoShift,
@@ -17,12 +20,17 @@ import {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
-import { type Store, StoreState } from './store';
+import type { Store } from './store';
 
-/** The single-player modes a session can play. */
-export type SoloMode = 'sprint';
+/** The single-player modes a session can play (design §4). */
+export type SoloMode = 'marathon' | 'sprint' | 'ultra';
 
-const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = { sprint: SPRINT };
+/** Each mode's preset: its rules and end conditions are the engine's. */
+const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = {
+  marathon: MARATHON,
+  sprint: SPRINT,
+  ultra: ULTRA,
+};
 
 /** The countdown before Go: frames −90 to −1 (design §13.1). */
 const COUNTDOWN_FRAMES = 90;
@@ -59,6 +67,18 @@ export interface SoloSessionState {
   readonly actions: readonly PieceAction[];
 }
 
+/**
+ * Something that happened during an engine step, with its frame (design §5.2, §13.1). A stand-in
+ * until the engine reports events (M3), when this becomes the engine's own event type.
+ */
+export interface SessionEvent {
+  readonly frame: number;
+  readonly type: string;
+}
+
+/** Hears the events of each wake, in frame order. */
+export type SessionEventListener = (events: readonly SessionEvent[]) => void;
+
 export interface SoloSession extends Store<SoloSessionState> {
   /**
    * An action that arrived at `time` (on the session's clock). It applies at the first frame that
@@ -85,6 +105,12 @@ export interface SoloSession extends Store<SoloSessionState> {
    * by the time paused, plus the countdown.
    */
   resume(): void;
+  /**
+   * Adds a listener for engine events, which each wake passes on in frame order (design §13.1).
+   * Events are moments, not state, so they don't go through the store. Returns a function that
+   * removes the listener. Nothing calls listeners until the engine reports events (M3).
+   */
+  onEvents(listener: SessionEventListener): () => void;
 }
 
 /** The frame at `elapsed` milliseconds after frame 0 started. */
@@ -110,7 +136,7 @@ export function createSoloSession(options: SoloSessionOptions): SoloSession {
 class Session implements SoloSession {
   readonly #clock: Clock;
   readonly #engine: Engine;
-  readonly #store: StoreState<SoloSessionState>;
+  readonly #store: StoreApi<SoloSessionState>;
   /** The clock's time at the start of frame 0. */
   #start: number;
   /** The last frame the loop has reached, the countdown's included. */
@@ -124,6 +150,7 @@ class Session implements SoloSession {
   readonly #input: InputEngine;
   /** Key events waiting for the frame the input engine takes them at, in frame order. */
   #keys: { event: KeyEvent; frame: number }[] = [];
+  readonly #eventListeners = new Set<SessionEventListener>();
   readonly #mode: SoloMode;
   readonly #seed: number;
 
@@ -137,12 +164,13 @@ class Session implements SoloSession {
     this.#seed = seed;
     this.#engine = createEngine(PRESETS[mode], seed, 0);
     this.#start = clock.now() + timeOf(COUNTDOWN_FRAMES);
-    this.#store = new StoreState(this.#snapshot());
+    this.#store = createStore<SoloSessionState>()(() => this.#snapshot());
     this.#cancelWake = clock.schedule(this.#wake);
   }
 
-  getState = (): SoloSessionState => this.#store.getState();
-  subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener);
+  getState: SoloSession['getState'] = () => this.#store.getState();
+  getInitialState: SoloSession['getInitialState'] = () => this.#store.getInitialState();
+  subscribe: SoloSession['subscribe'] = (listener) => this.#store.subscribe(listener);
 
   act = (type: PieceActionType, time: number): void => {
     if (this.#pausedAt !== null || this.#over()) return;
@@ -166,7 +194,7 @@ class Session implements SoloSession {
     if (this.#pausedAt !== null || this.#over()) return;
     this.#cancelWake();
     if (this.#catchUp() && !this.#over()) this.#pausedAt = this.#time();
-    this.#store.set(this.#snapshot());
+    this.#publish();
   };
 
   resume = (): void => {
@@ -179,15 +207,24 @@ class Session implements SoloSession {
     // Keys pressed or released at the pause or during it reach the input engine as the countdown
     // starts, so a direction held through it is charged at Go.
     for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
-    this.#store.set(this.#snapshot());
+    this.#publish();
     this.#cancelWake = this.#clock.schedule(this.#wake);
+  };
+
+  onEvents = (listener: SessionEventListener): (() => void) => {
+    // A wrapper, so adding the same function twice calls it twice and removing it removes one.
+    const call: SessionEventListener = (events) => listener(events);
+    this.#eventListeners.add(call);
+    return () => {
+      this.#eventListeners.delete(call);
+    };
   };
 
   #wake = (): void => {
     const before = this.#frame;
     const caughtUp = this.#catchUp();
     if (caughtUp && !this.#over()) this.#cancelWake = this.#clock.schedule(this.#wake);
-    if (!caughtUp || this.#frame > before) this.#store.set(this.#snapshot());
+    if (!caughtUp || this.#frame > before) this.#publish();
   };
 
   /** The time since frame 0 started. */
@@ -234,6 +271,11 @@ class Session implements SoloSession {
     for (const type of made) actions.push({ frame, type });
     this.#engine.step(frame, actions);
     this.#log.push(...actions);
+  }
+
+  /** Replaces the store's state with a fresh snapshot, notifying every subscriber. */
+  #publish(): void {
+    this.#store.setState(this.#snapshot(), true);
   }
 
   #snapshot(): SoloSessionState {

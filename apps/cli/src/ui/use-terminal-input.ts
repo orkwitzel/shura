@@ -84,8 +84,8 @@ export function useTerminalInput({
     }
   };
 
-  // The session's input engine auto-shifts as the adapter needs from the start.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: once, for this screen's session
+  // The session's input engine auto-shifts as the adapter needs from the start (once: the adapter
+  // and session last as long as the screen).
   useEffect(() => {
     autoShift.current = adapter.autoShift;
     session.setInput({ autoShift: adapter.autoShift });

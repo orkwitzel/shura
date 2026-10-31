@@ -29,6 +29,22 @@ describe('solo', () => {
     });
   });
 
+  test.each(['marathon', 'ultra'] as const)('solo %s plays that mode', (mode) => {
+    expect(parseCommand(['solo', mode])).toEqual({
+      kind: 'solo',
+      mode,
+      noColor: false,
+      input: 'auto',
+      debugInput: false,
+    });
+  });
+
+  test('help lists every solo mode', () => {
+    expect(HELP).toMatch(/solo marathon/);
+    expect(HELP).toMatch(/solo sprint/);
+    expect(HELP).toMatch(/solo ultra/);
+  });
+
   test('--no-color goes anywhere', () => {
     expect(parseCommand(['--no-color', 'solo', 'sprint'])).toEqual({
       kind: 'solo',

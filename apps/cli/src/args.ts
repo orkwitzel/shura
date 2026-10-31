@@ -3,7 +3,7 @@ import type { SoloMode } from '@shura/client-core';
 import type { InputChoice } from './input/detect';
 
 /** The single-player modes `shura solo` plays. */
-export const SOLO_MODES = ['sprint'] as const satisfies readonly SoloMode[];
+export const SOLO_MODES = ['sprint', 'marathon', 'ultra'] as const satisfies readonly SoloMode[];
 
 /** The adapters `--input` can fix; without it the CLI chooses (design §7.3). */
 const FIXED_INPUTS = ['precise', 'basic'] as const satisfies readonly InputChoice[];
@@ -26,6 +26,8 @@ export const HELP = `Usage: shura [command] [options]
 
 Commands:
   solo sprint    play Sprint: clear 40 lines as fast as you can
+  solo marathon  play Marathon: 15 levels, faster each 10 lines, to 150 lines
+  solo ultra     play Ultra: score as much as you can in 2 minutes
 
 Options:
   --input precise|basic
