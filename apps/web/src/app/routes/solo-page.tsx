@@ -3,6 +3,7 @@ import { Redirect, useParams } from 'wouter';
 import { MODE_NAMES } from '@/config/modes';
 import { ROUTES } from '@/config/routes';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
+import { Callouts } from '@/features/callouts/components/callouts';
 import { Hud } from '@/features/hud/components/hud';
 import { FinalHeadline } from '@/features/results/components/final-headline';
 import { useSoloSession } from '@/hooks/use-solo-session';
@@ -11,7 +12,10 @@ import styles from './solo-page.module.css';
 const isSoloMode = (mode: string | undefined): mode is SoloMode =>
   (SOLO_MODES as readonly (string | undefined)[]).includes(mode);
 
-/** One mode's games: the board, with the HUD beside it and the end of the game over it. */
+/**
+ * One mode's games: the board, with the HUD and the callouts beside it and the end of the game over
+ * it.
+ */
 function SoloGame({ mode }: { mode: SoloMode }) {
   const { session } = useSoloSession(mode);
   return (
@@ -19,7 +23,12 @@ function SoloGame({ mode }: { mode: SoloMode }) {
       <h1 className={styles.title}>{MODE_NAMES[mode]}</h1>
       <BoardCanvas
         session={session}
-        aside={<Hud session={session} />}
+        aside={
+          <>
+            <Hud session={session} />
+            <Callouts session={session} />
+          </>
+        }
         overlay={<FinalHeadline session={session} />}
       />
     </main>

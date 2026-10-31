@@ -1,6 +1,7 @@
 import {
   createEngine,
   type Engine,
+  type EngineEvent,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
@@ -61,16 +62,10 @@ export interface SoloSessionState {
 }
 
 /**
- * Something that happened during an engine step, with its frame (design §5.2, §13.1). A stand-in
- * until the engine reports events (M3), when this becomes the engine's own event type.
+ * Hears the engine events (design §5.2) of the frames each wake (or pause) stepped, in frame order:
+ * never an empty list.
  */
-export interface SessionEvent {
-  readonly frame: number;
-  readonly type: string;
-}
-
-/** Hears the events of each wake, in frame order. */
-export type SessionEventListener = (events: readonly SessionEvent[]) => void;
+export type SessionEventListener = (events: readonly EngineEvent[]) => void;
 
 /** Hears the actions each wake applied, in frame order: never an empty list. */
 export type AppliedActionsListener = (actions: readonly PieceAction[]) => void;
@@ -109,9 +104,10 @@ export interface SoloSession extends Store<SoloSessionState> {
    */
   restart(seed?: number): void;
   /**
-   * Adds a listener for engine events, which each wake passes on in frame order (design §13.1).
-   * Events are moments, not state, so they don't go through the store. Returns a function that
-   * removes the listener. Nothing calls listeners until the engine reports events (M3).
+   * Adds a listener for engine events, which each wake (or pause) that stepped any passes on in
+   * frame order, once each, after notifying the store's subscribers (design §13.1). Events are
+   * moments, not state, so they don't go through the store. None come in the countdown or while
+   * paused, since the engine doesn't step then. Returns a function that removes the listener.
    */
   onEvents(listener: SessionEventListener): () => void;
   /**
@@ -161,6 +157,8 @@ class Session implements SoloSession {
   readonly #actionListeners = new Set<AppliedActionsListener>();
   /** The actions applied since listeners last heard of them. */
   #unheard: PieceAction[] = [];
+  /** The engine events since listeners last heard of them. */
+  #unheardEvents: EngineEvent[] = [];
   readonly #mode: SoloMode;
   #seed: number;
 
@@ -295,29 +293,37 @@ class Session implements SoloSession {
     this.#frame = frame;
     let keys = 0;
     while ((this.#keys[keys]?.frame ?? Infinity) <= frame) keys++;
-    const events = this.#keys.splice(0, keys).map(({ event }) => event);
+    const keyEvents = this.#keys.splice(0, keys).map(({ event }) => event);
     const countdown = frame <= this.#engine.state.frame;
-    const emitted = this.#input.playFrame(events, countdown ? null : this.#engine.state);
+    const emitted = this.#input.playFrame(keyEvents, countdown ? null : this.#engine.state);
     if (countdown) return;
     let due = 0;
     while (this.#pending[due]?.frame === frame) due++;
     const actions = this.#pending.splice(0, due);
     for (const type of emitted) actions.push({ frame, type });
-    this.#engine.step(frame, actions);
+    const { events } = this.#engine.step(frame, actions);
     this.#log.push(...actions);
     if (this.#actionListeners.size > 0) this.#unheard.push(...actions);
+    if (this.#eventListeners.size > 0) this.#unheardEvents.push(...events);
   }
 
   /**
    * Replaces the store's state with a fresh snapshot, notifying every subscriber, then tells the
-   * action listeners what was applied since they last heard.
+   * action listeners what was applied, and the event listeners what happened, since they last
+   * heard.
    */
   #publish(): void {
     this.#store.setState(this.#snapshot(), true);
-    if (this.#unheard.length === 0) return;
-    const actions = this.#unheard;
-    this.#unheard = [];
-    for (const listener of this.#actionListeners) listener(actions);
+    if (this.#unheard.length > 0) {
+      const actions = this.#unheard;
+      this.#unheard = [];
+      for (const listener of this.#actionListeners) listener(actions);
+    }
+    if (this.#unheardEvents.length > 0) {
+      const events = this.#unheardEvents;
+      this.#unheardEvents = [];
+      for (const listener of this.#eventListeners) listener(events);
+    }
   }
 
   #snapshot(): SoloSessionState {

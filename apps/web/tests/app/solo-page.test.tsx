@@ -1,5 +1,5 @@
 import { ActionType } from '@shura/engine';
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { AppRouter } from '@/app/router';
 // The engine's recorded Sprint (design §5.3): a full game whose action log finishes it.
@@ -46,10 +46,11 @@ const tap = (code: string) =>
 const stat = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling;
 
 describe('/solo/sprint', () => {
-  test('shows the board, with the HUD beside it', async () => {
+  test('shows the board, with the HUD and the callouts beside it', async () => {
     renderWithStores(<AppRouter />, { path: '/solo/sprint' });
     await started();
     expect(screen.getByRole('heading', { name: 'Sprint' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Callouts' })).toBeInTheDocument();
     expect(pixiApps).toHaveLength(1);
     expect(stat('Time')).toHaveTextContent('0:00.000');
     expect(stat('Lines')).toHaveTextContent('0/40');
@@ -87,7 +88,11 @@ describe('/solo/sprint', () => {
     // The recorded game finishes 40 lines at frame 1,222: 20.367 s.
     expect(stat('Lines')).toHaveTextContent('40/40');
     expect(screen.getByText('Finished')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('0:20.367');
+    expect(screen.getByText('Finished').closest('[role="status"]')).toHaveTextContent('0:20.367');
+    // The engine's events reached the callouts: the lock that cleared the 40th line has some.
+    expect(
+      within(screen.getByRole('status', { name: 'Callouts' })).getAllByRole('listitem').length,
+    ).toBeGreaterThan(0);
     // The game ended, so it was recorded.
     expect(app.stores.records.getState().sprint?.stats.frames).toBe(1_222);
   });

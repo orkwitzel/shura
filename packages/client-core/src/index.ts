@@ -8,6 +8,13 @@ export {
   rebindChange,
   unbind,
 } from './bindings';
+export {
+  type Callout,
+  type CalloutKind,
+  type CalloutListener,
+  lockCallouts,
+  onCallouts,
+} from './callouts';
 export type { Clock } from './clock';
 export { countdownLabel } from './countdown';
 export { formatFrames, formatHeadline, formatScore } from './format';
@@ -64,7 +71,6 @@ export {
 export {
   type AppliedActionsListener,
   createSoloSession,
-  type SessionEvent,
   type SessionEventListener,
   type SoloPhase,
   type SoloSession,
