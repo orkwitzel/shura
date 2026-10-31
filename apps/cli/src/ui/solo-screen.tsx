@@ -1,15 +1,16 @@
 import { type Clock, createSoloSession, type SoloMode } from '@shura/client-core';
 import { useSession } from '@shura/client-core/react';
-import { useInput } from 'ink';
+import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { type Bindings, DEFAULT_BINDINGS } from '../input/bindings';
-import { createPreciseAdapter } from '../input/precise';
-import { keyName } from '../input/terminal-input';
+import { keyName, type TerminalInput } from '../input/terminal-input';
 import type { ColorMode } from '../render/palette';
 import { useCountdownLabel } from './countdown';
+import { DebugPanel } from './debug-panel';
 import { commandFor, type MenuCommand, menuLines } from './game-menu';
 import { GameView } from './game-view';
 import { ResultsScreen } from './results';
+import { type InputOptions, useTerminalInput } from './use-terminal-input';
 
 export interface SoloScreenProps {
   readonly mode: SoloMode;
@@ -20,6 +21,8 @@ export interface SoloScreenProps {
   readonly colors: ColorMode;
   readonly ghost?: boolean;
   readonly bindings?: Bindings;
+  /** The input adapter (`auto` by default) and the debug panel (design §7.3). */
+  readonly input?: InputOptions;
   /**
    * Whether the screen can be seen. While it can't (the terminal is too small), the game pauses,
    * and the menu and results keys do nothing, so the game can't resume unseen.
@@ -31,9 +34,10 @@ export interface SoloScreenProps {
 
 /**
  * Single-player games of one mode, from mount to unmount: the countdown, the game, the in-game menu
- * over the board while paused, and the results once a game ends. Keys come from the terminal through
- * the precise adapter. During a game only the game controls and the menu binding (Esc, P) act; the
- * menu and the results have their own shortcuts. Unmounting stops the session's loop.
+ * over the board while paused, and the results once a game ends, with the debug panel beside them
+ * if asked for. Keys come from the terminal through an input adapter. During a game only the game
+ * controls and the menu binding (Esc, P) act; the menu and the results have their own shortcuts.
+ * Unmounting stops the session's loop.
  */
 export function SoloScreen({
   mode,
@@ -42,6 +46,7 @@ export function SoloScreen({
   colors,
   ghost = true,
   bindings = DEFAULT_BINDINGS,
+  input = { choice: 'auto' },
   visible = true,
   onQuit,
 }: SoloScreenProps) {
@@ -56,7 +61,6 @@ export function SoloScreen({
   }, [visible, session]);
   const state = useSession(session);
   const countdown = useCountdownLabel(state);
-  const [adapter] = useState(() => createPreciseAdapter(bindings));
 
   const restart = () => session.restart(seed);
   const quit = () => onQuit?.();
@@ -72,26 +76,45 @@ export function SoloScreen({
     { keys: ['enter', 'escape'], hint: 'Enter, Esc', label: 'Back', run: quit },
   ];
 
-  useInput((input, key) => {
-    const raw = { input, key, time: clock.now() };
+  /**
+   * Runs the menu's or the results' shortcut a key press names. Every other key goes on to the
+   * adapter, even in the menu and on the results, so a game key held there is held (and charged)
+   * at Go, and one released there isn't left held.
+   */
+  const shortcut = (raw: TerminalInput): boolean => {
     const { phase } = session.getState();
     const commands = phase === 'paused' ? menu : phase === 'ended' ? results : [];
-    const command = (key.eventType ?? 'press') === 'press' && commandFor(commands, keyName(raw));
-    if (command) {
-      if (visible) command.run();
-      return;
-    }
-    // Game keys count in the menu and on the results too, so a key held there is held (and
-    // charged) at Go, and one released there isn't left held.
-    const signal = adapter.feed(raw);
-    if (signal?.kind === 'key') session.key(signal.event);
-    else if (signal?.kind === 'menu') session.pause();
+    const press = (raw.key.eventType ?? 'press') === 'press';
+    const command = press ? commandFor(commands, keyName(raw)) : undefined;
+    if (!command) return false;
+    if (visible) command.run();
+    return true;
+  };
+  const keys = useTerminalInput({
+    session,
+    clock,
+    bindings,
+    options: input,
+    onMenu: session.pause,
+    shortcut,
   });
 
-  if (state.phase === 'ended') return <ResultsScreen state={state} keys={results} />;
   const overlay =
     state.phase === 'paused' ? menuLines('PAUSED', menu) : countdown ? ['', countdown, ''] : [];
   return (
-    <GameView state={state} colors={colors} ghost={ghost} input={adapter.name} overlay={overlay} />
+    <Box flexDirection="row">
+      {state.phase === 'ended' ? (
+        <ResultsScreen state={state} keys={results} />
+      ) : (
+        <GameView
+          state={state}
+          colors={colors}
+          ghost={ghost}
+          input={keys.adapter}
+          overlay={overlay}
+        />
+      )}
+      {input.debug && <DebugPanel {...keys} capture={input.capture?.path} />}
+    </Box>
   );
 }

@@ -141,6 +141,24 @@ describe('the in-game menu', () => {
   });
 });
 
+describe('the in-game menu in a terminal without the Kitty protocol (basic input)', () => {
+  it('opens with P, restarts with R and resumes with Enter, as plain bytes', async () => {
+    const game = await start();
+    await game.run(COUNTDOWN_MS + 1_000);
+    await game.type('p');
+    expect(game.frame()).toContain('input: basic');
+    expect(overBoard(game.frame())).toContain('PAUSED');
+    await game.type('r');
+    expect(overBoard(game.frame())).toEqual(['3']);
+    expect(time(game.frame())).toBe('0:00.000');
+    await game.run(COUNTDOWN_MS + 500);
+    await game.type('p');
+    await game.type('\r');
+    expect(overBoard(game.frame())).toEqual(['3']);
+    expect(time(game.frame())).toBe('0:00.500');
+  });
+});
+
 describe('a terminal shrinking below 80×24 mid-game', () => {
   it('pauses the game behind the enlarge message, and the menu is back once it is big enough', async () => {
     const game = await start();

@@ -4,3 +4,5 @@ dist/
 *.tsbuildinfo
 .env
 coverage/
+# --debug-input captures (rename into apps/cli/tests/support/captures/ to keep one)
+shura-input-*.jsonl

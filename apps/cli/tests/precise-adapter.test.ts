@@ -28,7 +28,7 @@ const RELEASE = 3;
 async function signals(chunks: readonly string[]): Promise<(InputSignal | null)[]> {
   const raws = await parseTerminalBytes(chunks);
   const adapter = createPreciseAdapter(DEFAULT_BINDINGS);
-  return raws.map((raw, time) => adapter.feed({ ...raw, time }));
+  return raws.map((raw, time) => adapter.feed({ ...raw, time })[0] ?? null);
 }
 
 describe('precise adapter', () => {
