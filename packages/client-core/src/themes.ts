@@ -189,19 +189,57 @@ export const THEMES = {
 export type ThemeId = keyof typeof THEMES;
 
 /**
- * How a cell is drawn, separately from its colour (design §13.1, Themes and skins). The canvas
- * drawing joins the terminal one in M3.
+ * A rectangle of a cell's pixel art, on its 8×8 grid of art pixels: (0, 0) is the top-left art
+ * pixel, and `x` grows right, `y` down.
  */
+export interface ArtRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  /**
+   * Its colour, from the cell's: 0 is the cell's colour, a negative shade darkens it toward black
+   * (-0.55 is 55 % of the way) and a positive one lightens it toward white (1 is white).
+   */
+  readonly shade: number;
+  /** Its opacity, 0 (clear) to 1 (opaque, without one). */
+  readonly alpha?: number;
+}
+
+/** How a skin draws a cell on a canvas: rectangles of pixel art, painted in order. */
+export type CanvasDrawing = readonly ArtRect[];
+
+/** How a cell is drawn, separately from its colour (design §13.1, Themes and skins). */
 export interface Skin {
   readonly id: string;
   readonly name: string;
   /** A filled cell in a terminal: two characters, drawn in the cell's colour. */
   readonly terminal: string;
+  /**
+   * A filled cell on a canvas, as pixel art. Only Pixel has one so far: the web draws the others
+   * as Pixel until theirs come (#49).
+   */
+  readonly canvas?: CanvasDrawing;
 }
+
+/**
+ * The Pixel skin's canvas drawing (design §13.1): the edge (the whole cell, darkened 55 %), the
+ * inner 6×6 in the piece colour, its top row and left column lightened 40 %, its bottom row and
+ * its right column from row 2 down darkened 22 %, and one white shine pixel at (2, 2).
+ */
+const PIXEL_CANVAS: CanvasDrawing = [
+  { x: 0, y: 0, width: 8, height: 8, shade: -0.55 },
+  { x: 1, y: 1, width: 6, height: 6, shade: 0 },
+  { x: 1, y: 1, width: 6, height: 1, shade: 0.4 },
+  { x: 1, y: 1, width: 1, height: 6, shade: 0.4 },
+  { x: 1, y: 6, width: 6, height: 1, shade: -0.22 },
+  { x: 6, y: 2, width: 1, height: 5, shade: -0.22 },
+  { x: 2, y: 2, width: 1, height: 1, shade: 1 },
+];
 
 /** Every skin, by id, the default first. */
 export const SKINS = {
-  pixel: { id: 'pixel', name: 'Pixel', terminal: '██' },
+  pixel: { id: 'pixel', name: 'Pixel', terminal: '██', canvas: PIXEL_CANVAS },
   flat: { id: 'flat', name: 'Flat', terminal: '▓▓' },
   outline: { id: 'outline', name: 'Outline', terminal: '[]' },
 } as const satisfies Record<string, Skin>;

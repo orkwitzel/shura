@@ -74,6 +74,8 @@ export { errorMessage, type Storage, type StoredKind } from './storage';
 export type { AppStores, Store } from './store';
 export {
   type Ansi16,
+  type ArtRect,
+  type CanvasDrawing,
   type Rgb,
   SKINS,
   type Skin,
