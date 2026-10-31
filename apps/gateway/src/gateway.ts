@@ -17,13 +17,10 @@ import type { ServerClock } from './clock';
 import { type ConnectionLimits, DEFAULT_LIMITS, type GatewayLimits, Limits } from './limits';
 import type { Logger } from './logger';
 import type { DialGame, Peer } from './peer';
-import { placeRoom, randomRoomCode } from './placement';
+import { claimRoomCode, placeRoom } from './placement';
 import { QuickMatching } from './quick-match';
 import { RoomLinks, type RoomMember } from './room-links';
 import { restoreSession } from './sessions';
-
-/** How many random codes a new room tries before giving up. 920k codes make a clash rare. */
-const CODE_TRIES = 10;
 
 export interface GatewayOptions {
   readonly clock: ServerClock;
@@ -269,26 +266,25 @@ class Connection implements RoomMember {
     const { registry, podHealth } = this.#options.stores;
     const pod = await placeRoom(podHealth);
     if (!pod) return this.#send(error('unavailable', 'No game server can take a room right now.'));
-    for (let tries = 0; tries < CODE_TRIES; tries++) {
-      const code = randomRoomCode();
-      const room = {
-        podAddress: pod.address,
-        epoch: 0,
-        mode,
-        phase: 'lobby' as const,
-        hostId: session.id,
-      };
-      if (!(await registry.create(code, room))) continue;
-      this.#logger.info({ sessionId: session.id, roomCode: code, mode }, 'room created');
-      return this.#enter(session, code, room, {
-        type: 'createRoom',
-        roomCode: code,
-        epoch: 0,
-        mode,
-        hostId: session.id,
-      });
+    const room = {
+      podAddress: pod.address,
+      epoch: 0,
+      mode,
+      phase: 'lobby' as const,
+      hostId: session.id,
+    };
+    const code = await claimRoomCode(registry, room);
+    if (code === undefined) {
+      return this.#send(error('unavailable', "Couldn't find a free room code. Try again."));
     }
-    this.#send(error('unavailable', "Couldn't find a free room code. Try again."));
+    this.#logger.info({ sessionId: session.id, roomCode: code, mode }, 'room created');
+    return this.#enter(session, code, room, {
+      type: 'createRoom',
+      roomCode: code,
+      epoch: 0,
+      mode,
+      hostId: session.id,
+    });
   }
 
   async #joinRoom(session: Session, typed: string): Promise<void> {

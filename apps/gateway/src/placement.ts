@@ -18,7 +18,7 @@ export async function placeRoom(podHealth: PodHealth): Promise<PodHeartbeat | un
 }
 
 /** A random room code (design §10.3). The registry says whether it's free. */
-export function randomRoomCode(): string {
+function randomRoomCode(): string {
   return Array.from(
     { length: ROOM_CODE_LENGTH },
     () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)],
