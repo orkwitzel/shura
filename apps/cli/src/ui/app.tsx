@@ -58,7 +58,7 @@ export function App({ mode, clock, seed, colors, input, settings, records, notic
             />
           )}
           {screen.kind === 'settings' && (
-            <SettingsScreen onClose={toMenu} active={size.bigEnough} />
+            <SettingsScreen onClose={toMenu} active={size.bigEnough} clock={clock} />
           )}
           {screen.kind === 'solo' && (
             <SoloScreen

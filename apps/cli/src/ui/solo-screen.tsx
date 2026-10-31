@@ -142,7 +142,7 @@ export function SoloScreen({
   return (
     <Box flexDirection="row">
       {settingsOpen ? (
-        <SettingsScreen onClose={() => setSettingsOpen(false)} active={visible} />
+        <SettingsScreen onClose={() => setSettingsOpen(false)} active={visible} clock={clock} />
       ) : state.phase === 'ended' ? (
         <ResultsScreen
           state={state}

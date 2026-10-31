@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openStores } from '../src/config/stores';
 import { SettingsScreen } from '../src/ui/settings-screen';
+import { fakeClock } from './support/fake-clock';
 import { resize, settle } from './support/ink';
 import { SETTINGS_KEYS, settingsRow } from './support/settings';
 import { tempStorage } from './support/temp-storage';
@@ -20,7 +21,7 @@ afterEach(() => {
  * The settings screen over config.json in a temporary XDG directory (one it can't write to, if
  * `unwritable`), at 80×24.
  */
-async function settingsScreen(config?: unknown, { unwritable = false } = {}) {
+async function settingsScreen(config?: unknown, { unwritable = false, clock = fakeClock() } = {}) {
   const temp = tempStorage(config === undefined ? {} : { config });
   const stores = openStores(
     unwritable
@@ -35,7 +36,7 @@ async function settingsScreen(config?: unknown, { unwritable = false } = {}) {
   const onClose = vi.fn();
   const app = render(
     <ClientCoreProvider settings={stores.settings} records={stores.records}>
-      <SettingsScreen onClose={onClose} />
+      <SettingsScreen onClose={onClose} clock={clock} />
     </ClientCoreProvider>,
   );
   cleanups.push(() => app.unmount(), temp.cleanup);
@@ -173,6 +174,22 @@ describe('rebinding', () => {
     expect(screen.onClose).not.toHaveBeenCalled();
     await screen.type(KEY.escape);
     expect(screen.onClose).toHaveBeenCalledOnce();
+  });
+
+  it("doesn't bind the key repeat of the Enter that opened the prompt, without Kitty releases", async () => {
+    const clock = fakeClock();
+    const screen = await settingsScreen(undefined, { clock });
+    // A legacy terminal sends Enter as \r, and a held Enter as more of them: the OS key repeat.
+    await screen.type(...down(TO.hold), '\r');
+    for (const gap of [500, 33, 33]) {
+      clock.run(gap, gap);
+      await screen.type('\r');
+      expect(screen.line('Hold')).toBe('› Hold [...] +');
+    }
+    // Let go, then pressed again: now it binds.
+    clock.run(1_000, 1_000);
+    await screen.type('\r');
+    expect(screen.line('Hold')).toBe('› Hold [Enter] +');
   });
 
   it.each([

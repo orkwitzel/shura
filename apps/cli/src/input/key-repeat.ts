@@ -38,7 +38,7 @@ const DELAYS_KEPT = 4;
 
 /**
  * The shortest repeat interval believed (ms): bytes read together arrive at the same time, which
- * isn't the OS repeat rate.
+ * isn't the OS repeat rate, so shorter gaps aren't learned.
  */
 const MIN_INTERVAL = 10;
 
@@ -128,7 +128,7 @@ export function createKeyRepeatReader({
   /** How long a repeating key may stay silent. */
   const silence = (): number => {
     if (intervals.length === 0) return firstWait();
-    return INTERVALS_TO_RELEASE * Math.max(MIN_INTERVAL, mean(intervals));
+    return INTERVALS_TO_RELEASE * mean(intervals);
   };
 
   const learnDelay = (sample: number) => {
@@ -153,7 +153,7 @@ export function createKeyRepeatReader({
       key.firstRepeat = time;
     } else {
       const gap = time - key.last;
-      keep(intervals, gap, INTERVALS_KEPT);
+      if (gap >= MIN_INTERVAL) keep(intervals, gap, INTERVALS_KEPT);
       // A second repeat soon after the first shows the first was the OS repeat, not a slow tap.
       if (key.last === key.firstRepeat && gap < SHORTEST_REPEAT_DELAY) {
         learnDelay(key.firstRepeat - key.pressed);
