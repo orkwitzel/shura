@@ -20,6 +20,7 @@ import type { DialGame, Peer } from './peer';
 import { placeRoom, randomRoomCode } from './placement';
 import { QuickMatching } from './quick-match';
 import { RoomLinks, type RoomMember } from './room-links';
+import { restoreSession } from './sessions';
 
 /** How many random codes a new room tries before giving up. 920k codes make a clash rare. */
 const CODE_TRIES = 10;
@@ -74,10 +75,8 @@ interface Session {
 /**
  * One player's WebSocket: the `hello` and version check (design §8.3), the ping, the room
  * messages, and the room's traffic both ways. Messages are handled one at a time, in order, so a
- * slow store call can't let a later message overtake an earlier one.
- *
- * Seams for later tickets:
- * - #64: `hello` with a `sessionToken` restores the session (and its room) instead of a new one;
+ * slow store call can't let a later message overtake an earlier one. A `hello` with a session
+ * token comes back as that session, into its room (design §10.2).
  *
  * Its abuse limits (design §11) are in `#receive`: the message-rate bucket, the invalid-message
  * count, and the room limits around `#createRoom` and `#joinRoom`.
@@ -184,12 +183,14 @@ class Connection implements RoomMember {
         return this.#quickMatching.request();
       case 'cancelQuickMatch':
         return this.#quickMatching.cancel();
+      case 'setNickname':
+        return this.#setNickname(session, message.nickname);
       default:
         return this.#forward(session, message);
     }
   }
 
-  /** The version check (ADR 0006), then a new session with its token (design §10.2). */
+  /** The version check (ADR 0006), then a new session with its token, or the one it names back (design §10.2). */
   async #hello(message: ClientMessageOf<'hello'>): Promise<void> {
     if (this.#session) return this.#send(error('invalid_message', 'Hello was already said.'));
     if (message.protocolVersion !== PROTOCOL_VERSION || message.engineVersion !== ENGINE_VERSION) {
@@ -202,23 +203,29 @@ class Connection implements RoomMember {
       );
       return this.#socket.close();
     }
+    const kind = message.kind ?? 'guest';
+    const restored = message.sessionToken
+      ? await restoreSession(this.#options.stores, message.sessionToken, kind)
+      : undefined;
     const nickname = validateNickname(message.nickname);
-    if (!nickname.ok) {
+    if (!restored && !nickname.ok) {
       this.#send(error('nickname_invalid', `That nickname can't be used (${nickname.reason}).`));
       return this.#socket.close();
     }
-    const session: Session = {
+    const session: Session = restored?.session ?? {
       id: randomUUID(),
       token: randomBytes(24).toString('base64url'),
-      nickname: nickname.nickname,
-      kind: message.kind ?? 'guest',
+      nickname: nickname.ok ? nickname.nickname : '',
+      kind,
     };
-    await this.#options.stores.sessions.create(session.token, {
-      sessionId: session.id,
-      nickname: session.nickname,
-    });
+    if (!restored) {
+      await this.#options.stores.sessions.create(session.token, {
+        sessionId: session.id,
+        nickname: session.nickname,
+      });
+    }
     this.#session = session;
-    this.#logger.info({ sessionId: session.id, kind: session.kind }, 'hello');
+    this.#logger.info({ sessionId: session.id, kind, restored: !!restored }, 'hello');
     this.#send({
       type: 'welcome',
       sessionId: session.id,
@@ -226,6 +233,34 @@ class Connection implements RoomMember {
       nickname: session.nickname,
       serverTime: this.#options.clock.now(),
     });
+    // Back as a session that was in a room: into its seat again (design §10.2), before any message
+    // that follows the hello, such as the batches sent again, is handled.
+    if (restored?.roomCode) await this.#reenter(session, restored.roomCode);
+  }
+
+  /**
+   * A new nickname, in the lobby (design §10.2): normalised and checked here as at `hello`, then
+   * on to the room, which refuses it outside the lobby and adds the `#2` of a duplicate.
+   */
+  async #setNickname(session: Session, typed: string): Promise<void> {
+    const nickname = validateNickname(typed);
+    if (!nickname.ok) {
+      return this.#send(
+        error('nickname_invalid', `That nickname can't be used (${nickname.reason}).`),
+      );
+    }
+    if (!this.#roomCode) return this.#send(error('not_in_room', "You're not in a room."));
+    session.nickname = nickname.nickname;
+    await this.#options.stores.sessions.update(session.token, { nickname: nickname.nickname });
+    return this.#forward(session, { type: 'setNickname', nickname: nickname.nickname });
+  }
+
+  /** The room a restored session was in, if it's still there; its pod holds the seat. */
+  async #reenter(session: Session, code: string): Promise<void> {
+    const room = await this.#options.stores.registry.get(code);
+    if (room) return this.#enter(session, code, room);
+    await this.#options.stores.sessions.update(session.token, { roomCode: null });
+    this.#send(error('room_not_found', 'Your room is gone.'));
   }
 
   /** A new room on the least-loaded pod (design §9.2), with this session as its host. */
@@ -292,7 +327,7 @@ class Connection implements RoomMember {
     });
     if (message.type !== 'leaveRoom') return;
     this.#roomCode = null;
-    this.#links.exit(code, session.id, { detach: false });
+    this.#links.exit(code, this, { detach: false });
     await this.#options.stores.sessions.update(session.token, { roomCode: null });
   }
 
@@ -302,7 +337,7 @@ class Connection implements RoomMember {
     const session = this.#session;
     if (!code || !session) return;
     this.#roomCode = null;
-    this.#links.exit(code, session.id, { detach: false });
+    this.#links.exit(code, this, { detach: false });
     await this.#options.stores.sessions.update(session.token, { roomCode: null });
   }
 
@@ -311,7 +346,7 @@ class Connection implements RoomMember {
     this.#closed = true;
     const session = this.#session;
     if (session && this.#roomCode) {
-      this.#links.exit(this.#roomCode, session.id, { detach: true });
+      this.#links.exit(this.#roomCode, this, { detach: true });
     }
     await this.#quickMatching.leave();
     this.#logger.info({ sessionId: session?.id }, 'connection closed');

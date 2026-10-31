@@ -4,6 +4,8 @@ import { GARBAGE_ACK_TIMEOUT } from '@shura/protocol';
 /** An attack the server routed to a player (design §8.5, step 2). */
 export interface SentAttack {
   readonly id: number;
+  /** The attacker's player id. */
+  readonly from: string;
   readonly lines: number;
   readonly holeSeed: number;
   /** The target's verified frame when the server sent it, which its timeout counts from. */
@@ -28,6 +30,16 @@ export class IncomingGarbage {
   /** The server sent `attack` to the player. */
   send(attack: SentAttack): void {
     this.#attacks.push({ ...attack, receivedAt: null });
+  }
+
+  /**
+   * The attacks sent and not yet received in a verified batch, oldest first: what a player who
+   * comes back mid-match may have missed the `garbageQueued` of (design §10.2).
+   */
+  unreceived(): SentAttack[] {
+    return this.#attacks
+      .filter(({ receivedAt }) => receivedAt === null)
+      .map(({ id, from, lines, holeSeed, sentAt }) => ({ id, from, lines, holeSeed, sentAt }));
   }
 
   /**

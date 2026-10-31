@@ -201,6 +201,48 @@ export class Match {
   }
 
   /**
+   * Each player's game at their own last verified frame (design §8.6), for whoever joins or comes
+   * back mid-match. Relays carry on from each player's frame.
+   */
+  snapshot(): ServerMessageOf<'snapshot'> {
+    return {
+      type: 'snapshot',
+      players: [...this.#players.values()].map(({ id, frame, engine }) => ({
+        playerId: id,
+        frame,
+        state: engine.serialize(),
+      })),
+    };
+  }
+
+  /** The `playerOut` of every player out so far, for whoever joins or comes back mid-match. */
+  outs(): ServerMessageOf<'playerOut'>[] {
+    return [...this.#players.values()].flatMap(({ id, out }) =>
+      out
+        ? [{ type: 'playerOut' as const, playerId: id, reason: out.reason, frame: out.frame }]
+        : [],
+    );
+  }
+
+  /**
+   * The `garbageQueued` of each attack sent to `playerId` and not yet received in a verified batch,
+   * for a player who comes back mid-match: one sent while they were away must still reach them
+   * (design §8.5, §10.2). A client ignores any it has already received.
+   */
+  unreceivedGarbage(playerId: string): ServerMessageOf<'garbageQueued'>[] {
+    const player = this.#players.get(playerId);
+    if (!player || player.out) return [];
+    return player.incoming.unreceived().map(({ id, from, lines, holeSeed }) => ({
+      type: 'garbageQueued' as const,
+      id,
+      from,
+      to: playerId,
+      lines,
+      holeSeed,
+    }));
+  }
+
+  /**
    * An input batch from `playerId`: verified by replaying it on their engine, queued for the next
    * relay and the next match-log append, and acknowledged once that append has succeeded. A batch
    * that doesn't follow on from the last one, receives garbage it wasn't sent, or that the engine
@@ -356,7 +398,7 @@ export class Match {
       if (!target) continue;
       const id = this.#nextGarbageId++;
       const holeSeed = holeSeeds.next(target.holes);
-      target.incoming.send({ id, lines, holeSeed, sentAt: target.frame });
+      target.incoming.send({ id, from: player.id, lines, holeSeed, sentAt: target.frame });
       this.#log.routing({
         from: player.id,
         to: target.id,

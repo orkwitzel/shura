@@ -5,14 +5,13 @@ import {
   type GameToGateway,
   type GatewayToGame,
   gatewayToGameSchema,
-  type ServerMessage,
 } from '@shura/protocol';
 import type { Stores } from '@shura/valkey';
 import type { ServerClock } from './clock';
 import type { Logger } from './logger';
 import type { VerifiedGame } from './match';
 import type { Peer } from './peer';
-import { Room } from './room';
+import { type Deliver, Room } from './room';
 
 /** How often the pod writes its heartbeat (design §9.1): every 2 s, with a 5 s TTL. */
 export const HEARTBEAT_MS = 2000;
@@ -80,6 +79,24 @@ class Service implements GameService {
     // The sessions each room has through this link, so a closed link detaches them.
     const sessions = new Map<string, Set<string>>();
     const send = (message: GameToGateway) => link.send(JSON.stringify(message));
+    // One `deliver` per room through this link: a room tells by it which link a member is on.
+    const delivers = new Map<string, Deliver>();
+    const deliverTo = (message: GatewayToGame): Deliver => {
+      const known = delivers.get(message.roomCode);
+      if (known) return known;
+      const deliver: Deliver = (sessionId, inner) => {
+        const room = this.#rooms.get(message.roomCode);
+        send({
+          type: 'room',
+          roomCode: message.roomCode,
+          epoch: room?.epoch ?? message.epoch,
+          sessionId,
+          message: inner,
+        });
+      };
+      delivers.set(message.roomCode, deliver);
+      return deliver;
+    };
     link.listen({
       message: (text) => {
         const message = parse(text);
@@ -87,25 +104,16 @@ class Service implements GameService {
           logger.warn('invalid message from a gateway');
           return;
         }
-        const deliver = (sessionId: string, inner: ServerMessage) => {
-          const room = this.#rooms.get(message.roomCode);
-          send({
-            type: 'room',
-            roomCode: message.roomCode,
-            epoch: room?.epoch ?? message.epoch,
-            sessionId,
-            message: inner,
-          });
-        };
         if (message.type === 'attach') {
           const known = sessions.get(message.roomCode) ?? new Set();
           sessions.set(message.roomCode, known.add(message.sessionId));
         }
-        this.#receive(message, deliver);
+        this.#receive(message, deliverTo(message));
       },
       close: () => {
         for (const [code, ids] of sessions) {
-          for (const id of ids) this.#rooms.get(code)?.detach(id);
+          const deliver = delivers.get(code);
+          for (const id of ids) if (deliver) this.#rooms.get(code)?.detach(id, deliver);
         }
       },
     });
@@ -139,7 +147,7 @@ class Service implements GameService {
     });
   }
 
-  #receive(message: GatewayToGame, deliver: (sessionId: string, message: ServerMessage) => void) {
+  #receive(message: GatewayToGame, deliver: Deliver) {
     const room = this.#rooms.get(message.roomCode);
     switch (message.type) {
       case 'createRoom':
@@ -157,7 +165,7 @@ class Service implements GameService {
         this.#deletions.delete(room.code);
         return room.attach(message.sessionId, message.nickname, message.kind, deliver);
       case 'detach':
-        return room?.detach(message.sessionId);
+        return room?.detach(message.sessionId, deliver);
       case 'room':
         return room?.handle(message.sessionId, message.message);
     }

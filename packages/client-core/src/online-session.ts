@@ -32,16 +32,24 @@ const CONNECT_PINGS = 5;
 /** How often the session pings once connected, in the lobby and during matches (design §8.4). */
 export const PING_EVERY_MS = 2000;
 
-/** Why a connection failed: the server's `error` code, or that it closed or never opened. */
-export type ConnectionFailure = ErrorCode | 'unreachable' | 'lost';
+/**
+ * The waits between attempts to reconnect after the connection drops (design §10.2): the first
+ * attempt is at once, then 250 ms, 500 ms and 1 s, then every 2 s (the last, repeated).
+ */
+export const RECONNECT_DELAYS_MS: readonly number[] = [250, 500, 1000, 2000];
+
+/** Why a connection failed: the server's `error` code, or that it never opened. */
+export type ConnectionFailure = ErrorCode | 'unreachable';
 
 /**
- * The connection (design §13.1): opening, connected (the `hello` was welcomed), failed (with why),
- * or closed by the player. #64 adds reconnecting.
+ * The connection (design §13.1): opening, connected (the `hello` was welcomed), reconnecting after
+ * it dropped (design §10.2: a match plays on locally meanwhile), failed (with why), or closed by
+ * the player.
  */
 export type OnlineConnection =
   | { readonly status: 'connecting' }
   | { readonly status: 'connected' }
+  | { readonly status: 'reconnecting' }
   | { readonly status: 'failed'; readonly reason: ConnectionFailure; readonly message: string }
   | { readonly status: 'closed' };
 
@@ -87,6 +95,11 @@ export interface OnlineSessionOptions {
   readonly clientVersion: string;
   /** `bot` from the bot tool (design §13.4). */
   readonly kind?: PlayerKind;
+  /**
+   * A session token from an earlier session, to come back as it (design §10.2): the web keeps it
+   * in `sessionStorage` across a reload.
+   */
+  readonly sessionToken?: string;
   readonly handling?: Partial<Handling>;
   readonly autoShift?: AutoShift;
 }
@@ -108,6 +121,12 @@ export interface OnlineSession extends Store<OnlineSessionState> {
    */
   leaveMatch(): void;
   setReady(ready: boolean): void;
+  /** Steps out of your seat to watch, in the lobby (design §10.1). */
+  spectate(): void;
+  /** Takes a free seat, in the lobby. */
+  takeSeat(): void;
+  /** Changes your nickname, in the lobby (design §10.2). */
+  setNickname(nickname: string): void;
   /** The host's Start (design §10.1). */
   startMatch(): void;
   /** Asks for a 1v1 against the next player who asks (design §9.4). Sent once connected. */
@@ -125,7 +144,7 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   onEvents(listener: SessionEventListener): () => void;
   /** Adds a listener for the actions your game applies. Returns its removal. */
   onActions(listener: AppliedActionsListener): () => void;
-  /** Closes the connection, as the player leaves online play. */
+  /** Leaves your room, then closes the connection, as the player leaves online play. */
   close(): void;
 }
 
@@ -144,15 +163,13 @@ const INITIAL: OnlineSessionState = {
   error: null,
 };
 
-/**
- * Seams for later tickets:
- * - #64: reconnecting with backoff on `lost`, `hello` with the session token, resending
- *   `match.unacknowledged`, and `snapshot`.
- */
 class Session implements OnlineSession {
   readonly #options: OnlineSessionOptions;
   readonly #store: StoreApi<OnlineSessionState>;
-  readonly #socket: OnlineSocket;
+  #socket: OnlineSocket;
+  /** Attempts to reconnect that failed since the connection dropped. */
+  #reconnects = 0;
+  #cancelReconnect: () => void = () => {};
   readonly #sync = new ClockSync();
   readonly #input: InputEngine;
   /** When each ping still waiting for its pong was sent, by id. */
@@ -162,7 +179,7 @@ class Session implements OnlineSession {
   #cancelPing: () => void = () => {};
   /** Messages waiting for the `welcome`. */
   #outbox: ClientMessage[] = [];
-  #sessionToken: string | null = null;
+  #sessionToken: string | null;
   #match: OnlineMatch | null = null;
   readonly #eventListeners = new Set<SessionEventListener>();
   readonly #actionListeners = new Set<AppliedActionsListener>();
@@ -173,19 +190,16 @@ class Session implements OnlineSession {
       handling: { ...DEFAULT_HANDLING, ...options.handling },
       ...(options.autoShift && { autoShift: options.autoShift }),
     });
+    this.#sessionToken = options.sessionToken ?? null;
     this.#store = createStore<OnlineSessionState>()(() => INITIAL);
-    this.#socket = options.connect(options.url, {
-      open: this.#open,
-      message: this.#message,
-      close: this.#closed,
-    });
+    this.#socket = this.#dial();
   }
 
   getState: OnlineSession['getState'] = () => this.#store.getState();
   getInitialState: OnlineSession['getInitialState'] = () => this.#store.getInitialState();
   subscribe: OnlineSession['subscribe'] = (listener) => this.#store.subscribe(listener);
 
-  /** The session token the server issued, which #64 reconnects with. */
+  /** The session token the server issued, which the session reconnects with. */
   get sessionToken(): string | null {
     return this.#sessionToken;
   }
@@ -194,6 +208,9 @@ class Session implements OnlineSession {
   joinRoom = (code: string): void => this.#send({ type: 'joinRoom', code });
   setReady = (ready: boolean): void => this.#send({ type: 'ready', ready });
   startMatch = (): void => this.#send({ type: 'startMatch' });
+  spectate = (): void => this.#send({ type: 'spectate' });
+  takeSeat = (): void => this.#send({ type: 'takeSeat' });
+  setNickname = (nickname: string): void => this.#send({ type: 'setNickname', nickname });
   quickMatch = (): void => this.#send({ type: 'quickMatch' });
   cancelQuickMatch = (): void => this.#send({ type: 'cancelQuickMatch' });
   rematch = (): void => this.#send({ type: 'rematch' });
@@ -227,14 +244,35 @@ class Session implements OnlineSession {
   };
 
   close = (): void => {
-    if (this.getState().connection.status === 'closed') return;
+    const { connection, room } = this.getState();
+    if (connection.status === 'closed') return;
+    // Closing on purpose is leaving: no seat is held for a session that won't be back.
+    if (room && connection.status === 'connected') this.#write({ type: 'leaveRoom' });
     this.#endMatch();
     this.#cancelPing();
+    this.#cancelReconnect();
     this.#set({ connection: { status: 'closed' } });
     this.#socket.close();
   };
 
-  #open = (): void => {
+  /** Opens a socket. What it hears counts only while it's the session's current one. */
+  #dial(): OnlineSocket {
+    const current = () => this.#socket === socket;
+    const socket = this.#options.connect(this.#options.url, {
+      open: () => {
+        if (current()) this.#open();
+      },
+      message: (text) => {
+        if (current()) this.#message(text);
+      },
+      close: () => {
+        if (current()) this.#closed();
+      },
+    });
+    return socket;
+  }
+
+  #open(): void {
     const { nickname, clientVersion, kind } = this.#options;
     this.#write({
       type: 'hello',
@@ -242,20 +280,36 @@ class Session implements OnlineSession {
       engineVersion: ENGINE_VERSION,
       clientVersion,
       nickname,
+      ...(this.#sessionToken !== null && { sessionToken: this.#sessionToken }),
       ...(kind && { kind }),
     });
-  };
+  }
 
-  #closed = (): void => {
-    const { connection } = this.getState();
+  /**
+   * The socket closed, or never opened. A first connection that never opened has failed. One that
+   * dropped is reconnected at once, then with backoff, while a match plays on locally (design
+   * §10.2).
+   */
+  #closed(): void {
+    const { status } = this.getState().connection;
     this.#cancelPing();
-    this.#endMatch();
-    if (connection.status === 'connecting') {
+    if (status === 'connecting') {
+      this.#endMatch();
       this.#fail('unreachable', "Can't reach the server.");
-    } else if (connection.status === 'connected') {
-      this.#fail('lost', 'The connection to the server was lost.');
+    } else if (status === 'connected') {
+      this.#set({ connection: { status: 'reconnecting' } });
+      this.#reconnects = 0;
+      this.#socket = this.#dial();
+    } else if (status === 'reconnecting') {
+      const delays = RECONNECT_DELAYS_MS;
+      const delay = delays[Math.min(this.#reconnects, delays.length - 1)] ?? 0;
+      this.#reconnects++;
+      this.#cancelReconnect = this.#options.clock.after(delay, () => {
+        this.#cancelReconnect = () => {};
+        if (this.getState().connection.status === 'reconnecting') this.#socket = this.#dial();
+      });
     }
-  };
+  }
 
   #message = (text: string): void => {
     let parsed: ReturnType<typeof serverMessageSchema.safeParse>;
@@ -312,20 +366,33 @@ class Session implements OnlineSession {
       case 'matchEnd':
         this.#match?.end(message);
         return;
-      default:
-        // snapshot (#64).
+      case 'snapshot':
+        this.#match?.restore(message);
         return;
     }
   }
 
+  /**
+   * The `welcome`, first or after a reconnect. Back as the same session, the unacknowledged
+   * batches go again, in order, before anything else (design §10.2). A different session means the
+   * old one had expired, and its room and match with it.
+   */
   #welcome(message: ServerMessageOf<'welcome'>): void {
+    const { sessionId } = this.getState();
     this.#sessionToken = message.sessionToken;
+    if (sessionId !== null && sessionId !== message.sessionId) {
+      this.#endMatch();
+      this.#set({ room: null, match: null });
+    }
     this.#set({
       connection: { status: 'connected' },
       sessionId: message.sessionId,
       nickname: message.nickname,
     });
+    this.#pingsLeft = CONNECT_PINGS;
+    this.#pings.clear();
     this.#ping();
+    for (const batch of this.#match?.unacknowledged ?? []) this.#write(batch);
     const outbox = this.#outbox;
     this.#outbox = [];
     for (const waiting of outbox) this.#write(waiting);
@@ -337,9 +404,16 @@ class Session implements OnlineSession {
    */
   #error({ code, message: serverMessage }: ServerMessageOf<'error'>): void {
     const message = errorText(code, serverMessage);
-    if (this.getState().connection.status === 'connecting') {
+    const { status } = this.getState().connection;
+    if (status === 'connecting' || status === 'reconnecting') {
+      this.#endMatch();
       this.#fail(code, message);
       return;
+    }
+    // The room went away under you: its server did, or it was gone when you came back.
+    if (code === 'room_not_found' && this.getState().room) {
+      this.#endMatch();
+      this.#set({ room: null, match: null });
     }
     this.#set({ error: { code, message } });
   }
@@ -372,10 +446,14 @@ class Session implements OnlineSession {
     }
   }
 
-  /** A match starts: its loop from `startAt − offset` on this session's clock (design §8.4). */
+  /**
+   * A match starts: its loop from `startAt − offset` on this session's clock (design §8.4). The
+   * room sends the countdown again to whoever (re)joins mid-match, and the match you're in goes on.
+   */
   #countdown(countdown: ServerMessageOf<'countdown'>): void {
-    const { room, sessionId } = this.getState();
+    const { room, sessionId, match } = this.getState();
     if (!room || !sessionId) return;
+    if (this.#match && match?.matchId === countdown.matchId) return;
     this.#endMatch();
     const { clock } = this.#options;
     this.#match = new OnlineMatch({
@@ -385,7 +463,10 @@ class Session implements OnlineSession {
       playerId: sessionId,
       start: countdown.startAt - (this.#sync.offset ?? 0),
       input: this.#input,
-      send: (batch) => this.#write(batch),
+      // While reconnecting, batches wait in `unacknowledged`, and go once welcomed again.
+      send: (batch) => {
+        if (this.getState().connection.status === 'connected') this.#write(batch);
+      },
       changed: () => this.#set({ match: this.#match?.snapshot() ?? null }),
       heard: (events, actions) => {
         if (events.length > 0) for (const listener of this.#eventListeners) listener(events);

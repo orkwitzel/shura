@@ -11,7 +11,7 @@ import type { MatchLogRecord } from '@shura/valkey';
 import { expect, test } from 'vitest';
 import { heldInbound } from '../support/held-inbound';
 import { replayMatchLog } from '../support/match-log-replay';
-import { type OnlineWorld, onlineWorld } from '../support/online-world';
+import { type ClientOptions, type OnlineWorld, onlineWorld } from '../support/online-world';
 import { RECORDED_PIECE_ACTIONS, RECORDED_SEED } from '../support/recorded-1v1';
 
 /** One loop wake per step: exactly 3 frames, a batch's worth. */
@@ -41,10 +41,10 @@ function received(session: OnlineSession): GarbageReceivedAction[] {
  * Ada and Bo in a 1v1 from the recorded 1v1's seed, counting down, with each one's recorded moves
  * queued at their frames: Ada plays player 0's and Bo player 1's. `boThrough` wraps Bo's connection.
  */
-async function scriptedMatch(world: OnlineWorld, boThrough?: Parameters<OnlineWorld['client']>[1]) {
+async function scriptedMatch(world: OnlineWorld, boThrough?: ClientOptions['through']) {
   const { time } = world;
   const ada = world.client('Ada');
-  const bo = world.client('Bo', boThrough);
+  const bo = world.client('Bo', boThrough && { through: boThrough });
   await time.settle();
   ada.createRoom('1v1');
   await time.settle();

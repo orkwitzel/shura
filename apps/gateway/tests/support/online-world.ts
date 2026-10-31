@@ -1,11 +1,12 @@
 import { type Connect, createOnlineSession, type OnlineSession } from '@shura/client-core';
 import { createGameService, type GameService } from '@shura/game';
+import type { PlayerKind } from '@shura/protocol';
 import { createMemoryStores, type Stores } from '@shura/valkey';
 import { pino } from 'pino';
 import { createGateway, type Gateway } from '../../src/gateway';
 import type { GatewayLimits } from '../../src/limits';
 import { type FakeTime, fakeTime } from './fake-time';
-import { memoryConnect, memoryDial } from './memory-network';
+import { type ClientLine, clientLine, memoryDial } from './memory-network';
 
 /** The game pod's address in the registry. */
 export const POD_ADDRESS = 'game-1:8081';
@@ -16,11 +17,17 @@ export interface OnlineWorld {
   readonly stores: Stores;
   readonly game: GameService;
   readonly gateway: Gateway;
-  /**
-   * A client: client-core's real online session, connected to the gateway in memory, through
-   * `through` if given (to hold its messages back, say).
-   */
-  client(nickname: string, through?: (connect: Connect) => Connect): OnlineSession;
+  /** A client: client-core's real online session, connected to the gateway in memory. */
+  client(nickname: string, options?: ClientOptions): OnlineSession;
+  /** The network line of a client this world made, to cut it and restore it. */
+  line(session: OnlineSession): ClientLine;
+}
+
+export interface ClientOptions {
+  /** `bot`, as the bot tool says in its `hello`. */
+  readonly kind?: PlayerKind;
+  /** Wraps the client's connections: to hold its messages back, say. */
+  readonly through?: (connect: Connect) => Connect;
 }
 
 export interface OnlineWorldOptions {
@@ -57,19 +64,29 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     logger,
     ...(options.limits && { limits: options.limits }),
   });
-  const connect = memoryConnect(gateway);
+  const lines = new Map<OnlineSession, ClientLine>();
   return {
     time,
     stores,
     game,
     gateway,
-    client: (nickname, through) =>
-      createOnlineSession({
+    client(nickname, { kind, through } = {}) {
+      const line = clientLine(gateway);
+      const session = createOnlineSession({
         url: 'ws://gateway.test',
-        connect: through ? through(connect) : connect,
+        connect: through ? through(line.connect) : line.connect,
         clock: time,
         nickname,
         clientVersion: 'test',
-      }),
+        ...(kind && { kind }),
+      });
+      lines.set(session, line);
+      return session;
+    },
+    line(session) {
+      const line = lines.get(session);
+      if (!line) throw new Error('not a client of this world');
+      return line;
+    },
   };
 }

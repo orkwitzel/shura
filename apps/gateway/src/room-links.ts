@@ -76,12 +76,14 @@ export class RoomLinks {
   }
 
   /**
-   * Takes `sessionId` out of the room's link: after its `leaveRoom` went through, or with a
-   * `detach` when its connection closed. The last member out closes the link.
+   * Takes `member` out of the room's link: after its `leaveRoom` went through, or with a `detach`
+   * when its connection closed. The last member out closes the link. A connection whose session
+   * has already come back on a newer one changes nothing.
    */
-  exit(roomCode: string, sessionId: string, { detach }: { detach: boolean }): void {
+  exit(roomCode: string, member: RoomMember, { detach }: { detach: boolean }): void {
     const link = this.#links.get(roomCode);
-    if (!link) return;
+    const { sessionId } = member;
+    if (!link || link.members.get(sessionId) !== member) return;
     if (detach) this.#send(link, { type: 'detach', roomCode, epoch: link.epoch, sessionId });
     link.members.delete(sessionId);
     if (link.members.size === 0) {
