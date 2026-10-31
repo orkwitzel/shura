@@ -68,3 +68,9 @@
   background: rgb(0 0 0 / 0.15);
   color: var(--color-on-accent);
 }
+
+/* The item's shortcut key, as a key cap at the item's right. */
+.shortcut {
+  margin-left: auto;
+  font-weight: 400;
+}

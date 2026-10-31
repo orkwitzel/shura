@@ -1,7 +1,8 @@
-import { act, fireEvent } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { AppRouter } from '@/app/router';
 import { FakeAudioContext, resetFakeAudio, settle } from '../support/fake-audio-context';
+import { tickPixi } from '../support/fake-pixi';
 import { renderWithStores } from '../support/render-with-stores';
 
 /** The countdown before Go (design §13.1). */
@@ -21,9 +22,15 @@ afterEach(() => {
 
 test('a game plays its sounds once a key has been pressed', async () => {
   renderWithStores(<AppRouter />, { path: '/solo/sprint' });
+  await screen.findByRole('heading', { name: 'Sprint' });
   await act(async () => {});
+  // The game starts (its countdown) once the board has been drawn.
+  act(() => {
+    tickPixi();
+    tickPixi();
+  });
   // The first key press, during the countdown, starts audio and loads the sounds.
-  fireEvent.keyDown(window, { code: 'KeyQ' });
+  fireEvent.keyDown(window, { code: 'KeyB' });
   await act(settle);
   act(() => vi.advanceTimersByTime(COUNTDOWN_MS + 100));
   act(() => {

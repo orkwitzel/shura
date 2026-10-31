@@ -19,7 +19,7 @@ describe('App', () => {
     render(<App />);
     await userEvent.keyboard('{Enter}');
     expect(window.location.pathname).toBe('/solo/sprint');
-    expect(screen.getByRole('heading', { name: 'Sprint' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Sprint' })).toBeInTheDocument();
 
     act(() => window.history.back());
     await waitFor(() => expect(mainMenu()).toBeInTheDocument());
