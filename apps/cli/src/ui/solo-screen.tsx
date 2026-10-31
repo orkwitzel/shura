@@ -39,6 +39,8 @@ export interface SoloScreenProps {
   readonly visible?: boolean;
   /** Quit to menu: Q in the in-game menu, or Enter or Esc on the results. */
   readonly onQuit?: () => void;
+  /** The `auto` adapter has chosen (design §7.3). */
+  readonly onInputChosen?: (choice: 'precise' | 'basic') => void;
 }
 
 /**
@@ -60,6 +62,7 @@ export function SoloScreen({
   input = { choice: 'auto' },
   visible = true,
   onQuit,
+  onInputChosen,
 }: SoloScreenProps) {
   const { handling, bindings, ghost, theme, skin } = useSettings();
   const records = useRecordsStore();
@@ -133,6 +136,7 @@ export function SoloScreen({
     bindings,
     options: input,
     onMenu: session.pause,
+    onChosen: onInputChosen,
     shortcut,
     active: !settingsOpen,
   });

@@ -5,6 +5,7 @@ import { App } from '../src/ui/app';
 import type { InputOptions } from '../src/ui/use-terminal-input';
 import { fakeClock } from './support/fake-clock';
 import { resize, settle, visibleRows } from './support/ink';
+import { KEYS, shuraApp } from './support/solo-app';
 import { memoryStores } from './support/stores';
 
 /** The countdown before Go: 1.5 s. */
@@ -28,7 +29,12 @@ const O_ONE_RIGHT = ' . . . . .[][] . . .';
 const O_THREE_RIGHT = ' . . . . . . .[][] .';
 
 let app: ReturnType<typeof render> | undefined;
-afterEach(() => app?.unmount());
+let cleanup: (() => void) | undefined;
+afterEach(() => {
+  app?.unmount();
+  cleanup?.();
+  cleanup = undefined;
+});
 
 /**
  * `shura solo sprint` with seed 7 on a fake clock, at 100×24, past the countdown, with the
@@ -91,6 +97,19 @@ describe('input adapter choice (design §7.3)', () => {
     await game.type(RIGHT);
     await game.run(2_000);
     expect(game.top()).toBe(O_THREE_RIGHT);
+  });
+
+  it('remembers the adapter it chose for the next game from the menu', async () => {
+    const game = await shuraApp({ mode: 'sprint' });
+    cleanup = () => game.app.unmount();
+    await game.run(COUNTDOWN_MS);
+    await game.type('c'); // Hold, sent as plain text: a legacy terminal.
+    expect(game.frame()).toContain('input: basic');
+    await game.type(KEYS.escape);
+    await game.type('q');
+    expect(game.frame()).toContain('SINGLE PLAYER');
+    await game.type(KEYS.enter);
+    expect(game.frame()).toContain('input: basic');
   });
 
   it('uses the adapter --input fixes from the start', async () => {

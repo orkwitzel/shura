@@ -41,6 +41,12 @@ export function App({ mode, clock, seed, colors, input, settings, records, notic
     setScreen(next);
   };
   const toMenu = () => setScreen({ kind: 'menu' });
+  // The adapter the first game chose, for every game after it: the terminal doesn't change.
+  const [chosen, setChosen] = useState<'precise' | 'basic' | null>(null);
+  const gameInput: InputOptions = {
+    ...(input ?? { choice: 'auto' }),
+    ...(chosen && { choice: chosen }),
+  };
   const briefs = notices.map(({ brief }) => brief);
   return (
     <ClientCoreProvider settings={settings} records={records}>
@@ -69,7 +75,8 @@ export function App({ mode, clock, seed, colors, input, settings, records, notic
               notices={briefs}
               visible={size.bigEnough}
               onQuit={toMenu}
-              {...(input && { input })}
+              onInputChosen={setChosen}
+              input={gameInput}
             />
           )}
         </Box>

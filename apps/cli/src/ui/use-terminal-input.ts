@@ -41,6 +41,8 @@ interface TerminalInputProps {
   readonly options: InputOptions;
   /** The menu binding was pressed (Esc, P). */
   readonly onMenu?: (() => void) | undefined;
+  /** An `auto` adapter has chosen, so later games can start with its choice (design §7.3). */
+  readonly onChosen?: ((choice: 'precise' | 'basic') => void) | undefined;
   /**
    * Sees each terminal key before the adapter: a screen's own shortcut (the in-game menu's, the
    * results'). Returns whether it took the key, which then never reaches the adapter.
@@ -66,6 +68,7 @@ export function useTerminalInput({
   bindings,
   options,
   onMenu,
+  onChosen,
   shortcut,
   active = true,
 }: TerminalInputProps): TerminalInputState {
@@ -81,6 +84,8 @@ export function useTerminalInput({
   const shown = useRef(reading.adapter.name);
   const menu = useRef(onMenu);
   menu.current = onMenu;
+  const chosen = useRef(onChosen);
+  chosen.current = onChosen;
 
   const record = (entries: readonly CaptureEntry[]) => {
     for (const entry of entries) options.capture?.write(entry);
@@ -116,6 +121,7 @@ export function useTerminalInput({
     }
     const changed = adapter.name !== shown.current;
     shown.current = adapter.name;
+    if (changed && adapter.name !== 'auto') chosen.current?.(adapter.name);
     setName(adapter.name);
     if (options.debug && (raw !== null || signals.length > 0 || changed)) {
       const entry: KeyEntry = { time, bytes: raw, adapter: adapter.name, signals };
