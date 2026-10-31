@@ -15,6 +15,17 @@ _Online multiplayer falling-block battles, in your browser or your terminal._
 
 **Shura** (Hebrew שורה, "row") is a falling-block puzzle game with modern guideline rules. Clear lines, send garbage at your opponents, and outlast them in 1v1 or free-for-all matches of up to 8 players. The web and terminal clients play in the same rooms, so a friend in the browser can battle you in your terminal.
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/web-game.png" alt="Shura in the browser: a Tetris clear bursting into pixel particles, with hold, next queue, level, lines and score"></td>
+    <td width="50%"><img src="docs/images/cli-game.png" alt="Shura in a terminal: a Marathon game drawn with coloured block characters"></td>
+  </tr>
+  <tr>
+    <td align="center">In the browser</td>
+    <td align="center">In the terminal</td>
+  </tr>
+</table>
+
 > [!NOTE]
 > Shura is **in development**. Marathon, Sprint and Ultra are playable today in both clients, run from source. Online play arrives in M4, and the `shura` npm package is published in M6. See the [roadmap](#roadmap).
 
