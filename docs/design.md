@@ -376,11 +376,11 @@ Every room assignment carries an **epoch** number, incremented whenever the room
 
 ### 9.4 Quick-match
 
-- The queue is a Valkey list or sorted set shared by all gateways.
-- On `quickMatch`, the gateway atomically pops a waiting partner with a Lua script. If none is waiting, it enqueues the player.
+- The queue is a Valkey list shared by all gateways, oldest entry first.
+- On `quickMatch`, the gateway atomically pops a waiting partner with a Lua script. If none is waiting, it enqueues the player. The same script refuses a session that is already queued or still cooling down.
 - When a pair forms, the pairing gateway creates the room (§9.2), and a Valkey pub/sub message tells the waiting player's gateway to attach them.
 - Quick-match rooms have no host and start automatically. 1v1 only. They skip the lobby: after results both players get *Rematch*, which starts the next match once both have pressed it, or *Leave*. If one leaves, the other gets `opponentLeft` and goes back to the quick-match waiting screen, from where they can queue again.
-- Each session can have one queue entry. Leaving and rejoining quickly triggers a short cooldown.
+- Each session can have one queue entry. Leaving the queue starts a short requeue cooldown (3 s); being paired doesn't.
 
 ### 9.5 Valkey usage
 
@@ -389,11 +389,16 @@ Accessed only through `packages/valkey` interfaces, using `iovalkey`. Initial ke
 | Key | Type | Content | TTL |
 |---|---|---|---|
 | `room:{code}` | hash | pod address, epoch, mode, phase, settings, host | deleted with the room |
-| `qm:1v1` | list / zset | waiting session ids | n/a |
+| `qm:1v1` | list | waiting session ids, oldest first | n/a |
+| `qm:cooldown:{sessionId}` | string | set while a session that left the queue waits to rejoin it | the requeue cooldown |
+| `qm:matched` | pub/sub channel | `{ sessionId, partnerId, roomCode }`: tells the waiting player's gateway that a pair formed | n/a |
 | `session:{token}` | hash | session id, nickname, current room | ~30 min sliding |
 | `pod:{id}` | hash | address, room count, engineVersion, draining | 5 s, refreshed every 2 s |
 | `log:{matchId}` | stream | seed + settings entry, then one entry per room every 100 ms of verified batches and garbage routings (tagged with epoch) | deleted at match end |
-| `rl:*` | counters | rate-limit buckets and connection counts per IP / session (`RateLimiter`, §11) | short |
+| `rl:bucket:{key}` | hash | a token bucket's tokens and when they were counted (`RateLimiter`, §11) | until it would be full again |
+| `rl:count:{key}` | counter | a connection count (`RateLimiter`, §11) | set by the caller, restarted on each count |
+
+The `{key}` of a rate limit is the caller's, such as `ip:{address}` or `session:{id}`. Every key and channel can take a prefix, which tests use to share one Valkey. Each interface has an in-memory version with the same behaviour, on an injected clock, for tests and single-process runs. Every change that reads and then writes runs as one Lua script, so concurrent calls from several pods stay atomic. Rate-limit buckets refill on the calling pod's clock, passed into the script, so pods' clocks must be in sync (NTP).
 
 In production Valkey runs with a replica and failover (Sentinel or a managed service; deferred), with AOF `everysec`.
 
@@ -700,7 +705,7 @@ pnpm check      Biome + typecheck + test across the repo (the same command CI ru
 - `gateway` and `game` take a clock (`now()` and timers) as client-core's loop does, so tests drive countdowns, the 1 s and 3 s windows, the 30 s seat hold, `GARBAGE_ACK_TIMEOUT` and empty-room deletion with fake time, without waiting.
 - Integration tests run `gateway` and `game` in one process against the in-memory `valkey` versions, so they don't need Docker. Their clients are client-core's real online session, with scripted inputs or bot brains. They cover a full 1v1 and a 4-player FFA through to `matchEnd`; garbage, with `garbageReceived` and a clear that cancels an attack between its sending and its receipt (§8.5); top-outs at the same frame sharing a place; a reconnect within 3 s carrying on and one after it spectating; a client running ahead being removed; a version mismatch; and each limit tripping.
 - Every integration match ends by checking that each client's own engine hash equals the server's copy of that player's game at the final frame: the server's verdict and the client's game agree.
-- Each `packages/valkey` interface has one test suite, run against the in-memory version always and against real Valkey when `VALKEY_URL` is set. CI runs a Valkey service container, so both run on every PR.
+- Each `packages/valkey` interface has one test suite, run against the in-memory version always and against real Valkey when `VALKEY_URL` is set. CI runs a Valkey service container, so both run on every PR. Locally, `VALKEY_URL=redis://localhost:6379 pnpm check` runs them against `pnpm dev`'s Valkey.
 - `packages/protocol` has schema round-trip tests, and a stored snapshot of the schemas' shape that fails when a message or field is removed or renamed without a `PROTOCOL_VERSION` bump.
 
 ---

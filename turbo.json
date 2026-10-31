@@ -8,7 +8,8 @@
       "dependsOn": ["transit"]
     },
     "test": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "env": ["VALKEY_URL"]
     },
     "build": {
       "dependsOn": ["transit"],
