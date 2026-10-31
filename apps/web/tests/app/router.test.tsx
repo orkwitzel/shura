@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { AppRouter } from '@/app/router';
@@ -50,7 +50,22 @@ describe('the main menu, at /', () => {
     const app = renderWithStores(<AppRouter />);
     await userEvent.keyboard(`${'{ArrowDown}'.repeat(downs)}{Enter}`);
     expect(app.location()).toBe(`/solo/${mode.toLowerCase()}`);
-    expect(screen.getByRole('heading', { name: mode })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: mode })).toBeInTheDocument();
+  });
+
+  test('comes back on the mode the player left it for, as the CLI does', async () => {
+    const app = renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await screen.findByRole('heading', { name: 'Marathon' });
+    act(() => app.navigate('/'));
+    expect(item('Marathon')).toHaveFocus();
+  });
+
+  test('comes back on Settings after the settings', async () => {
+    renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    await userEvent.keyboard('{Escape}');
+    expect(item('Settings')).toHaveFocus();
   });
 
   test('tells the player when the stored settings or records could not be used', () => {
@@ -85,9 +100,9 @@ describe('the other routes', () => {
   test.each([
     ['marathon', 'Marathon', 'Level'],
     ['ultra', 'Ultra', 'Time left'],
-  ])('/solo/%s plays %s, with its HUD', (mode, name, stat) => {
+  ])('/solo/%s plays %s, with its HUD', async (mode, name, stat) => {
     renderWithStores(<AppRouter />, { path: `/solo/${mode}` });
-    expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name })).toBeInTheDocument();
     expect(screen.getByText(stat, { selector: 'dt' })).toBeInTheDocument();
   });
 

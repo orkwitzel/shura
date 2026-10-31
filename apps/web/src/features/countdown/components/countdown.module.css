@@ -1,0 +1,46 @@
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.step,
+.go {
+  font-family: var(--font-display);
+  font-size: calc(var(--cell-size, 32px) * 4);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  text-shadow:
+    4px 4px 0 var(--color-piece-t),
+    8px 8px 0 var(--color-shadow);
+  animation: pop 500ms var(--ease-bounce) both;
+}
+
+.go {
+  font-size: calc(var(--cell-size, 32px) * 3);
+  color: var(--color-accent);
+  text-shadow:
+    4px 4px 0 var(--color-piece-z),
+    8px 8px 0 var(--color-shadow);
+  transform: rotate(-6deg);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(2.2) rotate(8deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step,
+  .go {
+    animation: none;
+  }
+}

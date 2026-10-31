@@ -1,0 +1,7 @@
+/* The settings screen over the paused game: as wide as at /settings, and upright to read. */
+.settings {
+  width: min(960px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  transform: none;
+}

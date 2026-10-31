@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { keyLabel } from '@/lib/keyboard/key-labels';
 import styles from './menu-list.module.css';
 
 /** One choice in a `MenuList`. */
@@ -13,6 +14,11 @@ export interface MenuItem {
   readonly disabled?: boolean;
   /** A small heading shown above the item, starting a group of items. */
   readonly heading?: string;
+  /**
+   * A key that chooses the item from anywhere in the menu, by its `KeyboardEvent.code` (`KeyR`), so
+   * the physical key works on any layout. Shown beside the label as a key cap.
+   */
+  readonly shortcut?: string;
   /** Called when the item is chosen: Enter (or Space) on it, or a click. */
   readonly onSelect: () => void;
 }
@@ -27,6 +33,9 @@ export interface MenuListProps {
   readonly autoFocus?: boolean;
 }
 
+/** A key code as `aria-keyshortcuts` names it: `KeyR` is "R", `Escape` stays "Escape". */
+const ariaKey = (code: string) => /^(?:Key|Digit)(.)$/.exec(code)?.[1] ?? code;
+
 /** From `at`, the next enabled item in `direction`, or `at` itself if there's none. */
 function step(items: readonly MenuItem[], at: number, direction: -1 | 1): number {
   for (let next = at + direction; next >= 0 && next < items.length; next += direction) {
@@ -37,7 +46,8 @@ function step(items: readonly MenuItem[], at: number, direction: -1 | 1): number
 
 /**
  * A vertical menu driven by the keyboard, as in the CLI (design §13.2): ↑ and ↓ move the cursor,
- * skipping disabled items and stopping at the ends, and Enter chooses. Each item is a native
+ * skipping disabled items and stopping at the ends, and Enter chooses. An item's shortcut key
+ * chooses it at once (not with Ctrl, Alt or Meta, which keep their browser meaning). Each item is a native
  * button, so a click or Space chooses too. The cursor's item is the one in the tab order, and it
  * holds the focus while the menu has it (a roving tab index).
  */
@@ -64,6 +74,13 @@ export function MenuList({ label, items, initial, autoFocus = false }: MenuListP
   }, []);
 
   const onKeyDown = (event: KeyboardEvent) => {
+    const modified = event.ctrlKey || event.altKey || event.metaKey;
+    const chosen = modified ? undefined : items.find((item) => item.shortcut === event.code);
+    if (chosen) {
+      event.preventDefault();
+      if (!chosen.disabled && !event.repeat) chosen.onSelect();
+      return;
+    }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
     moveTo(step(items, cursor, event.key === 'ArrowDown' ? 1 : -1));
@@ -88,6 +105,7 @@ export function MenuList({ label, items, initial, autoFocus = false }: MenuListP
             disabled={item.disabled}
             aria-labelledby={labelId}
             aria-describedby={item.detail === undefined ? undefined : detailId}
+            aria-keyshortcuts={item.shortcut === undefined ? undefined : ariaKey(item.shortcut)}
             data-current={current || undefined}
             className={styles.item}
             onClick={item.onSelect}
@@ -96,6 +114,9 @@ export function MenuList({ label, items, initial, autoFocus = false }: MenuListP
             <span id={labelId} className={styles.label}>
               {item.label}
             </span>
+            {item.shortcut !== undefined && (
+              <kbd className={styles.shortcut}>{keyLabel(item.shortcut)}</kbd>
+            )}
             {item.detail !== undefined && (
               <span id={detailId} className={styles.detail}>
                 {item.detail}

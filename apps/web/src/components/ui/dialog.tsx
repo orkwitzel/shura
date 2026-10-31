@@ -15,14 +15,17 @@ export interface DialogProps {
   /** Asked for when the player presses Esc (or the browser asks to close it some other way). */
   readonly onClose: () => void;
   readonly children?: ReactNode;
+  /** More classes for the `<dialog>`, to size it for what it holds. */
+  readonly className?: string;
 }
 
 /**
  * A modal panel on the native `<dialog>` (design §13.2): `showModal()` keeps the focus inside and
  * makes the page behind inert. It is controlled: Esc calls `onClose` instead of closing it, so the
- * owner's state stays the truth. Put `autoFocus` on the control the focus should start on.
+ * owner's state stays the truth, and an Esc that a control inside has already handled (its default
+ * prevented) is left alone. Put `autoFocus` on the control the focus should start on.
  */
-export function Dialog({ open, title, onClose, children }: DialogProps) {
+export function Dialog({ open, title, onClose, children, className }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -34,7 +37,8 @@ export function Dialog({ open, title, onClose, children }: DialogProps) {
   }, [open]);
 
   const onKeyDown = (event: ReactKeyboardEvent) => {
-    if (event.key !== 'Escape') return;
+    // An Esc a control inside has already taken (a menu's shortcut, a waiting key capture) is theirs.
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
     // Stops the browser closing the dialog itself (its `cancel`), which `onCancel` would repeat.
     event.preventDefault();
     onClose();
@@ -44,7 +48,7 @@ export function Dialog({ open, title, onClose, children }: DialogProps) {
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={styles.dialog}
+      className={className ? `${styles.dialog} ${className}` : styles.dialog}
       onKeyDown={onKeyDown}
       onCancel={(event) => {
         event.preventDefault();
