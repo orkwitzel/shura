@@ -7,6 +7,7 @@ An online multiplayer falling-block puzzle game (guideline rules) with a web cli
 - `docs/design.md`: how the system works. **Read the relevant section before changing behaviour, and update it in the same PR** whenever behaviour changes.
 - `docs/adr/`: decisions that are expensive to reverse. Accepted ADRs are never edited. A reversal is a new ADR that supersedes the old one.
 - `docs/glossary.md`: the project's terms. Use them in code, comments and docs.
+- `apps/web/AGENTS.md`: where code and tests go in the web client. Read it before adding or moving a web file.
 - `CONTRIBUTING.md`: branch, PR and release rules. Follow them exactly.
 
 ## Determinism (packages/engine)
