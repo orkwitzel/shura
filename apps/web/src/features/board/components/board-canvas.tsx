@@ -1,4 +1,5 @@
 import {
+  type Effects,
   SKINS,
   type SkinId,
   type SoloSession,
@@ -15,7 +16,11 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useEffects } from '@/hooks/use-effects';
 import { createPixiApp, destroyPixiApp, type PixiSize, resizePixiApp } from '@/lib/pixi/pixi-app';
+import { createEffectsPainter } from '../effects/pixi/effects-painter';
+import type { EffectView } from '../effects/utils/effect-frame';
+import { backToBackAfter, effectsForEvents } from '../effects/utils/effects-for-events';
 import { useViewport } from '../hooks/use-viewport';
 import { createBoardPainter } from '../pixi/board-painter';
 import { type BoardFit, fitBoard } from '../utils/cell-size';
@@ -41,6 +46,7 @@ interface Look {
   readonly theme: ThemeId;
   readonly skin: SkinId;
   readonly ghost: boolean;
+  readonly effects: Effects;
   readonly fit: BoardFit;
 }
 
@@ -64,25 +70,30 @@ const place = ({ x, y, width, height }: Rect): CSSProperties => ({
  * store and repaints when the game, the settings or the window changed, so React never re-renders
  * per frame. React draws the labels and whatever is given to show over the well and beside it.
  * `onShown` says when the first board has been on screen, so a game can start its clock then.
+ *
+ * It also draws the effects (design §13.2, Effects) from the session's engine events, under the
+ * *Effects* setting in force, over the board on the same ticker. They live in the effects painter,
+ * not in the session's store, and never touch the game. A new game drops them.
  */
 export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasProps) {
   const theme = useSettings((settings) => settings.theme);
   const skin = useSettings((settings) => settings.skin);
   const ghost = useSettings((settings) => settings.ghost);
+  const effects = useEffects();
   const viewport = useViewport();
   const fit = useMemo(() => fitBoard(viewport), [viewport]);
   const regions = boardRegions(fit.cellSize);
   const host = useRef<HTMLDivElement>(null);
 
   // The ticker reads the look from here, so a change needs no new application.
-  const look = useRef<Look>({ theme, skin, ghost, fit });
+  const look = useRef<Look>({ theme, skin, ghost, effects, fit });
   const resolution = useRef(viewport.pixelRatio);
   const shown = useRef(onShown);
   useLayoutEffect(() => {
-    look.current = { theme, skin, ghost, fit };
+    look.current = { theme, skin, ghost, effects, fit };
     resolution.current = viewport.pixelRatio;
     shown.current = onShown;
-  }, [theme, skin, ghost, fit, viewport.pixelRatio, onShown]);
+  }, [theme, skin, ghost, effects, fit, viewport.pixelRatio, onShown]);
 
   useEffect(() => {
     let gone = false;
@@ -94,7 +105,8 @@ export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasPro
       }
       host.current?.appendChild(app.canvas);
       const painter = createBoardPainter(app);
-      let drawn: { state: SoloSessionState; look: Look } | null = null;
+      const effectsPainter = createEffectsPainter(app);
+      let drawn: { state: SoloSessionState; look: Look; view: EffectView } | null = null;
       let told = false;
       const draw = () => {
         if (drawn !== null && !told) {
@@ -103,16 +115,43 @@ export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasPro
         }
         const state = session.getState();
         const now = look.current;
-        if (drawn?.state === state && drawn.look === now) return;
-        if (drawn?.look.fit !== now.fit) resizePixiApp(app, sizeOf(now.fit, resolution.current));
-        const { theme, skin, ghost, fit } = now;
-        painter.paint(
-          layoutBoard(state.engine, THEMES[theme], SKINS[skin], fit.cellSize, { ghost }),
-        );
-        drawn = { state, look: now };
+        if (drawn?.state !== state || drawn.look !== now) {
+          if (drawn?.look.fit !== now.fit) resizePixiApp(app, sizeOf(now.fit, resolution.current));
+          const { theme, skin, ghost, effects, fit } = now;
+          const layout = layoutBoard(state.engine, THEMES[theme], SKINS[skin], fit.cellSize, {
+            ghost,
+          });
+          painter.paint(layout);
+          if (effects === 'off') effectsPainter.clear();
+          drawn = {
+            state,
+            look: now,
+            view: { layout, cellSize: fit.cellSize, theme: THEMES[theme], skin: SKINS[skin] },
+          };
+        }
+        effectsPainter.paint(drawn.view, performance.now());
       };
       app.ticker.add(draw);
+
+      // The effects of each wake's engine events. A back-to-back needs the status before each lock:
+      // the previous lock's, off again for each new game.
+      let backToBack = false;
+      const stopHearing = session.onEvents((events) => {
+        effectsPainter.add(
+          effectsForEvents(events, look.current.effects, backToBack),
+          performance.now(),
+        );
+        backToBack = backToBackAfter(events, backToBack);
+      });
+      // A game at frame 0 has locked nothing: a restart (or the first countdown) starts afresh.
+      const stopWatching = session.subscribe(({ engine }) => {
+        if (engine.frame !== 0) return;
+        backToBack = false;
+        effectsPainter.clear();
+      });
       stop = () => {
+        stopHearing();
+        stopWatching();
         app.ticker.remove(draw);
         destroyPixiApp(app);
       };

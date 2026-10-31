@@ -4,12 +4,16 @@ import { afterEach, vi } from 'vitest';
 import { resetFakePixi } from './fake-pixi';
 import { installMatchMedia, resetMatchMedia } from './match-media';
 
-// happy-dom has no WebGL, so every test draws boards with the stand-ins in fake-pixi.ts, which
-// record what would have been drawn.
+// happy-dom has no WebGL, so every test draws boards and effects with the stand-ins in
+// fake-pixi.ts, which record what would have been drawn.
 vi.mock('@/lib/pixi/pixi-app', async () => (await import('./fake-pixi')).pixiAppModule);
 vi.mock(
   '@/features/board/pixi/board-painter',
   async () => (await import('./fake-pixi')).boardPainterModule,
+);
+vi.mock(
+  '@/features/board/effects/pixi/effects-painter',
+  async () => (await import('./fake-pixi')).effectsPainterModule,
 );
 
 // Tests that only read files run in the node environment (`@vitest-environment node`), with no
