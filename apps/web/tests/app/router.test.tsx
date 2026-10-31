@@ -75,11 +75,13 @@ describe('the other routes', () => {
     expect(menu()).toBeInTheDocument();
   });
 
-  test('/solo/marathon is a placeholder that leads back to the menu', async () => {
-    const app = renderWithStores(<AppRouter />, { path: '/solo/marathon' });
-    expect(screen.getByRole('heading', { name: 'Marathon' })).toBeInTheDocument();
-    await userEvent.keyboard('{Enter}');
-    expect(app.location()).toBe('/');
+  test.each([
+    ['marathon', 'Marathon', 'Level'],
+    ['ultra', 'Ultra', 'Time left'],
+  ])('/solo/%s plays %s, with its HUD', (mode, name, stat) => {
+    renderWithStores(<AppRouter />, { path: `/solo/${mode}` });
+    expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    expect(screen.getByText(stat, { selector: 'dt' })).toBeInTheDocument();
   });
 
   test('/solo/tetris redirects to /, replacing itself so Back never returns to it', () => {
