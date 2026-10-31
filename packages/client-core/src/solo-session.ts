@@ -202,16 +202,8 @@ class Session implements SoloSession {
 
   resume = (): void => {
     if (this.#pausedAt === null) return;
-    // The time into the loop's frame at the pause carries over, and the countdown starts again.
-    const into = this.#pausedAt - framesToMs(this.#frame);
-    this.#frame = this.#engine.state.frame - COUNTDOWN_FRAMES;
-    this.#start = this.#clock.now() - framesToMs(this.#frame) - into;
-    this.#pausedAt = null;
-    // Keys pressed or released at the pause or during it reach the input engine as the countdown
-    // starts, so a direction held through it is charged at Go.
-    for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
-    this.#publish();
-    this.#cancelWake = this.#clock.schedule(this.#wake);
+    // The time into the loop's frame at the pause carries over.
+    this.#beginCountdown(this.#pausedAt - framesToMs(this.#frame));
   };
 
   restart = (seed: number = freshSeed()): void => {
@@ -220,13 +212,7 @@ class Session implements SoloSession {
     this.#engine = createEngine(SOLO_PRESETS[this.#mode], seed, 0);
     this.#pending = [];
     this.#log = [];
-    this.#pausedAt = null;
-    this.#frame = -COUNTDOWN_FRAMES;
-    this.#start = this.#clock.now() + framesToMs(COUNTDOWN_FRAMES);
-    // As on resuming, waiting keys reach the input engine as the countdown starts.
-    for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
-    this.#publish();
-    this.#cancelWake = this.#clock.schedule(this.#wake);
+    this.#beginCountdown(0);
   };
 
   onEvents = (listener: SessionEventListener): (() => void) => {
@@ -252,6 +238,21 @@ class Session implements SoloSession {
     if (caughtUp && !this.#over()) this.#cancelWake = this.#clock.schedule(this.#wake);
     if (!caughtUp || this.#frame > before) this.#publish();
   };
+
+  /**
+   * Starts the countdown to the engine's frame (a resume, or a restart at frame 0) and wakes the
+   * loop: the loop's frame starts `into` milliseconds in, as it was at the pause.
+   */
+  #beginCountdown(into: number): void {
+    this.#frame = this.#engine.state.frame - COUNTDOWN_FRAMES;
+    this.#start = this.#clock.now() - framesToMs(this.#frame) - into;
+    this.#pausedAt = null;
+    // Keys pressed or released at the pause, during it or after the game ended reach the input
+    // engine as the countdown starts, so a direction held through it is charged at Go.
+    for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
+    this.#publish();
+    this.#cancelWake = this.#clock.schedule(this.#wake);
+  }
 
   /** The time since frame 0 started. */
   #time(): number {
