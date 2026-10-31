@@ -242,6 +242,28 @@ describe('a room’s link, /r/:code', () => {
     expect(screen.queryByText('Leave your room first.')).not.toBeInTheDocument();
   });
 
+  test('…nor when its room came back before the server’s answer to the join', async () => {
+    const app = onlineApp('/r/K7QX');
+    const session = app.online.session();
+    session.welcome();
+    session.room(lobby());
+    session.error('wrong_phase', 'Leave your room first.');
+    await new Promise((done) => setTimeout(done, 50));
+    expect(screen.queryByText('Leave your room first.')).not.toBeInTheDocument();
+  });
+
+  test('another room’s link opened by a session restored into its old room goes to the link’s', () => {
+    const app = onlineApp('/r/ABCD');
+    const session = app.online.session();
+    session.welcome();
+    expect(session.joinRoom).toHaveBeenLastCalledWith('ABCD');
+    session.room(lobby({ code: 'K7QX' }));
+    expect(session.leaveRoom).toHaveBeenCalledOnce();
+    expect(session.joinRoom).toHaveBeenCalledTimes(2);
+    expect(session.joinRoom).toHaveBeenLastCalledWith('ABCD');
+    expect(app.location()).toBe('/r/ABCD');
+  });
+
   test('going Back from a room leaves it', async () => {
     const app = onlineApp();
     const session = app.online.session();

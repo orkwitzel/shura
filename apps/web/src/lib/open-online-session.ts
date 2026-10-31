@@ -1,7 +1,9 @@
 import {
+  type Connect,
   createOnlineSession,
   type Handling,
   type OnlineSession,
+  type OnlineSocket,
   webSocketConnect,
 } from '@shura/client-core';
 import { CLIENT_VERSION, GATEWAY_PATH } from '@/config/online';
@@ -28,13 +30,36 @@ export function gatewayUrl({ protocol, host }: Pick<Location, 'protocol' | 'host
 }
 
 /**
+ * `connect`, dialling only after the current task: a session closed straight away, as React's
+ * Strict Mode does with the one its rehearsal mount makes, never opens a socket, so the browser
+ * doesn't warn of one closed before it connected.
+ */
+export function deferredConnect(connect: Connect): Connect {
+  return (url, handlers) => {
+    let socket: OnlineSocket | null = null;
+    let closed = false;
+    queueMicrotask(() => {
+      if (!closed) socket = connect(url, handlers);
+    });
+    return {
+      // Nothing is sent before the socket opens: the session's first message waits for `open`.
+      send: (text) => socket?.send(text),
+      close: () => {
+        closed = true;
+        socket?.close();
+      },
+    };
+  };
+}
+
+/**
  * An online session over the browser's own `WebSocket`, to this page's gateway, on the online
  * clock. It connects at once.
  */
 export const openOnlineSession: OpenOnlineSession = ({ nickname, sessionToken, handling }) =>
   createOnlineSession({
     url: gatewayUrl(window.location),
-    connect: webSocketConnect((url) => new WebSocket(url)),
+    connect: deferredConnect(webSocketConnect((url) => new WebSocket(url))),
     clock: createOnlineClock(),
     nickname,
     clientVersion: CLIENT_VERSION,
