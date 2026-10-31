@@ -1,9 +1,11 @@
 import {
   type Action,
+  ActionType,
   createEngine,
   type Engine,
   type EngineEvent,
   FFA,
+  type GarbageReceivedAction,
   ONE_VS_ONE,
   type PieceAction,
   type PieceActionType,
@@ -99,9 +101,11 @@ interface Game {
  * The loop never pauses (design §8.4): a late wake steps every frame it missed, as the server's
  * clock kept running, and it stops only once your game is over or the match has ended.
  *
+ * An attack the server routes to you (`garbageQueued`) enters your game as a `garbageReceived`
+ * action at your next frame, before its other actions, and your engine accepts garbage as a
+ * client does (design §8.5, ADR 0013).
+ *
  * Seams for later tickets:
- * - #62: `receiveGarbage` turns `garbageQueued` for you into a `garbageReceived` action at your
- *   next frame (`#incoming`);
  * - #64: `unacknowledged` batches are resent after a reconnect, and `restore` restores the games
  *   from a snapshot.
  */
@@ -118,8 +122,8 @@ export class OnlineMatch {
   #pending: PieceAction[] = [];
   /** Key events waiting for their frame, in frame order. */
   #keys: { event: KeyEvent; frame: number }[] = [];
-  /** `garbageReceived` actions for your next frame (#62). */
-  #incoming: Action[] = [];
+  /** `garbageReceived` actions for your next frame, their frame still to be set. */
+  #incoming: GarbageReceivedAction[] = [];
   /** Your frames played but not yet sent. */
   #unsent: FrameActions[] = [];
   /** Batches sent and not yet acknowledged, oldest first. */
@@ -187,8 +191,14 @@ export class OnlineMatch {
     this.#options.changed();
   }
 
-  /** `garbageQueued`: #62 queues the attacks aimed at you as `garbageReceived` (`#incoming`). */
-  receiveGarbage(_message: ServerMessageOf<'garbageQueued'>): void {}
+  /**
+   * `garbageQueued`: an attack aimed at you is received at your next frame (design §8.5, step 3).
+   * Attacks between other players are only for drawing.
+   */
+  receiveGarbage({ to, id, lines, holeSeed }: ServerMessageOf<'garbageQueued'>): void {
+    if (to !== this.#me?.playerId || this.#over()) return;
+    this.#incoming.push({ frame: 0, type: ActionType.GarbageReceived, id, lines, holeSeed });
+  }
 
   /** `playerOut`. */
   playerOut({ playerId, reason, frame }: ServerMessageOf<'playerOut'>): void {

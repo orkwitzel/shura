@@ -147,8 +147,7 @@ const INITIAL: OnlineSessionState = {
 /**
  * Seams for later tickets:
  * - #64: reconnecting with backoff on `lost`, `hello` with the session token, resending
- *   `match.unacknowledged`, and `snapshot`;
- * - #62: `garbageQueued` reaches `OnlineMatch.receiveGarbage`.
+ *   `match.unacknowledged`, and `snapshot`.
  */
 class Session implements OnlineSession {
   readonly #options: OnlineSessionOptions;

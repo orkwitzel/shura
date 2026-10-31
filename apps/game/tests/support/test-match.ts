@@ -1,5 +1,7 @@
 import { ActionType } from '@shura/engine';
 import { COUNTDOWN_MS, type RoomMode, type ServerMessage } from '@shura/protocol';
+import { createMemoryStores } from '@shura/valkey';
+import { pino } from 'pino';
 import { type FrameActions, Match } from '../../src/match';
 import { type FakeClock, fakeClock } from './fake-clock';
 
@@ -38,6 +40,8 @@ export interface TestMatch {
   readonly sent: Sent[];
   /** Sends `playerId`'s next input batch. */
   send(playerId: string, frames: FrameActions[]): void;
+  /** Appends to the match log and waits for it, so the batches verified so far are acknowledged. */
+  logged(): Promise<void>;
   /** The `playerOut` and `matchEnd` messages sent to the room so far. */
   outcomes(): ServerMessage[];
 }
@@ -53,6 +57,9 @@ export function testMatch(players: readonly string[], mode: RoomMode = '1v1'): T
     players: players.map((id) => ({ id, nickname: id })),
     clock,
     startAt: START_AT,
+    epoch: 1,
+    log: createMemoryStores().matchLog,
+    logger: pino({ level: 'silent' }),
     output: {
       toPlayer: (id, message) => sent.push({ to: id, message }),
       toOthers: (id, message) => sent.push({ to: `not ${id}`, message }),
@@ -68,6 +75,10 @@ export function testMatch(players: readonly string[], mode: RoomMode = '1v1'): T
       const seq = seqs.get(playerId) ?? 0;
       seqs.set(playerId, seq + 1);
       match.receive(playerId, { type: 'inputBatch', seq, frames });
+    },
+    async logged() {
+      match.appendLog();
+      await new Promise((resolve) => setImmediate(resolve));
     },
     outcomes: () =>
       sent
