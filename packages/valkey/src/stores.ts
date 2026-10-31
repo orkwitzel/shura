@@ -1,8 +1,11 @@
 import Valkey from 'iovalkey';
 import { valkeyKeys } from './keys';
 import { createMemoryRegistry } from './memory/registry';
+import { createMemorySessionStore } from './memory/session-store';
 import type { Registry } from './registry';
+import type { SessionStore } from './session-store';
 import { createValkeyRegistry } from './valkey/registry';
+import { createValkeySessionStore } from './valkey/session-store';
 
 /** Times the stores keep things for. Every one has a default from design §9.5 and §11. */
 export interface StoreOptions {
@@ -21,17 +24,27 @@ export interface ValkeyStoreOptions extends StoreOptions {
   prefix?: string;
 }
 
+const DEFAULTS = {
+  now: Date.now,
+  sessionTtlMs: 30 * 60_000,
+  podTtlMs: 5_000,
+  requeueCooldownMs: 3_000,
+} satisfies Required<StoreOptions>;
+
 /** Every shared-state interface `gateway` and `game` use, on one backing store. */
 export interface Stores {
   readonly registry: Registry;
+  readonly sessions: SessionStore;
   /** Closes the connections. The memory version has none. */
   close(): Promise<void>;
 }
 
 /** Stores in this process's memory: for tests, and gateway and game run in one process. */
-export function createMemoryStores(_options: StoreOptions = {}): Stores {
+export function createMemoryStores(options: StoreOptions = {}): Stores {
+  const { now, sessionTtlMs } = { ...DEFAULTS, ...options };
   return {
     registry: createMemoryRegistry(),
+    sessions: createMemorySessionStore(now, sessionTtlMs),
     async close() {},
   };
 }
@@ -40,9 +53,11 @@ export function createMemoryStores(_options: StoreOptions = {}): Stores {
 export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}): Stores {
   const client = new Valkey(url, { enableAutoPipelining: true });
   const keys = valkeyKeys(options.prefix);
+  const { sessionTtlMs } = { ...DEFAULTS, ...options };
   let closed = false;
   return {
     registry: createValkeyRegistry(client, keys),
+    sessions: createValkeySessionStore(client, keys, sessionTtlMs),
     async close() {
       if (closed) return;
       closed = true;
