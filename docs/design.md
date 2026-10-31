@@ -309,7 +309,7 @@ Without step 3, the server would add the attack to its copy of the target's mete
 
 ### 8.7 Messages
 
-The authoritative definitions are the zod schemas in `packages/protocol`. Every room action is a WebSocket message (§9.1).
+The authoritative definitions are the zod schemas in `packages/protocol`. Every room action is a WebSocket message (§9.1). Each message is a JSON object whose `type` field is its name below (`{ "type": "ready", "ready": true }`).
 
 **Client → gateway:**
 
@@ -317,7 +317,7 @@ The authoritative definitions are the zod schemas in `packages/protocol`. Every 
 - `createRoom{ mode }` (`1v1` or `ffa`, fixed for the room's life), `joinRoom{ code }`, `leaveRoom`
 - `ready{ ready }`, `startMatch` (host only), `spectate` (step out of a seat), `takeSeat` (take a free seat, in the lobby)
 - `quickMatch`, `cancelQuickMatch`, `rematch` (quick-match rooms, after results)
-- `inputBatch{ seq, frames: [{ frame, actions }] }`
+- `inputBatch{ seq, frames: [{ frame, actions }] }`: `seq` counts from 0, and `actions` are the engine's own actions (§7.1), `garbageReceived` included, each carrying its entry's `frame`. A frame is listed even with no actions, so the server sees the client's clock move (§8.4).
 
 **Gateway → client:**
 
@@ -328,9 +328,12 @@ The authoritative definitions are the zod schemas in `packages/protocol`. Every 
 - `batchAck{ seq }`, `relay{ playerId, frames }`, `garbageQueued{ id, from, to, lines, holeSeed }`
 - `playerOut{ playerId, reason, frame }` (`reason`: `toppedOut`, `laggedOut`, `removed` or `left`), `matchEnd{ placements: [{ playerId, place, reason?, frame? }], stats: [{ playerId, linesSent, apm, pps }] }`
 
-`error` codes clients show in plain words include `version_mismatch`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit` and `not_host`.
+`error` codes clients show in plain words are `version_mismatch`, `invalid_message`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit`, `not_host`, `not_in_room`, `wrong_phase` (an action the room's phase doesn't allow) and `no_free_seat`. A new code, like a new message type, is not a breaking change.
 
-**Gateway ⇄ game (internal):** the room-scoped messages above, wrapped with `{roomCode, epoch, sessionId}`, plus `createRoom`, `attach`, `detach`, `drain`.
+**Gateway ⇄ game (internal):** the room-scoped messages above, wrapped with `{roomCode, epoch, sessionId}`, plus `createRoom`, `attach`, `detach`, `drain`:
+
+- gateway → game: `createRoom{ roomCode, epoch, mode, hostId? }` (no `hostId` for a quick-match room), `attach{ roomCode, epoch, sessionId, nickname, kind }` (a session joins or comes back through this gateway), `detach{ roomCode, epoch, sessionId }` (its connection closed; leaving on purpose is its `leaveRoom`), and `room{ roomCode, epoch, sessionId, message }` carrying a client message;
+- game → gateway: `room{ roomCode, epoch, sessionId, message }` carrying a message for that session's client, and `drain` (the pod is shutting down, §9.7).
 
 ---
 
@@ -472,7 +475,7 @@ All limits are enforced in the gateway (the only public entry point). Each is an
 | Connection floods | Per IP: 10 concurrent connections, 30 new per minute. Counted in Valkey, so the limits hold across gateway pods |
 | Room spam | 3 rooms created per minute per IP. 1 hosted room per session. At most 16 spectators per room |
 | Room-code guessing | 10 failed joins per minute per IP |
-| Nicknames | 1–16 characters: Unicode letters (Hebrew included), digits, `_`, `-`, spaces. NFC-normalized, control and zero-width characters stripped, plus an extendable blocklist file. Duplicates in a room get `#2` |
+| Nicknames | 1–16 characters (code points): Unicode letters with their marks (Hebrew and niqqud included), digits, `_`, `-`, spaces. NFC-normalized, control and zero-width characters stripped, spaces trimmed and runs of them collapsed, plus an extendable blocklist file (`packages/protocol/src/nickname-blocklist.ts`, matched inside the name ignoring case, spaces, `_`, `-` and accents). `validateNickname` in `protocol` does all of it, for the clients and the gateway alike. Duplicates in a room get `#2` |
 | Quick-match | One queue entry per session, with a cooldown on rapid requeueing |
 | Cheating | Server re-simulation (§8.1), clock enforcement (§8.4), version handshake (§8.3) |
 
@@ -701,7 +704,7 @@ pnpm check      Biome + typecheck + test across the repo (the same command CI ru
 - Integration tests run `gateway` and `game` in one process against the in-memory `valkey` versions, so they don't need Docker. Their clients are client-core's real online session, with scripted inputs or bot brains. They cover a full 1v1 and a 4-player FFA through to `matchEnd`; garbage, with `garbageReceived` and a clear that cancels an attack between its sending and its receipt (§8.5); top-outs at the same frame sharing a place; a reconnect within 3 s carrying on and one after it spectating; a client running ahead being removed; a version mismatch; and each limit tripping.
 - Every integration match ends by checking that each client's own engine hash equals the server's copy of that player's game at the final frame: the server's verdict and the client's game agree.
 - Each `packages/valkey` interface has one test suite, run against the in-memory version always and against real Valkey when `VALKEY_URL` is set. CI runs a Valkey service container, so both run on every PR.
-- `packages/protocol` has schema round-trip tests, and a stored snapshot of the schemas' shape that fails when a message or field is removed or renamed without a `PROTOCOL_VERSION` bump.
+- `packages/protocol` has schema round-trip tests, and a stored snapshot of the schemas' shape (`tests/support/protocol-shape.json`) that fails when a message or field is removed or renamed, a field's schema changes or a required field is added without a `PROTOCOL_VERSION` bump. Compatible additions only ask for the snapshot to be re-recorded (`pnpm --filter @shura/protocol record-shape`).
 
 ---
 
