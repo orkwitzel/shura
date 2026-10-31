@@ -73,8 +73,10 @@ test.each([
     const bo = world.client('Bo');
     const code = await openRoom(world, '1v1', ada, bo);
     await startMatch(world, ada, bo);
+    // Ada drops a piece every 0.8 s: at most 2 rows each, so by the check after she's back (4.5 s
+    // of play) her well is at most 12 rows high whatever the seed, and only the drop can put her out.
     const drops: [OnlineSession, number][] = [
-      [ada, 8],
+      [ada, 16],
       [bo, 10],
     ];
     // 3 s of countdown, then 1 s of play.
