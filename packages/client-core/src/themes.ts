@@ -215,11 +215,8 @@ export interface Skin {
   readonly name: string;
   /** A filled cell in a terminal: two characters, drawn in the cell's colour. */
   readonly terminal: string;
-  /**
-   * A filled cell on a canvas, as pixel art. Only Pixel has one so far: the web draws the others
-   * as Pixel until theirs come (#49).
-   */
-  readonly canvas?: CanvasDrawing;
+  /** A filled cell on a canvas, as pixel art. */
+  readonly canvas: CanvasDrawing;
 }
 
 /**
@@ -237,11 +234,32 @@ const PIXEL_CANVAS: CanvasDrawing = [
   { x: 2, y: 2, width: 1, height: 1, shade: 1 },
 ];
 
+/** The Flat skin's canvas drawing (design §13.1): the edge, and the inner 6×6 in the piece colour. */
+const FLAT_CANVAS: CanvasDrawing = [
+  { x: 0, y: 0, width: 8, height: 8, shade: -0.55 },
+  { x: 1, y: 1, width: 6, height: 6, shade: 0 },
+];
+
+/**
+ * The Outline skin's canvas drawing (design §13.1): the edge, the inner 6×6's 1-pixel ring in the
+ * piece colour, the inner 4×4 in the piece colour at 22 % alpha over the edge, and one shine pixel
+ * at (2, 2) lightened 50 %.
+ */
+const OUTLINE_CANVAS: CanvasDrawing = [
+  { x: 0, y: 0, width: 8, height: 8, shade: -0.55 },
+  { x: 1, y: 1, width: 6, height: 1, shade: 0 },
+  { x: 1, y: 6, width: 6, height: 1, shade: 0 },
+  { x: 1, y: 2, width: 1, height: 4, shade: 0 },
+  { x: 6, y: 2, width: 1, height: 4, shade: 0 },
+  { x: 2, y: 2, width: 4, height: 4, shade: 0, alpha: 0.22 },
+  { x: 2, y: 2, width: 1, height: 1, shade: 0.5 },
+];
+
 /** Every skin, by id, the default first. */
 export const SKINS = {
   pixel: { id: 'pixel', name: 'Pixel', terminal: '██', canvas: PIXEL_CANVAS },
-  flat: { id: 'flat', name: 'Flat', terminal: '▓▓' },
-  outline: { id: 'outline', name: 'Outline', terminal: '[]' },
+  flat: { id: 'flat', name: 'Flat', terminal: '▓▓', canvas: FLAT_CANVAS },
+  outline: { id: 'outline', name: 'Outline', terminal: '[]', canvas: OUTLINE_CANVAS },
 } as const satisfies Record<string, Skin>;
 
 export type SkinId = keyof typeof SKINS;
