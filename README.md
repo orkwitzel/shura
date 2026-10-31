@@ -17,8 +17,8 @@ _Online multiplayer falling-block battles, in your browser or your terminal._
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/web-game.png" alt="Shura in the browser: a Tetris clear bursting into pixel particles, with hold, next queue, level, lines and score"></td>
-    <td width="50%"><img src="docs/images/cli-game.png" alt="Shura in a terminal: a Marathon game drawn with coloured block characters"></td>
+    <td width="50%"><img src="docs/images/web-game.png" alt="Shura in the browser: a Marathon game in pixel art, with hold, next queue, level, lines and score"></td>
+    <td width="50%"><img src="docs/images/cli-game.png" alt="Shura in a terminal: the same Marathon game drawn with coloured block characters"></td>
   </tr>
   <tr>
     <td align="center">In the browser</td>
