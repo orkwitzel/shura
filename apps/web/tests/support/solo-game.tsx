@@ -27,7 +27,7 @@ const KEYS: Record<string, string> = {
 };
 
 /** Lets the page load and the Pixi app's asynchronous start-up finish. */
-async function started(name: string) {
+export async function started(name: string) {
   await screen.findByRole('heading', { name });
   await act(async () => {});
 }
@@ -36,7 +36,7 @@ async function started(name: string) {
  * Draws the board's first frame and the next, after which the game starts (its countdown). Returns
  * the time it started at.
  */
-function shown() {
+export function shown() {
   act(() => {
     tickPixi();
     tickPixi();
@@ -59,6 +59,11 @@ export const dialog = (name: string) => screen.queryByRole('dialog', { name });
 /** The results' value for `label`. */
 export const result = (results: HTMLElement | null, label: string) =>
   within(results as HTMLElement).getByText(label, { selector: 'dt' }).nextElementSibling;
+
+/** A HUD value, found by its label (not the results' one). */
+export const stat = (label: string) =>
+  screen.getAllByText(label, { selector: 'dt' }).find((term) => !term.closest('dialog'))
+    ?.nextElementSibling;
 
 /** The personal best line in the results. */
 export const personalBestLine = (results: HTMLElement | null) =>
