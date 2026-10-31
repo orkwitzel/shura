@@ -462,7 +462,7 @@ lobby ──(host starts, ≥ 1 other seated player ready)──▶ countdown (3
 - Reconnecting with the token restores the same seat and nickname. A token whose session has expired gets a new session, and the client drops the room it was in. If the room is gone, the client gets `room_not_found`.
 - Closing the online session on purpose (leaving *Play online*) leaves the room first, so no seat is held for a player who isn't coming back.
 - Disconnected **in the lobby:** the seat is held for 30 s. So is a spectator's place.
-- Disconnected **during a match:** the client keeps playing locally and keeps its unacknowledged batches. It reconnects at once and backs off (250 ms, 500 ms, 1 s, then every 2 s).
+- Disconnected **during a match:** the client keeps playing locally and keeps its unacknowledged batches. It reconnects at once, then every 250 ms until 3 s after the drop, so any drop shorter than the window ends in time to carry on, then backs off (1 s, then every 2 s).
   - **Back within the 3 s window** (§8.4): it resends its unacknowledged batches, the server verifies them in order, and the match carries on with nothing lost. The server also sends again the `garbageQueued` of every attack it sent the player that no verified batch has received yet, since one routed while they were away never reached them (§8.5); the client ignores any it already has. The player sees "Reconnecting…" over their HUD meanwhile; opponents see only that board pause for a moment.
   - **Back after the window:** the player has already been lagged out. They get a snapshot and watch the rest as a spectator, with their board greyed and "You lagged out".
   - **Never back:** the seat is held until the match ends, then for the lobby's 30 s.
