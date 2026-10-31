@@ -12,7 +12,7 @@ import {
   VISIBLE_ROWS,
 } from './board';
 import type { ClearedRow, EngineEvent, LockedPiece } from './events';
-import { addToMeter, type GarbageEntry, type LastHole, landGarbage, sendAttack } from './garbage';
+import { type GarbageEntry, type LastHole, landGarbage, sendAttack } from './garbage';
 import { hashText } from './hash';
 import { assertModeSettings, type ModeSettings, SUBROWS_PER_ROW } from './modes';
 import { type ActivePiece, bottomRow, moved, type PieceKind, pieceCells } from './pieces';
@@ -25,12 +25,26 @@ import { detectTSpin, TSpin, type Turn } from './t-spin';
 const SPAWN_ROW = 21;
 
 /** An atomic engine instruction at a frame (design §7.1, ADR 0002). */
-export type Action = PieceAction | GarbageAcceptedAction;
+export type Action = PieceAction | GarbageReceivedAction | GarbageAcceptedAction;
 
 /** An action the player makes with the active piece. */
 export interface PieceAction {
   frame: number;
   type: PieceActionType;
+}
+
+/**
+ * `garbageReceived{id, lines, holeSeed}`: the player's client received the server's `garbageQueued`
+ * for this attack, which enters the end of the garbage meter at the start of this frame, before the
+ * frame's other actions (design §8.5, ADR 0013).
+ */
+export interface GarbageReceivedAction {
+  frame: number;
+  type: ActionType.GarbageReceived;
+  id: number;
+  lines: number;
+  /** Picks the column of the hole every line of this attack shares. */
+  holeSeed: number;
 }
 
 /**
@@ -53,11 +67,15 @@ export enum ActionType {
   SoftDrop = 'softDrop',
   HardDrop = 'hardDrop',
   Hold = 'hold',
+  GarbageReceived = 'garbageReceived',
   GarbageAccepted = 'garbageAccepted',
 }
 
 /** The kinds of action the player makes with the active piece. */
-export type PieceActionType = Exclude<ActionType, ActionType.GarbageAccepted>;
+export type PieceActionType = Exclude<
+  ActionType,
+  ActionType.GarbageReceived | ActionType.GarbageAccepted
+>;
 
 /** The engine's full state, as plain data. */
 export interface EngineState {
@@ -113,6 +131,11 @@ export interface EngineState {
   backToBack: boolean;
   /** Incoming garbage that hasn't landed yet, oldest first (design §8.5). */
   garbageMeter: GarbageEntry[];
+  /**
+   * The id of every attack received (`garbageReceived`), in the order received, so an id can't be
+   * received twice, even once its attack has landed or been cancelled.
+   */
+  receivedGarbageIds: number[];
   /**
    * Quarter-lines of attack that margin time's rounding left over (0 to 3), which the next attack
    * adds before it is cancelled and sent (design §3).
@@ -208,6 +231,11 @@ class Engine {
    * It returns what happened as events, in order, each with its frame: what the frame's actions and
    * gravity did, then at the end of the frame the game ended in, the top-out or the finish.
    *
+   * A frame's `garbageReceived` actions apply first, before its other actions: each adds an attack
+   * to the end of the garbage meter. If one's id was received before, its attack has no lines, its
+   * hole seed isn't a 32-bit unsigned integer, or the mode is a single-player one, `step` throws and
+   * changes nothing.
+   *
    * A frame's `garbageAccepted` actions don't act where they stand: they name the garbage that the
    * frame's locks that clear nothing land, in order (design §8.5). If any is left over at the end of
    * a frame the game is still on in, or names garbage that isn't the oldest in the meter, `step`
@@ -221,10 +249,14 @@ class Engine {
     assertInteger('step frame', frame, this.#state.frame);
     let previous = this.#state.frame + 1;
     let landsAccepted = false;
+    const receivedIds = new Set(this.#state.receivedGarbageIds);
     for (const action of actions) {
       assertInteger('action frame', action.frame, previous, frame);
       previous = action.frame;
-      if (action.type === ActionType.GarbageAccepted) {
+      if (action.type === ActionType.GarbageReceived) {
+        assertReceivable(this.#state.settings, receivedIds, action);
+        receivedIds.add(action.id);
+      } else if (action.type === ActionType.GarbageAccepted) {
         if (acceptGarbage) {
           throw new RangeError('a step that accepts garbage records garbageAccepted itself');
         }
@@ -252,18 +284,6 @@ class Engine {
     }
     this.#state = s;
     return context.out;
-  }
-
-  /**
-   * Adds an attack to the end of the garbage meter: the server's `garbageQueued` (design §8.5). The
-   * mode must have garbage, the id must not already be in the meter, the attack must have lines,
-   * and its hole seed must be a 32-bit unsigned integer.
-   */
-  queueGarbage(entry: Readonly<GarbageEntry>): void {
-    if (this.#state.settings.garbage === null) {
-      throw new RangeError('a single-player mode has no garbage');
-    }
-    addToMeter(this.#state.garbageMeter, entry);
   }
 }
 
@@ -301,6 +321,7 @@ export function createEngine(settings: ModeSettings, seed: number, playerIndex: 
     combo: -1,
     backToBack: false,
     garbageMeter: [],
+    receivedGarbageIds: [],
     marginCarry: 0,
     lastHole: null,
   };
@@ -331,12 +352,33 @@ function reachedLineGoal({ linesCleared, settings: { lineGoal } }: EngineState):
 }
 
 /**
- * Plays the frame `s.frame` as `step` says: its piece actions in order, then gravity, then the
- * frame limit, with its `garbageAccepted` actions naming the garbage its locks land. A hard drop
- * can end the game mid-frame, and the frame stops there.
+ * Checks that `action` can be received, given the mode and the ids received before it: the mode has
+ * garbage, its id is new, its attack has lines and its hole seed is a 32-bit unsigned integer. If
+ * not, it throws.
+ */
+function assertReceivable(
+  { garbage }: ModeSettings,
+  receivedIds: ReadonlySet<number>,
+  { id, lines, holeSeed }: GarbageReceivedAction,
+): void {
+  if (garbage === null) throw new RangeError('a single-player mode receives no garbage');
+  assertInteger('garbageReceived id', id, 0);
+  if (receivedIds.has(id)) throw new RangeError(`garbage ${id} was already received`);
+  assertInteger('garbageReceived lines', lines, 1);
+  assertInteger('garbageReceived holeSeed', holeSeed, 0, 0xffffffff);
+}
+
+/**
+ * Plays the frame `s.frame` as `step` says: its `garbageReceived` actions, then its piece actions
+ * in order, then gravity, then the frame limit, with its `garbageAccepted` actions naming the
+ * garbage its locks land. A hard drop can end the game mid-frame, and the frame stops there.
  */
 function playFrame(s: EngineState, context: LockContext, actions: readonly Action[]): void {
-  const { moves, accepted } = partitionActions(actions);
+  const { received, moves, accepted } = partitionActions(actions);
+  for (const { id, lines, holeSeed } of received) {
+    s.garbageMeter.push({ id, lines, holeSeed });
+    s.receivedGarbageIds.push(id);
+  }
   context.toLand = accepted.map(({ id }) => id);
   countLockFrame(s);
   for (const { type } of moves) {
@@ -595,18 +637,24 @@ function lands(
   return true;
 }
 
-/** The player's own actions, and the `garbageAccepted` actions apart, each in their order. */
+/**
+ * The `garbageReceived` actions, the player's own actions and the `garbageAccepted` actions apart,
+ * each in their order.
+ */
 function partitionActions(actions: readonly Action[]): {
+  received: GarbageReceivedAction[];
   moves: PieceAction[];
   accepted: GarbageAcceptedAction[];
 } {
+  const received: GarbageReceivedAction[] = [];
   const moves: PieceAction[] = [];
   const accepted: GarbageAcceptedAction[] = [];
   for (const action of actions) {
-    if (action.type === ActionType.GarbageAccepted) accepted.push(action);
+    if (action.type === ActionType.GarbageReceived) received.push(action);
+    else if (action.type === ActionType.GarbageAccepted) accepted.push(action);
     else moves.push(action);
   }
-  return { moves, accepted };
+  return { received, moves, accepted };
 }
 
 /** The index after the last of `actions` at `frame`, from `start`. */
@@ -701,6 +749,7 @@ function cloneState(state: EngineState): EngineState {
     combo: state.combo,
     backToBack: state.backToBack,
     garbageMeter: state.garbageMeter.map(({ id, lines, holeSeed }) => ({ id, lines, holeSeed })),
+    receivedGarbageIds: [...state.receivedGarbageIds],
     marginCarry: state.marginCarry,
     lastHole: state.lastHole && { id: state.lastHole.id, column: state.lastHole.column },
   };

@@ -5,8 +5,8 @@ import type { GarbageRules } from './modes';
 import { nextRandom } from './random';
 
 /**
- * One attack waiting in a garbage meter (design §8.5): `garbageQueued{id, lines, holeSeed}` as the
- * server sends it. `lines` is what is still to land.
+ * One attack waiting in a garbage meter (design §8.5), as its `garbageReceived{id, lines, holeSeed}`
+ * action brought it in. `lines` is what is still to land.
  */
 export interface GarbageEntry {
   id: number;
@@ -61,23 +61,6 @@ export function cancelGarbage(
     if (cancelled < entry.lines) left.push({ ...entry, lines: entry.lines - cancelled });
   }
   return { meter: left, remainder };
-}
-
-/**
- * Adds an attack to the end of a garbage meter. The id must not already be in the meter, the
- * attack must have lines, and its hole seed must be a 32-bit unsigned integer.
- */
-export function addToMeter(
-  meter: GarbageEntry[],
-  { id, lines, holeSeed }: Readonly<GarbageEntry>,
-): void {
-  assertInteger('garbage id', id, 0);
-  if (meter.some((entry) => entry.id === id)) {
-    throw new RangeError(`garbage ${id} is already in the meter`);
-  }
-  assertInteger('garbage lines', lines, 1);
-  assertInteger('holeSeed', holeSeed, 0, 0xffffffff);
-  meter.push({ id, lines, holeSeed });
 }
 
 /**
