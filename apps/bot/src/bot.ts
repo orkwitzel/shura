@@ -6,21 +6,15 @@ import { type Random, seededRandom } from './random';
 /** Where a bot plays: the room with a code, or a quick-match. */
 export type BotTarget = { readonly room: string } | { readonly quickMatch: true };
 
-/**
- * The online session a bot plays through: client-core's, as any client's. Quick-match and rematch
- * come to it with #65; until then a quick-match bot connects and waits.
- */
-export type BotSession = OnlineSession & {
-  quickMatch?(): void;
-  rematch?(): void;
-};
-
 /** Why a bot stopped playing on its own. */
 export type BotEnd = 'failed' | 'refused' | 'closed';
 
 export interface BotOptions {
-  /** Its session, made with `kind: 'bot'` (the pool does), not yet connected. */
-  readonly session: BotSession;
+  /**
+   * Its session: client-core's online session, as any client's, made with `kind: 'bot'` (the pool
+   * does) and not yet connected.
+   */
+  readonly session: OnlineSession;
   readonly clock: TimerClock;
   readonly profile: BotProfile;
   /** Seeds its random choices, so a bot's play can be replayed. */
@@ -33,7 +27,7 @@ export interface BotOptions {
 }
 
 export interface Bot {
-  readonly session: BotSession;
+  readonly session: OnlineSession;
   readonly target: BotTarget;
   /** Stops playing and closes its connection. */
   stop(): void;
@@ -71,7 +65,7 @@ class BotPlayer implements Bot {
     this.#enter();
   }
 
-  get session(): BotSession {
+  get session(): OnlineSession {
     return this.#options.session;
   }
 
@@ -91,7 +85,7 @@ class BotPlayer implements Bot {
   #enter(): void {
     const { session, target } = this.#options;
     if ('room' in target) session.joinRoom(target.room);
-    else session.quickMatch?.();
+    else session.quickMatch();
   }
 
   #changed = (state: OnlineSessionState, previous: OnlineSessionState): void => {
@@ -112,7 +106,7 @@ class BotPlayer implements Bot {
       } else if (this.#hadRoom && 'quickMatch' in this.#options.target) {
         // Its opponent left a quick-match: it queues again.
         this.#hadRoom = false;
-        this.#options.session.quickMatch?.();
+        this.#options.session.quickMatch();
       }
       return;
     }
@@ -122,7 +116,7 @@ class BotPlayer implements Bot {
     const quickMatchRoom = room.hostId === undefined;
     if (quickMatchRoom && match?.phase === 'ended' && this.#rematched !== match.matchId) {
       this.#rematched = match.matchId;
-      this.#options.session.rematch?.();
+      this.#options.session.rematch();
     }
     const me = room.players.find(({ id }) => id === state.sessionId);
     if (!quickMatchRoom && room.phase === 'lobby' && me && !me.ready && !this.#readying) {
