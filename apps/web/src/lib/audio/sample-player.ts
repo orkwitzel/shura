@@ -1,7 +1,7 @@
 /**
  * Plays short named samples over Web Audio, once the browser lets a page start audio.
  *
- * Plain Web Audio rather than a library such as howler.js: the sound tests (#50) drive this layer
+ * Plain Web Audio rather than a library such as howler.js: the sound tests drive this layer
  * through a fake `AudioContext` passed in, and howler makes its context globally as it is imported
  * and falls back to HTML5 Audio under happy-dom, so it can't be tested that way. The wrapper is
  * small.
