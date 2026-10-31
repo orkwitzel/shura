@@ -77,9 +77,9 @@ const roomCode = (code: string): string => {
 /**
  * Runs `shura <argv>` (design §13.3) and returns the exit code: 0 for help and the version, the
  * app's own for the menu and `solo`, 1 for the online commands until online play exists (M4), and
- * 2 for a mistake in the arguments, which prints what was wrong and the help. Every global flag
- * goes before or after the command, and `--mode` goes only with `create`. `--server` and `--name`
- * are parsed but not used yet.
+ * 2 for a mistake in the arguments, which prints what was wrong and the help. Every flag goes
+ * before or after the command, and `--mode` goes only with `create`. `--server` and `--name` are
+ * parsed but not used yet.
  */
 export async function runCommand(argv: readonly string[], io: CommandIO): Promise<number> {
   let code = 0;
@@ -113,6 +113,14 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
     .option('--no-color', 'draw cells as characters instead of colour (or set NO_COLOR)')
     .version(pkg.version, '-v, --version', 'print the version')
     .addOption(new Option('--debug-input').hideHelp())
+    // `--mode` is `create`'s, but like every flag it may come before the command too: the program
+    // takes it wherever it is (create's own `--mode` is for its help), and refuses it elsewhere.
+    .addOption(new Option('--mode <mode>').choices(ROOM_MODES).hideHelp())
+    .hook('preAction', (program, command) => {
+      if (program.opts().mode !== undefined && command.name() !== 'create') {
+        command.error('error: --mode goes only with create');
+      }
+    })
     .addHelpText('after', "\nOnline play isn't available yet: quick, create and join exit with 1.");
 
   program

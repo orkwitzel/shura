@@ -110,6 +110,7 @@ describe('the online commands, until online play exists (M4)', () => {
     ['create'],
     ['create', '--mode', 'ffa'],
     ['create', '--mode=1v1'],
+    ['--mode', 'ffa', 'create'],
     ['join', 'K7QX'],
     ['join', 'k7qx', '--server', 'wss://example.org', '--name', 'Or'],
     ['join', 'K7QXRT'],
