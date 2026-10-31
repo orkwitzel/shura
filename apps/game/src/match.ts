@@ -1,13 +1,28 @@
-import { type Action, ActionType, createEngine, type Engine, FFA, ONE_VS_ONE } from '@shura/engine';
-import type {
-  ClientMessageOf,
-  OutReason,
-  RoomMode,
-  ServerMessage,
-  ServerMessageOf,
+import {
+  type Action,
+  createEngine,
+  type Engine,
+  FFA,
+  type HoleSeedsState,
+  holeSeeds,
+  ONE_VS_ONE,
+  type SentGarbage,
+} from '@shura/engine';
+import {
+  type ClientMessageOf,
+  GARBAGE_ACK_TIMEOUT,
+  type OutReason,
+  type RoomMode,
+  type ServerMessage,
+  type ServerMessageOf,
 } from '@shura/protocol';
+import type { MatchLog } from '@shura/valkey';
 import type { ServerClock } from './clock';
+import { IncomingGarbage } from './incoming-garbage';
+import type { Logger } from './logger';
 import { MatchClock } from './match-clock';
+import { MatchLogWriter } from './match-log-writer';
+import { chooseTarget, createMatchRng, type MatchRng } from './targeting';
 
 /** One frame's actions, as an input batch or a relay lists them. */
 export type FrameActions = ClientMessageOf<'inputBatch'>['frames'][number];
@@ -40,6 +55,11 @@ export interface MatchOptions {
   /** Server time at the start of frame 0: the countdown's `startAt`. */
   readonly startAt: number;
   readonly output: MatchOutput;
+  /** The room's ownership epoch, which tags the match log's appends (design §9.3). */
+  readonly epoch: number;
+  /** Where the match log goes (design §9.6). */
+  readonly log: MatchLog;
+  readonly logger: Logger;
 }
 
 /** A player's game as the server verified it, for the server/client hash check (design §14). */
@@ -69,12 +89,13 @@ interface Player {
   out: Out | null;
   /** The garbage lines their clears sent, after cancelling (design §8.5). */
   linesSent: number;
+  /** Their garbage RNG, which deals the hole seeds of the attacks sent to them (design §3). */
+  readonly holes: HoleSeedsState;
+  /** The attacks sent to them and not yet received and accepted (design §8.5). */
+  readonly incoming: IncomingGarbage;
 }
 
 const PLAY_SETTINGS = { '1v1': ONE_VS_ONE, ffa: FFA } as const;
-
-/** Every action but `garbageReceived`, which needs the garbage routing of #62 to check it. */
-const UNCHECKED_GARBAGE = ActionType.GarbageReceived;
 
 /**
  * A match on the server (design §8.1): one engine per player, each verified by replaying that
@@ -82,9 +103,12 @@ const UNCHECKED_GARBAGE = ActionType.GarbageReceived;
  * when the replay tops them out, they fall behind or run ahead of the server's clock, or they
  * leave, and the placements once it's settled.
  *
+ * Garbage goes from attacker to target as the server verifies it (design §8.5): routed with
+ * `garbageQueued`, checked when the target's batches receive it, and timed until they accept it.
+ * Every verified batch and routing goes into the match log, and a batch is acknowledged only once
+ * the append holding it has succeeded (design §9.6).
+ *
  * Seams for later tickets:
- * - #62 garbage routing and the match log: `#routeGarbage` and `#checkGarbage`, and acking only
- *   after the log append (`#acknowledge`);
  * - #64 reconnects and snapshots: `snapshot()` and the `seq` already acknowledged in `receive`.
  */
 export class Match {
@@ -94,12 +118,41 @@ export class Match {
   readonly #output: MatchOutput;
   readonly #clock: MatchClock;
   #ended = false;
+  /** Draws the targets of FFA attacks (design §8.5). */
+  readonly #rng: MatchRng;
+  /** The id of the next attack routed. */
+  #nextGarbageId = 1;
+  readonly #log: MatchLogWriter;
 
-  constructor({ matchId, mode, seed, players, clock, startAt, output }: MatchOptions) {
+  constructor({
+    matchId,
+    mode,
+    seed,
+    players,
+    clock,
+    startAt,
+    output,
+    epoch,
+    log,
+    logger,
+  }: MatchOptions) {
     this.matchId = matchId;
     this.seed = seed;
     this.#output = output;
     this.#clock = new MatchClock(clock, startAt);
+    this.#rng = createMatchRng(seed);
+    this.#log = new MatchLogWriter({
+      matchId,
+      epoch,
+      log,
+      logger,
+      start: {
+        seed,
+        settings: PLAY_SETTINGS[mode],
+        players: players.map(({ id, nickname }, index) => ({ id, nickname, index })),
+      },
+      logged: (playerId, seq) => this.#output.toPlayer(playerId, { type: 'batchAck', seq }),
+    });
     this.#players = new Map(
       players.map(({ id }, index) => [
         id,
@@ -112,6 +165,8 @@ export class Match {
           unrelayed: [],
           out: null,
           linesSent: 0,
+          holes: holeSeeds.create(seed, index),
+          incoming: new IncomingGarbage(),
         },
       ]),
     );
@@ -170,9 +225,28 @@ export class Match {
   }
 
   /**
-   * An input batch from `playerId`: verified by replaying it on their engine, acknowledged, and
-   * queued for the next relay. A batch that doesn't follow on from the last one, or that the
-   * engine refuses, removes the player at its first frame (design §10.1).
+   * The `garbageQueued` of each attack sent to `playerId` and not yet received in a verified batch,
+   * for a player who comes back mid-match: one sent while they were away must still reach them
+   * (design §8.5, §10.2). A client ignores any it has already received.
+   */
+  unreceivedGarbage(playerId: string): ServerMessageOf<'garbageQueued'>[] {
+    const player = this.#players.get(playerId);
+    if (!player || player.out) return [];
+    return player.incoming.unreceived().map(({ id, from, lines, holeSeed }) => ({
+      type: 'garbageQueued' as const,
+      id,
+      from,
+      to: playerId,
+      lines,
+      holeSeed,
+    }));
+  }
+
+  /**
+   * An input batch from `playerId`: verified by replaying it on their engine, queued for the next
+   * relay and the next match-log append, and acknowledged once that append has succeeded. A batch
+   * that doesn't follow on from the last one, receives garbage it wasn't sent, or that the engine
+   * refuses, removes the player at its first frame (design §10.1).
    */
   receive(playerId: string, { seq, frames }: ClientMessageOf<'inputBatch'>): void {
     const player = this.#players.get(playerId);
@@ -194,20 +268,30 @@ export class Match {
       return;
     }
     const last = frames.at(-1)?.frame ?? player.frame;
+    let laggedOut: number | null;
     try {
-      const { sent } = player.engine.step(last, actions);
-      this.#routeGarbage(player, sent);
+      laggedOut = this.#play(player, last, actions);
     } catch {
       this.goOut(playerId, 'removed', first);
       return;
     }
-    // A game over stops the engine where it ended: frames after it never happened.
+    // A game over, or a lag-out, stops the engine where it ended: frames after it never happened.
     player.frame = player.engine.state.frame;
-    player.unrelayed.push(...frames.filter(({ frame }) => frame <= player.frame));
+    const verified = frames.filter(({ frame }) => frame <= player.frame);
+    player.unrelayed.push(...verified);
     player.nextSeq = seq + 1;
-    this.#acknowledge(player, seq);
-    if (player.engine.state.toppedOut) this.goOut(playerId, 'toppedOut', player.frame);
+    this.#log.batch({ playerId, seq, frames: verified });
+    if (laggedOut !== null) this.goOut(playerId, 'laggedOut', laggedOut);
+    else if (player.engine.state.toppedOut) this.goOut(playerId, 'toppedOut', player.frame);
     else this.#settle();
+  }
+
+  /**
+   * Appends the batches verified and the garbage routed since the last append to the match log,
+   * every 100 ms (design §9.6). Each batch is acknowledged once its append has succeeded.
+   */
+  appendLog(): void {
+    this.#log.append();
   }
 
   /** Relays the frames verified since the last tick, one `relay` per player (design §8.1). */
@@ -224,9 +308,10 @@ export class Match {
     if (player) this.goOut(playerId, 'left', player.frame);
   }
 
-  /** Stops the match's timers, as its room stops it before it ends. */
+  /** Stops the match's timers, as its room stops it before it ends, and deletes its log. */
   stop(): void {
     this.#clock.stop();
+    if (!this.#ended) this.#log.finish().catch(() => {});
   }
 
   /**
@@ -267,27 +352,80 @@ export class Match {
   }
 
   /**
-   * Whether the batch's `garbageReceived` actions name attacks the server sent this player (design
-   * §8.5, step 4). Nothing is routed until #62, so none can be right yet.
+   * Whether the batch's `garbageReceived` actions name attacks the server sent this player and
+   * they haven't received yet, with the lines and hole seeds sent (design §8.5, step 4).
    */
-  #checkGarbage(_player: Player, actions: readonly Action[]): boolean {
-    return actions.every(({ type }) => type !== UNCHECKED_GARBAGE);
+  #checkGarbage(player: Player, actions: readonly Action[]): boolean {
+    return player.incoming.receive(actions);
   }
 
   /**
-   * The garbage a verified batch sent (design §8.5). #62 routes it to a target with
-   * `garbageQueued` and logs the routing; until then it only counts towards the stats.
+   * Replays `actions` on the player's engine up to `last`, routing the garbage it sends as it
+   * goes, and stopping at the frame an attack's `GARBAGE_ACK_TIMEOUT` runs out at if it hasn't
+   * been received and accepted by then (design §8.5, step 7): that frame, the player's lag-out,
+   * or `null`.
    */
-  #routeGarbage(player: Player, sent: readonly { lines: number }[]): void {
-    for (const { lines } of sent) player.linesSent += lines;
+  #play(player: Player, last: number, actions: readonly Action[]): number | null {
+    let done = player.engine.state.frame;
+    for (const cut of [...player.incoming.deadlines(done, last), last]) {
+      if (cut <= done) continue;
+      const from = done;
+      const { sent } = player.engine.step(
+        cut,
+        actions.filter(({ frame }) => frame > from && frame <= cut),
+      );
+      done = cut;
+      this.#routeGarbage(player, sent);
+      const { frame, garbageMeter } = player.engine.state;
+      const overdue = player.incoming.overdue(frame, garbageMeter);
+      if (overdue) return overdue.sentAt + GARBAGE_ACK_TIMEOUT;
+    }
+    return null;
   }
 
   /**
-   * Acknowledges a verified batch. #62 moves this to after the match-log append that holds it
-   * (design §9.6).
+   * Sends the garbage a verified batch sent on (design §8.5, steps 1 and 2): to the opponent, or in
+   * an FFA a random player not yet declared out, with `garbageQueued` to the room, onto the
+   * target's sent-not-received list and into the match log. With no one left to aim at it's lost.
+   */
+  #routeGarbage(player: Player, sent: readonly SentGarbage[]): void {
+    for (const { lines } of sent) {
+      player.linesSent += lines;
+      const candidates = [...this.#players.values()].filter(
+        (other) => other !== player && other.out === null,
+      );
+      const target = chooseTarget(this.#rng, candidates);
+      if (!target) continue;
+      const id = this.#nextGarbageId++;
+      const holeSeed = holeSeeds.next(target.holes);
+      target.incoming.send({ id, from: player.id, lines, holeSeed, sentAt: target.frame });
+      this.#log.routing({
+        from: player.id,
+        to: target.id,
+        id,
+        lines,
+        holeSeed,
+        frame: target.frame,
+      });
+      this.#output.toRoom({
+        type: 'garbageQueued',
+        id,
+        from: player.id,
+        to: target.id,
+        lines,
+        holeSeed,
+      });
+    }
+  }
+
+  /**
+   * Acknowledges a batch sent again that has been verified already, if it's in the match log. If
+   * it isn't yet, the append that holds it acknowledges it (design §9.6).
    */
   #acknowledge(player: Player, seq: number): void {
-    this.#output.toPlayer(player.id, { type: 'batchAck', seq });
+    if (this.#log.isLogged(player.id, seq)) {
+      this.#output.toPlayer(player.id, { type: 'batchAck', seq });
+    }
   }
 
   #relay(player: Player): void {
@@ -311,6 +449,7 @@ export class Match {
     this.tick();
     this.#ended = true;
     this.#clock.stop();
+    this.#log.finish().catch(() => {});
     const result: ServerMessageOf<'matchEnd'> = {
       type: 'matchEnd',
       placements: placements(players),

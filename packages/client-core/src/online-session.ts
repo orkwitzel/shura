@@ -163,10 +163,6 @@ const INITIAL: OnlineSessionState = {
   error: null,
 };
 
-/**
- * Seams for later tickets:
- * - #62: `garbageQueued` reaches `OnlineMatch.receiveGarbage`.
- */
 class Session implements OnlineSession {
   readonly #options: OnlineSessionOptions;
   readonly #store: StoreApi<OnlineSessionState>;

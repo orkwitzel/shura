@@ -1,4 +1,4 @@
-import { createOnlineSession, type OnlineSession } from '@shura/client-core';
+import { type Connect, createOnlineSession, type OnlineSession } from '@shura/client-core';
 import { createGameService, type GameService } from '@shura/game';
 import type { PlayerKind } from '@shura/protocol';
 import { createMemoryStores, type Stores } from '@shura/valkey';
@@ -18,17 +18,27 @@ export interface OnlineWorld {
   readonly game: GameService;
   readonly gateway: Gateway;
   /** A client: client-core's real online session, connected to the gateway in memory. */
-  client(nickname: string, options?: { kind?: PlayerKind }): OnlineSession;
+  client(nickname: string, options?: ClientOptions): OnlineSession;
   /** The network line of a client this world made, to cut it and restore it. */
   line(session: OnlineSession): ClientLine;
+}
+
+export interface ClientOptions {
+  /** `bot`, as the bot tool says in its `hello`. */
+  readonly kind?: PlayerKind;
+  /** Wraps the client's connections: to hold its messages back, say. */
+  readonly through?: (connect: Connect) => Connect;
 }
 
 export interface OnlineWorldOptions {
   /** The gateway's limits, where they differ from the defaults. */
   readonly limits?: Partial<GatewayLimits>;
+  /** The seed of every match. Random by default. */
+  readonly seed?: number;
 }
 
 export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<OnlineWorld> {
+  const { seed } = options;
   // A whole number of 50 ms steps from 0, so each step of 50 ms is exactly 3 frames.
   const time = fakeTime(1_800_000_000_000);
   const cooldown = options.limits?.quickMatchCooldownMs;
@@ -44,6 +54,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     podId: 'game-1',
     address: POD_ADDRESS,
     logger,
+    ...(seed !== undefined && { newSeed: () => seed }),
   });
   await game.start();
   const gateway = createGateway({
@@ -59,11 +70,11 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     stores,
     game,
     gateway,
-    client(nickname, { kind } = {}) {
+    client(nickname, { kind, through } = {}) {
       const line = clientLine(gateway);
       const session = createOnlineSession({
         url: 'ws://gateway.test',
-        connect: line.connect,
+        connect: through ? through(line.connect) : line.connect,
         clock: time,
         nickname,
         clientVersion: 'test',

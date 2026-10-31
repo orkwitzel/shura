@@ -12,9 +12,11 @@ import {
   type ServerMessage,
   type ServerMessageOf,
 } from '@shura/protocol';
+import type { MatchLog } from '@shura/valkey';
 import type { ServerClock } from './clock';
 import type { Logger } from './logger';
 import { Match, type VerifiedGame } from './match';
+import { MATCH_LOG_APPEND_MS } from './match-log-writer';
 
 /**
  * How long a quick-match room waits for its second player (design §9.4). A player paired with
@@ -58,6 +60,8 @@ export interface RoomOptions {
   readonly maxSpectators?: number;
   readonly clock: ServerClock;
   readonly logger: Logger;
+  /** Where each match's log goes (design §9.6). */
+  readonly matchLog: MatchLog;
   /** A fresh match: its id and seed. */
   readonly newMatch: () => { matchId: string; seed: number };
   /** The room's phase or host changed, for the registry (design §9.5). */
@@ -289,13 +293,15 @@ export class Room {
 
   /**
    * Brings someone joining or coming back mid-match up to date (design §8.6): the countdown to set
-   * up the match, who is out already, and every game at its last verified frame.
+   * up the match, who is out already, every game at its last verified frame, and for a player
+   * still in, the attacks sent to them that their game may not have received yet (§8.5).
    */
   #catchUp(member: Member): void {
     if (!this.#match || !this.#countdown) return;
     this.#to(member, this.#countdown);
     for (const out of this.#match.outs()) this.#to(member, out);
     this.#to(member, this.#match.snapshot());
+    for (const attack of this.#match.unreceivedGarbage(member.id)) this.#to(member, attack);
   }
 
   /**
@@ -427,6 +433,9 @@ export class Room {
       players,
       clock,
       startAt,
+      epoch: this.epoch,
+      log: this.#options.matchLog,
+      logger: this.#options.logger,
       output: {
         toPlayer: (id, message) => this.#send(id, message),
         toOthers: (id, message) => {
@@ -449,6 +458,7 @@ export class Room {
         this.#broadcastState();
       }),
       clock.every(ROOM_TICK_MS, () => match.tick()),
+      clock.every(MATCH_LOG_APPEND_MS, () => match.appendLog()),
     );
   }
 

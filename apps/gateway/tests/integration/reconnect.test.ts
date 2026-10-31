@@ -1,6 +1,6 @@
-import type { OnlineSession } from '@shura/client-core';
-import { ActionType } from '@shura/engine';
-import { SEAT_HOLD_MS } from '@shura/protocol';
+import type { Connect, OnlineSession } from '@shura/client-core';
+import { ActionType, type PieceAction } from '@shura/engine';
+import { COUNTDOWN_MS, SEAT_HOLD_MS } from '@shura/protocol';
 import { expect, test } from 'vitest';
 import {
   gameOf,
@@ -13,6 +13,7 @@ import {
   verifiedGameOf,
 } from '../support/online-games';
 import { type OnlineWorld, onlineWorld } from '../support/online-world';
+import { RECORDED_PIECE_ACTIONS, RECORDED_SEED } from '../support/recorded-1v1';
 
 /**
  * Plays one step: each player in `drops` hard-drops if it's their step (every `n`th), and time
@@ -279,4 +280,66 @@ test('a quick-match room breaks up only once a dropped player’s hold runs out'
   await world.time.advance(1000);
   expect(bo.getState().quickMatch).toBe('opponentLeft');
   expect(bo.getState().room).toBeNull();
+});
+
+/** Wraps a connection to note, as they arrive, the `garbageQueued` messages it carries. */
+function tapGarbage(heard: { to: string; at: number }[], now: () => number) {
+  return (connect: Connect): Connect =>
+    (url, handlers) =>
+      connect(url, {
+        ...handlers,
+        message: (text) => {
+          const message = JSON.parse(text) as { type: string; to?: string };
+          if (message.type === 'garbageQueued') heard.push({ to: message.to ?? '', at: now() });
+          handlers.message(text);
+        },
+      });
+}
+
+test('an attack sent while its target is away reaches them when they come back', async () => {
+  const world = await onlineWorld({ seed: RECORDED_SEED });
+  const { time } = world;
+  const heard: { to: string; at: number }[] = [];
+  const ada = world.client('Ada', { through: tapGarbage(heard, time.now) });
+  const bo = world.client('Bo');
+  await openRoom(world, '1v1', ada, bo);
+  await startMatch(world, ada, bo);
+  // The recorded 1v1's moves, whose clears send garbage both ways (as in garbage.test.ts).
+  const startAt = time.now() + COUNTDOWN_MS;
+  const queue = (session: OnlineSession, actions: readonly PieceAction[]) => {
+    for (const { frame, type } of actions) {
+      session.act(type, startAt + ((frame - 1) * 1000) / 60 + 1);
+    }
+  };
+  queue(ada, RECORDED_PIECE_ACTIONS[0] ?? []);
+  queue(bo, RECORDED_PIECE_ACTIONS[1] ?? []);
+
+  // Bo is away for 1 s out of every 6 once attacks fly, until one is routed to him while away.
+  const away: { from: number; until: number }[] = [];
+  const hitWhileAway = () =>
+    heard.some(
+      ({ to, at }) =>
+        to === bo.getState().sessionId && away.some(({ from, until }) => at > from && at < until),
+    );
+  let cutAt: number | null = null;
+  for (let step = 0; !ada.getState().match?.result && step < 4800; step++) {
+    if (heard.length > 0 && step % 120 === 0 && cutAt === null && !hitWhileAway()) {
+      world.line(bo).cut();
+      cutAt = time.now();
+    }
+    if (step % 120 === 20 && cutAt !== null) {
+      world.line(bo).restore();
+      away.push({ from: cutAt, until: time.now() });
+      cutAt = null;
+    }
+    await time.advance(STEP_MS);
+  }
+  expect(hitWhileAway()).toBe(true);
+  // Nobody was lagged out or removed: the match ended on a top-out, verified exactly.
+  const result = ada.getState().match?.result;
+  expect(result?.placements.map(({ reason }) => reason).sort()).toEqual(['toppedOut', undefined]);
+  const code = ada.getState().room?.code ?? '';
+  for (const session of [ada, bo]) {
+    expect(verifiedGameOf(world, code, session).hash).toBe(hashOf(ownGame(session).engine));
+  }
 });

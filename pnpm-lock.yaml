@@ -227,6 +227,49 @@ importers:
         specifier: 'catalog:'
         version: 5.0.5(@types/node@26.6.6)(happy-dom@21.0.4(bufferutil@4.1.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  apps/bot:
+    dependencies:
+      '@shura/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
+      '@shura/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@shura/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      pino:
+        specifier: 10.4.0
+        version: 10.4.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+      zustand:
+        specifier: 'catalog:'
+        version: 5.0.16(@types/react@19.3.0)(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+    devDependencies:
+      '@shura/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
+      pino-pretty:
+        specifier: 13.2.0
+        version: 13.2.0
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@26.6.6)(happy-dom@21.0.4(bufferutil@4.1.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+
   apps/cli:
     devDependencies:
       '@commander-js/extra-typings':
@@ -351,6 +394,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@shura/bot':
+        specifier: workspace:*
+        version: link:../bot
       '@shura/client-core':
         specifier: workspace:*
         version: link:../../packages/client-core
