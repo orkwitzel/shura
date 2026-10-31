@@ -163,7 +163,7 @@ export function SoloScreen({
           {...(notices && { notices })}
         />
       )}
-      {input.debug && <DebugPanel {...terminalInput} capture={input.capture?.path} />}
+      {input.debug && <DebugPanel {...terminalInput} capture={input.debug.capture?.path} />}
     </Box>
   );
 }

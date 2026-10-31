@@ -124,8 +124,7 @@ describe('--debug-input', () => {
     const captured: CaptureEntry[] = [];
     const game = await sprint({
       choice: 'auto',
-      debug: true,
-      capture: { path: '/tmp/capture.jsonl', write: (entry) => captured.push(entry) },
+      debug: { capture: { path: '/tmp/capture.jsonl', write: (entry) => captured.push(entry) } },
     });
     expect(game.frame()).toContain('/tmp/capture.jsonl');
     await game.type(RIGHT);
@@ -142,7 +141,7 @@ describe('--debug-input', () => {
   });
 
   it('shows the actions the input engine made of each key, frame by frame: auto-shift too', async () => {
-    const game = await sprint({ choice: 'precise', debug: true });
+    const game = await sprint({ choice: 'precise', debug: {} });
     await game.type(RIGHT);
     await game.run(300);
     // The press moves at once, then DAS (10 frames) and ARR (2) move on until the wall.
@@ -157,7 +156,7 @@ describe('--debug-input', () => {
 
   it('shows a wall run at ARR 0 as one frame of moves, and soft drop rows as they fall', async () => {
     const game = await sprint(
-      { choice: 'precise', debug: true },
+      { choice: 'precise', debug: {} },
       { version: 1, handling: { arr: 0 } },
     );
     await game.type(RIGHT);

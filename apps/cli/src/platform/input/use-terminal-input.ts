@@ -1,8 +1,8 @@
-import type { EventEmitter } from 'node:events';
 import type { Bindings, Clock, SoloSession } from '@shura/client-core';
-import { useInput, useStdin } from 'ink';
+import { useInput } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ActionsEntry, CaptureEntry, CaptureFile, KeyEntry } from './capture';
+import { useRawKeyBytes } from '../terminal/use-raw-key-bytes';
+import { actionsEntries, type CaptureEntry, type CaptureFile, type KeyEntry } from './capture';
 import { createInputAdapter, type InputChoice } from './detect';
 import {
   type AdapterName,
@@ -15,10 +15,11 @@ import {
 /** How keys are read: the adapter choice and the hidden `--debug-input` (design §7.3). */
 export interface InputOptions {
   readonly choice: InputChoice;
-  /** Keep a log of raw keys, what they made and the actions applied, for the debug panel. */
-  readonly debug?: boolean;
-  /** Where the log is also written, with `debug`. */
-  readonly capture?: CaptureFile;
+  /**
+   * Keep a log of raw keys, what they made and the actions applied, for the debug panel, and also
+   * write it to `capture` if given.
+   */
+  readonly debug?: { readonly capture?: CaptureFile };
 }
 
 /** How many entries the debug log keeps: what the panel has room for. */
@@ -72,41 +73,31 @@ export function useTerminalInput({
   shortcut,
   active = true,
 }: TerminalInputProps): TerminalInputState {
-  // The adapter in use, in a box that keeps it across renders: replaced when the bindings change.
-  const [current] = useState<{ adapter: InputAdapter }>(() => ({
-    adapter: createInputAdapter(options.choice, bindings),
-  }));
+  // The adapter in use, kept across renders: replaced when the bindings change.
+  const adapterRef = useRef<{ adapter: InputAdapter } | null>(null);
+  adapterRef.current ??= { adapter: createInputAdapter(options.choice, bindings) };
+  const current = adapterRef.current;
   const [name, setName] = useState(current.adapter.name);
   const [log, setLog] = useState<readonly CaptureEntry[]>([]);
   const wake = useRef<(() => void) | null>(null);
-  const bytes = useRef<string | null>(null);
   const shownName = useRef(current.adapter.name);
   const menu = useRef(onMenu);
   menu.current = onMenu;
   const chosen = useRef(onChosen);
   chosen.current = onChosen;
+  const debug = options.debug !== undefined;
 
   const record = (entries: readonly CaptureEntry[]) => {
-    for (const entry of entries) options.capture?.write(entry);
+    for (const entry of entries) options.debug?.capture?.write(entry);
     setLog((log) => [...log, ...entries].slice(-DEBUG_LOG_SIZE));
   };
 
   // The actions the game applies, a frame per entry, so the log shows what the input engine made of
   // each key: its auto-shift and soft drop too (design §7.3).
   useEffect(() => {
-    if (!options.debug) return;
-    return session.onActions((actions) => {
-      const time = clock.now();
-      const frames: ActionsEntry[] = [];
-      for (const { frame, type } of actions) {
-        const last = frames.at(-1);
-        if (last?.frame === frame)
-          frames[frames.length - 1] = { ...last, actions: [...last.actions, type] };
-        else frames.push({ time, frame, actions: [type] });
-      }
-      record(frames);
-    });
-  }, [session, options.debug]);
+    if (!debug) return;
+    return session.onActions((actions) => record(actionsEntries(actions, clock.now())));
+  }, [session, debug]);
 
   const deliver = (signals: readonly InputSignal[], raw: string | null, time: number) => {
     const { adapter } = current;
@@ -120,7 +111,7 @@ export function useTerminalInput({
     }
     if (changed && adapter.name !== 'auto') chosen.current?.(adapter.name);
     setName(adapter.name);
-    if (options.debug && (raw !== null || signals.length > 0 || changed)) {
+    if (debug && (raw !== null || signals.length > 0 || changed)) {
       const entry: KeyEntry = { time, bytes: raw, adapter: adapter.name, signals };
       record([entry]);
     }
@@ -169,28 +160,13 @@ export function useTerminalInput({
     if (!active) releaseAll();
   }, [active]);
 
-  // The raw bytes of each key, for the debug log. Ink parses them before `useInput` sees the key and
-  // keeps them to itself, so this listens where Ink hands each key's bytes to `useInput`; it is
-  // subscribed first, so it hears each key just before `useInput` does.
-  const { internal_eventEmitter: keys } = useStdin() as ReturnType<typeof useStdin> & {
-    internal_eventEmitter?: EventEmitter;
-  };
-  useEffect(() => {
-    if (!options.debug || !keys || !active) return;
-    const onKey = (data: unknown) => {
-      bytes.current = String(data);
-    };
-    keys.on('input', onKey);
-    return () => {
-      keys.off('input', onKey);
-    };
-  }, [options.debug, keys, active]);
+  // The raw bytes of each key, for the debug log: called before `useInput`, so it hears them first.
+  const takeBytes = useRawKeyBytes(debug && active);
 
   useInput(
     (input, key) => {
       const time = clock.now();
-      const raw = bytes.current ?? input;
-      bytes.current = null;
+      const raw = takeBytes() ?? input;
       if (shortcut?.({ input, key, time })) return;
       deliver(current.adapter.feed({ input, key, time }), raw, time);
     },

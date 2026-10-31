@@ -79,7 +79,7 @@ export async function runApp(options: PlayOptions): Promise<number> {
         captureHeader(options.input, process.env),
       )
     : undefined;
-  const input = { choice: options.input, debug: options.debugInput, ...(capture && { capture }) };
+  const input = { choice: options.input, ...(capture && { debug: { capture } }) };
   const app = startTerminalApp(
     <App
       {...(options.mode && { mode: options.mode })}
