@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 /// <reference lib="dom" />
 
-import { ActionType, createEngine, SPRINT } from '@shura/engine';
+import { ActionType, createEngine, type PieceActionType, SPRINT } from '@shura/engine';
 import type { ReactNode } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   createRecordsStore,
   createSettingsStore,
@@ -22,6 +22,7 @@ import {
   useSession,
   useSettings,
   useSettingsStore,
+  useSoloRecord,
 } from '../src/react';
 import { type FakeClock, fakeClock } from './support/fake-clock';
 import { memoryStorage } from './support/memory-storage';
@@ -192,5 +193,81 @@ describe('useSettings and useRecords', () => {
     } finally {
       console.error = error;
     }
+  });
+});
+
+describe('useSoloRecord', () => {
+  let clock: FakeClock;
+  let session: SoloSession;
+  let records: RecordsStore;
+  let root: Root;
+  const lines: (string | undefined)[] = [];
+
+  beforeEach(() => {
+    clock = fakeClock();
+    session = createSoloSession({ mode: 'marathon', clock, seed: 7 });
+    const storage = memoryStorage();
+    const bindings = Object.fromEntries(
+      Object.values(ActionType).map((action) => [action, [action]]),
+    ) as unknown as Record<PieceActionType, string[]>;
+    records = createRecordsStore({ storage });
+    root = createRoot(document.createElement('div'));
+    lines.length = 0;
+    function Probe() {
+      lines.push(useSoloRecord(session));
+      return null;
+    }
+    act(() =>
+      root.render(
+        <ClientCoreProvider settings={createSettingsStore({ storage, bindings })} records={records}>
+          <Probe />
+        </ClientCoreProvider>,
+      ),
+    );
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    session.pause();
+  });
+
+  /** Plays through the countdown, then hard drops until the stack tops out. */
+  function topOut() {
+    act(() => clock.run(1_600));
+    for (let i = 0; i < 50 && session.getState().phase !== 'ended'; i++) {
+      act(() => {
+        session.act(ActionType.HardDrop, clock.now());
+        clock.run(20);
+      });
+    }
+    expect(session.getState().phase).toBe('ended');
+  }
+
+  test('records a game once when it ends, and gives its personal best line', () => {
+    const submit = vi.spyOn(records, 'submit');
+    expect(lines.at(-1)).toBeUndefined();
+    topOut();
+    expect(lines.at(-1)).toBe('New personal best!');
+    expect(records.getState().marathon).toBeDefined();
+    act(() => clock.run(500));
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  test('records the game a restart starts as a new one', () => {
+    const submit = vi.spyOn(records, 'submit');
+    topOut();
+    act(() => session.restart(7));
+    expect(lines.at(-1)).toBeUndefined();
+    topOut();
+    expect(lines.at(-1)).toMatch(/^Equals your best/);
+    expect(submit).toHaveBeenCalledTimes(2);
+  });
+
+  test('records nothing for a game left before it ends', () => {
+    const submit = vi.spyOn(records, 'submit');
+    act(() => clock.run(2_000));
+    act(() => session.pause());
+    expect(lines.at(-1)).toBeUndefined();
+    expect(submit).not.toHaveBeenCalled();
   });
 });

@@ -2,13 +2,11 @@ import {
   type Clock,
   createSoloSession,
   handlingFrames,
-  personalBestLine,
   SKINS,
   type SoloMode,
   THEMES,
 } from '@shura/client-core';
-import { useRecordsStore, useSession, useSettings } from '@shura/client-core/react';
-import type { ReadonlyEngineState } from '@shura/engine';
+import { useSession, useSettings, useSoloRecord } from '@shura/client-core/react';
 import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { commandFor, type MenuCommand, menuLines } from '../../board/game-menu';
@@ -65,7 +63,6 @@ export function SoloScreen({
   onInputChosen,
 }: SoloScreenProps) {
   const { handling, bindings, ghost, theme, skin } = useSettings();
-  const records = useRecordsStore();
   const [session] = useState(() =>
     createSoloSession({
       mode,
@@ -85,14 +82,7 @@ export function SoloScreen({
   const state = useSession(session);
 
   // Each game that ends goes to the records once (design §13.1): quitting mid-game writes nothing.
-  // A restart makes a new engine, which is how a new game is told apart.
-  const [verdict, setVerdict] = useState<{ game: ReadonlyEngineState; line: string } | null>(null);
-  useEffect(() => {
-    if (state.phase !== 'ended' || verdict?.game === state.engine) return;
-    const ended = session.getState();
-    setVerdict({ game: ended.engine, line: personalBestLine(ended.mode, records.submit(ended)) });
-  }, [state.phase, state.engine, verdict, records, session]);
-  const personalBest = verdict?.game === state.engine ? verdict.line : undefined;
+  const personalBest = useSoloRecord(session);
   const look: Look = useMemo(
     () => ({ colors, theme: THEMES[theme], skin: SKINS[skin] }),
     [colors, theme, skin],
