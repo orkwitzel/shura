@@ -26,7 +26,6 @@ function Rows({ rows }: { rows: readonly string[] }) {
     <>
       {rows.map((row, index) => (
         // The rows are positions, so their index is their identity.
-        // biome-ignore lint/suspicious/noArrayIndexKey: rows never reorder
         <Text key={index}>{row}</Text>
       ))}
     </>
@@ -51,7 +50,7 @@ function Preview({ state, look }: Pick<GameViewProps, 'state' | 'look'>) {
     <Box flexDirection="column">
       <Text dimColor>NEXT</Text>
       {queue.slice(0, settings.previewSize).map((kind, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: a preview slot is its position
+        // A preview slot is its position.
         <Box key={index} flexDirection="column" marginBottom={1}>
           <Rows rows={pieceRows(kind, look)} />
         </Box>
