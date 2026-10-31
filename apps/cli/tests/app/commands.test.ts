@@ -58,8 +58,8 @@ describe('help and version', () => {
     expect(HELP).not.toContain('--debug-input');
   });
 
-  test("the help says quick match isn't available yet", () => {
-    expect(HELP).toMatch(/quick match isn't available yet: quick exits with 1/i);
+  test("the help no longer says online play isn't available", () => {
+    expect(HELP).not.toMatch(/isn't available/i);
   });
 
   test('shura solo --help lists every mode', async () => {
@@ -129,10 +129,9 @@ describe('the online commands', () => {
     ]);
   });
 
-  test("shura quick says quick match isn't available yet and exits with 1", async () => {
+  test('shura quick opens on the quick-match waiting screen', async () => {
     const run = await shura('quick');
-    expect(run).toMatchObject({ code: 1, out: '', played: [] });
-    expect(run.err).toBe("quick match isn't available yet\n");
+    expect(run).toMatchObject({ code: 0, played: [{ ...DEFAULTS, online: { action: 'quick' } }] });
   });
 
   test('quick takes nothing more', async () => {
@@ -168,9 +167,8 @@ describe('global flags', () => {
     ],
     [['--input', 'basic', '--no-color'], { ...DEFAULTS, input: 'basic', noColor: true }],
   ] as const)('%j go with every command, before or after it', async (flags, options) => {
-    expect((await shura('quick', ...flags)).code).toBe(1);
-    expect((await shura(...flags, 'quick')).code).toBe(1);
     const rooms = [
+      [['quick'], { action: 'quick' }],
       [['create'], { action: 'create', mode: '1v1' }],
       [['join', 'K7QX'], { action: 'join', code: 'K7QX' }],
     ] as const;

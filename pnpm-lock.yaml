@@ -281,12 +281,21 @@ importers:
       '@shura/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@shura/game':
+        specifier: workspace:*
+        version: link:../game
+      '@shura/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@shura/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@shura/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@shura/valkey':
+        specifier: workspace:*
+        version: link:../../packages/valkey
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -305,6 +314,9 @@ importers:
       ink-testing-library:
         specifier: 4.0.0
         version: 4.0.0(@types/react@19.3.0)
+      pino:
+        specifier: 10.4.0
+        version: 10.4.0
       react:
         specifier: 'catalog:'
         version: 19.3.1
