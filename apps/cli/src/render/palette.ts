@@ -30,7 +30,7 @@ export function lookOf(colors: ColorMode): Look {
 
 /** Cell strings other than a filled cell (the skin's), each 2 characters wide (design §13.3). */
 export const CELLS = {
-  /** Where the active piece would land, in its colour. */
+  /** Where the active piece would land, in the theme's ghost colour. */
   ghost: '░░',
   /** An empty cell of the visible board, in the theme's grid colour. */
   empty: ' .',

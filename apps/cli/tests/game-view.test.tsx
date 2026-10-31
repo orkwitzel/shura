@@ -222,8 +222,11 @@ describe('board colours', () => {
     expect(top).not.toContain('38;2;');
   });
 
-  it('draws the ghost in the piece colour, lighter than a solid cell', () => {
-    expect(board('ansi16').at(-2)).toContain('\x1b[93m░░');
+  it("draws the ghost in the theme's ghost colour, lighter than a solid cell", () => {
+    const ghost = SHURA_DARK.ghost.rgb.join(';');
+    expect(board('truecolor').at(-2)).toContain(`\x1b[38;2;${ghost}m░░`);
+    // Bright black (8) in 16 colours, as the grid is: the cells tell them apart.
+    expect(board('ansi16').at(-2)).toContain('\x1b[90m . . . .░░░░');
   });
 
   it("draws empty cells' dots in the theme's grid colour", () => {

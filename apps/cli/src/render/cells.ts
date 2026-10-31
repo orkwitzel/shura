@@ -37,7 +37,7 @@ function colored(paint: Paint, { theme, skin }: Look): { text: string; color: Th
     case 'solid':
       return { text: skin.terminal, color: of(paint.kind) };
     case 'ghost':
-      return { text: CELLS.ghost, color: of(paint.kind) };
+      return { text: CELLS.ghost, color: theme.ghost };
     case 'grey':
       return { text: skin.terminal, color: theme.chrome.grid };
     case 'empty':
