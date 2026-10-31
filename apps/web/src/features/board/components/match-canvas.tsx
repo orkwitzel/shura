@@ -54,8 +54,10 @@ import { flashingAttack, followMeter, type MeterFlash } from '../utils/meter-fla
 import styles from './match-canvas.module.css';
 
 export interface MatchCanvasProps {
-  /** The online session whose current match to draw. You play in it. */
+  /** The online session whose current match to draw: one you play in, or one you spectate. */
   readonly session: OnlineSession;
+  /** CSS pixels kept clear across the top while you spectate, for the banner. */
+  readonly top?: number;
   /** Shown in the row over each player's board: their name. */
   readonly name: (playerId: string) => ReactNode;
   /** Shown over an opponent's well: an out board's place and why. */
@@ -85,26 +87,34 @@ interface Board {
   readonly cellSize: number;
 }
 
-/** The match's players: you, then your opponents in index order. */
-function playersOf(match: OnlineMatchState | null): { own: string; opponents: string[] } {
-  const own = match?.playerId ?? '';
+/**
+ * The match's players: you (`null` if you spectate), then everyone else in index order, written as
+ * one string so a store selector can compare it.
+ */
+function castOf(match: OnlineMatchState | null): string {
+  const own = match?.playerId ?? null;
   const opponents = (match?.players ?? [])
     .map(({ playerId }) => playerId)
     .filter((id) => id !== own);
-  return { own, opponents };
+  return [own ?? '', ...opponents].join(' ');
 }
 
 /** Each board's place on the stage, under its name row. */
-function boardsOf(layout: MatchLayout, own: string, opponents: readonly string[]): Board[] {
+function boardsOf(layout: MatchLayout, own: string | null, opponents: readonly string[]): Board[] {
   const { kind, cellSize, spots } = layout.opponents;
+  const mine = layout.own;
   return [
-    {
-      playerId: own,
-      kind: 'own',
-      x: layout.own.x,
-      y: layout.own.y + NAME_ROWS.full * layout.own.cellSize,
-      cellSize: layout.own.cellSize,
-    },
+    ...(own !== null && mine
+      ? [
+          {
+            playerId: own,
+            kind: 'own' as const,
+            x: mine.x,
+            y: mine.y + NAME_ROWS.full * mine.cellSize,
+            cellSize: mine.cellSize,
+          },
+        ]
+      : []),
     ...opponents.map((playerId, at) => ({
       playerId,
       kind,
@@ -140,24 +150,35 @@ const place = ({ x, y, width, height }: Rect): CSSProperties => ({
  * and an attack streak for each garbage routing, under the *Effects* setting; opponents' locks
  * make no effects. As in `BoardCanvas`, Pixi's ticker reads the session's store and repaints,
  * outside React's render cycle, and React draws the labels and what is given to show over the
- * boards.
+ * boards. Spectating a match (design §13.2, Spectating), there is no board of your own: every
+ * player's board is the same size in a grid under `top`.
  */
-export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: MatchCanvasProps) {
+export function MatchCanvas({
+  session,
+  top = 0,
+  name,
+  opponentOverlay,
+  overlay,
+  aside,
+}: MatchCanvasProps) {
   const theme = useSettings((settings) => settings.theme);
   const skin = useSettings((settings) => settings.skin);
   const ghost = useSettings((settings) => settings.ghost);
   const effects = useEffects();
   const viewport = useViewport();
   // The players never change during a match, so this only changes with a new match.
-  const cast = useStore(session, (state) => {
-    const { own, opponents } = playersOf(state.match);
-    return [own, ...opponents].join(' ');
-  });
+  const cast = useStore(session, (state) => castOf(state.match));
   const { own, opponents } = useMemo(() => {
-    const [own = '', ...opponents] = cast.split(' ');
-    return { own, opponents };
+    const [mine = '', ...opponents] = cast.split(' ');
+    return { own: mine === '' ? null : mine, opponents };
   }, [cast]);
-  const layout = useMemo(() => layoutOpponents(viewport, opponents.length), [viewport, opponents]);
+  const layout = useMemo(
+    () =>
+      own === null
+        ? layoutOpponents(viewport, opponents.length, { own: false, top })
+        : layoutOpponents(viewport, opponents.length),
+    [viewport, own, opponents, top],
+  );
   const boards = useMemo(() => boardsOf(layout, own, opponents), [layout, own, opponents]);
   const host = useRef<HTMLDivElement>(null);
 
@@ -167,7 +188,7 @@ export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: 
   }, [theme, skin, ghost, effects, viewport, layout]);
 
   useEffect(() => {
-    if (own === '') return;
+    if (own === null && opponents.length === 0) return;
     let gone = false;
     let stop = () => {};
     const resolution = () => look.current.viewport.pixelRatio;
@@ -185,8 +206,8 @@ export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: 
           return [board.playerId, { outer, inner, painter: createBoardPainter(inner) }] as const;
         }),
       );
-      const ownLayer = layers.get(own)?.inner;
-      if (!ownLayer) return;
+      // Spectating, there's no game of your own: its effects layer stays empty.
+      const ownLayer = (own !== null && layers.get(own)?.inner) || addLayer(app);
       const effectsPainter = createEffectsPainter(ownLayer);
       const streakPainter = createStreakPainter(app);
       const flashes = new Map<string, MeterFlash>();
@@ -245,7 +266,8 @@ export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: 
             }
           }
           const byId = new Map(placed.map((board) => [board.playerId, board]));
-          const ownCell = current.layout.own.cellSize;
+          // The streaks are sized for your board, or for the boards you watch.
+          const ownCell = (current.layout.own ?? current.layout.opponents).cellSize;
           streakView = {
             origin: (id) => {
               const board = byId.get(id);
@@ -319,7 +341,9 @@ export function MatchCanvas({ session, name, opponentOverlay, overlay, aside }: 
             key={playerId}
             className={styles.board}
             data-board={kind}
-            aria-label={kind === 'own' ? 'Your board' : 'Opponent’s board'}
+            aria-label={
+              kind === 'own' ? 'Your board' : own === null ? 'Player’s board' : 'Opponent’s board'
+            }
             style={
               {
                 left: x,

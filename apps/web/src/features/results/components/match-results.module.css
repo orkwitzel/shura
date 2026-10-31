@@ -1,0 +1,113 @@
+/* The results over the match (design §13.2, Results), in the mockup's look: a wide panel, the
+   place big in gold, then a table of rows that drop in one after another, yours in gold. */
+.results {
+  width: min(720px, calc(100vw - 2 * var(--space-4)));
+  transform: rotate(-1deg);
+}
+
+/* The title (your place) is the dialog's: bigger and gold here. */
+.results > h2 {
+  font-size: calc(var(--text-title) * 1.8);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.summary {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  color: var(--color-muted);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--text-button);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th {
+  padding: 0 var(--space-3);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  font-weight: 400;
+  text-align: right;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.table th:nth-child(-n + 2) {
+  text-align: left;
+}
+
+.row td {
+  padding: var(--space-1) var(--space-3);
+  text-align: right;
+  background: var(--color-deep);
+  border-block: var(--border-width-small) solid var(--color-border);
+  text-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.row td:first-child {
+  border-left: var(--border-width-small) solid var(--color-border);
+}
+
+.row td:last-child {
+  border-right: var(--border-width-small) solid var(--color-border);
+}
+
+.row {
+  animation: slide 300ms var(--ease-bounce) both;
+}
+
+.row[data-you] td {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-shadow);
+  text-shadow: none;
+}
+
+.place {
+  width: 3ch;
+  font-weight: 700;
+}
+
+.name {
+  overflow: hidden;
+  max-width: 0;
+  width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.row .place,
+.row .name {
+  text-align: left;
+}
+
+.tag {
+  margin-left: var(--space-2);
+  padding: 1px var(--space-1);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  vertical-align: middle;
+  border: 2px solid currentColor;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation: none;
+  }
+}
