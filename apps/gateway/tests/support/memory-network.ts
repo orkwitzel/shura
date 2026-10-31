@@ -58,13 +58,41 @@ export function memoryDial(pods: Readonly<Record<string, GameService>>): DialGam
   };
 }
 
-/** Clients' WebSockets to `gateway`, in memory, from 127.0.0.1. */
-export function memoryConnect(gateway: Gateway): Connect {
-  return (_url, handlers) => {
-    const [clientEnd, gatewayEnd] = peerPair();
-    gateway.accept(gatewayEnd, '127.0.0.1');
-    clientEnd.listen({ message: handlers.message, close: handlers.close });
-    queueMicrotask(handlers.open);
-    return clientEnd;
+/**
+ * One client's network to `gateway`, in memory, from 127.0.0.1: its WebSockets, and a cable the test
+ * can pull out (`cut`) and plug back in (`restore`).
+ */
+export interface ClientLine {
+  readonly connect: Connect;
+  /** Closes the client's socket as a dropped network would, and fails every connect until restored. */
+  cut(): void;
+  /** Lets connects through again. */
+  restore(): void;
+}
+
+export function clientLine(gateway: Gateway): ClientLine {
+  let up = true;
+  let current: Peer | null = null;
+  return {
+    connect(_url, handlers) {
+      if (!up) {
+        queueMicrotask(handlers.close);
+        return { send() {}, close() {} };
+      }
+      const [clientEnd, gatewayEnd] = peerPair();
+      gateway.accept(gatewayEnd, '127.0.0.1');
+      clientEnd.listen({ message: handlers.message, close: handlers.close });
+      queueMicrotask(handlers.open);
+      current = clientEnd;
+      return clientEnd;
+    },
+    cut() {
+      up = false;
+      current?.close();
+      current = null;
+    },
+    restore() {
+      up = true;
+    },
   };
 }

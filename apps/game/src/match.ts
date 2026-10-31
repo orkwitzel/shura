@@ -132,6 +132,30 @@ export class Match {
   }
 
   /**
+   * Each player's game at their own last verified frame (design §8.6), for whoever joins or comes
+   * back mid-match. Relays carry on from each player's frame.
+   */
+  snapshot(): ServerMessageOf<'snapshot'> {
+    return {
+      type: 'snapshot',
+      players: [...this.#players.values()].map(({ id, frame, engine }) => ({
+        playerId: id,
+        frame,
+        state: engine.serialize(),
+      })),
+    };
+  }
+
+  /** The `playerOut` of every player out so far, for whoever joins or comes back mid-match. */
+  outs(): ServerMessageOf<'playerOut'>[] {
+    return [...this.#players.values()].flatMap(({ id, out }) =>
+      out
+        ? [{ type: 'playerOut' as const, playerId: id, reason: out.reason, frame: out.frame }]
+        : [],
+    );
+  }
+
+  /**
    * An input batch from `playerId`: verified by replaying it on their engine, acknowledged, and
    * queued for the next relay. A batch that doesn't follow on from the last one, or that the
    * engine refuses, removes the player at its first frame (design §10.1).

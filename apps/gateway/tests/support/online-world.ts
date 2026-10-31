@@ -1,10 +1,11 @@
 import { createOnlineSession, type OnlineSession } from '@shura/client-core';
 import { createGameService, type GameService } from '@shura/game';
+import type { PlayerKind } from '@shura/protocol';
 import { createMemoryStores, type Stores } from '@shura/valkey';
 import { pino } from 'pino';
 import { createGateway, type Gateway } from '../../src/gateway';
 import { type FakeTime, fakeTime } from './fake-time';
-import { memoryConnect, memoryDial } from './memory-network';
+import { type ClientLine, clientLine, memoryDial } from './memory-network';
 
 /** The game pod's address in the registry. */
 export const POD_ADDRESS = 'game-1:8081';
@@ -16,7 +17,9 @@ export interface OnlineWorld {
   readonly game: GameService;
   readonly gateway: Gateway;
   /** A client: client-core's real online session, connected to the gateway in memory. */
-  client(nickname: string): OnlineSession;
+  client(nickname: string, options?: { kind?: PlayerKind }): OnlineSession;
+  /** The network line of a client this world made, to cut it and restore it. */
+  line(session: OnlineSession): ClientLine;
 }
 
 export async function onlineWorld(): Promise<OnlineWorld> {
@@ -38,19 +41,29 @@ export async function onlineWorld(): Promise<OnlineWorld> {
     dial: memoryDial({ [POD_ADDRESS]: game }),
     logger,
   });
-  const connect = memoryConnect(gateway);
+  const lines = new Map<OnlineSession, ClientLine>();
   return {
     time,
     stores,
     game,
     gateway,
-    client: (nickname) =>
-      createOnlineSession({
+    client(nickname, { kind } = {}) {
+      const line = clientLine(gateway);
+      const session = createOnlineSession({
         url: 'ws://gateway.test',
-        connect,
+        connect: line.connect,
         clock: time,
         nickname,
         clientVersion: 'test',
-      }),
+        ...(kind && { kind }),
+      });
+      lines.set(session, line);
+      return session;
+    },
+    line(session) {
+      const line = lines.get(session);
+      if (!line) throw new Error('not a client of this world');
+      return line;
+    },
   };
 }

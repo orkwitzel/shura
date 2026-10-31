@@ -8,6 +8,7 @@ import {
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
+  restoreEngine,
 } from '@shura/engine';
 import {
   BATCH_FRAMES,
@@ -101,9 +102,10 @@ interface Game {
  *
  * Seams for later tickets:
  * - #62: `receiveGarbage` turns `garbageQueued` for you into a `garbageReceived` action at your
- *   next frame (`#incoming`);
- * - #64: `unacknowledged` batches are resent after a reconnect, and `restore` restores the games
- *   from a snapshot.
+ *   next frame (`#incoming`).
+ *
+ * After a reconnect the session sends `unacknowledged` again, and `restore` takes the games from
+ * the server's snapshot (design §8.6, §10.2).
  */
 export class OnlineMatch {
   readonly #options: OnlineMatchOptions;
@@ -147,7 +149,7 @@ export class OnlineMatch {
     if (this.#me) this.#cancelWake = clock.schedule(this.#wake);
   }
 
-  /** Batches sent and not yet acknowledged, to send again after a reconnect (#64). */
+  /** Batches sent and not yet acknowledged, to send again after a reconnect. */
   get unacknowledged(): readonly ClientMessageOf<'inputBatch'>[] {
     return this.#unacknowledged;
   }
@@ -176,25 +178,54 @@ export class OnlineMatch {
   /** `relay`: an opponent's verified frames, played on their engine (design §8.6). */
   relay({ playerId, frames }: ServerMessageOf<'relay'>): void {
     const game = this.#games.find((other) => other.playerId === playerId);
-    const last = frames.at(-1)?.frame;
-    if (!game || game === this.#me || last === undefined) return;
+    if (!game || game === this.#me) return;
+    // A snapshot can already hold the first frames of a relay that was on its way.
+    const reached = game.engine.state.frame;
+    const fresh = frames.filter(({ frame }) => frame > reached);
+    const last = fresh.at(-1)?.frame;
+    if (last === undefined) return;
     // Someone watching has no loop of their own: the first relay says play has started.
     if (this.#phase === 'countdown') this.#phase = 'playing';
     game.engine.step(
       last,
-      frames.flatMap((entry) => entry.actions),
+      fresh.flatMap((entry) => entry.actions),
     );
+    this.#options.changed();
+  }
+
+  /**
+   * `snapshot`, on joining or coming back mid-match (design §8.6): each game restored at its
+   * player's last verified frame, for relays to carry on from. Your own game, while you're still in,
+   * is ahead of the server's copy and stays as it is.
+   */
+  restore({ players }: ServerMessageOf<'snapshot'>): void {
+    for (const { playerId, state } of players) {
+      const game = this.#games.find((other) => other.playerId === playerId);
+      if (!game || (game === this.#me && !game.out)) continue;
+      game.engine = restoreEngine(state);
+    }
+    if (this.#phase === 'countdown' && players.some(({ frame }) => frame > 0)) {
+      this.#phase = 'playing';
+    }
     this.#options.changed();
   }
 
   /** `garbageQueued`: #62 queues the attacks aimed at you as `garbageReceived` (`#incoming`). */
   receiveGarbage(_message: ServerMessageOf<'garbageQueued'>): void {}
 
-  /** `playerOut`. */
+  /**
+   * `playerOut`. Once you're out yourself, your loop stops and nothing you kept is sent: you watch
+   * the rest (design §10.1).
+   */
   playerOut({ playerId, reason, frame }: ServerMessageOf<'playerOut'>): void {
     const game = this.#games.find((other) => other.playerId === playerId);
     if (!game) return;
     game.out = { reason, frame };
+    if (game === this.#me) {
+      this.stop();
+      this.#unsent = [];
+      this.#unacknowledged = [];
+    }
     this.#options.changed();
   }
 
