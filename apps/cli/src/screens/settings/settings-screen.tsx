@@ -24,13 +24,11 @@ import { keyName } from '../../platform/input/terminal-input';
 export interface SettingsScreenProps {
   /** Leave the screen (Esc). The changes are already saved. */
   readonly onClose: () => void;
-  /** Whether it takes keys (`true` by default): not while it can't be seen. */
-  readonly active?: boolean;
-  /** What times its keys, to tell a key's OS repeat from a new press. The system's by default. */
-  readonly clock?: Pick<Clock, 'now'>;
+  /** Whether it takes keys: not while it can't be seen. */
+  readonly active: boolean;
+  /** What times its keys, to tell a key's OS repeat from a new press. */
+  readonly clock: Pick<Clock, 'now'>;
 }
-
-const SYSTEM_CLOCK: Pick<Clock, 'now'> = { now: () => performance.now() };
 
 /** A row ← and → change: a handling stepper, the ghost toggle, or a picker. */
 interface ValueRow {
@@ -184,11 +182,7 @@ function hint(row: Row | undefined, capturing: boolean): string {
  * and is saved at once. It reads the stores from `ClientCoreProvider`, so it stands on its own: the
  * in-game menu and the main menu both open it.
  */
-export function SettingsScreen({
-  onClose,
-  active = true,
-  clock = SYSTEM_CLOCK,
-}: SettingsScreenProps) {
+export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) {
   const settings = useSettings();
   const store = useSettingsStore();
   const [cursor, setCursor] = useState(0);

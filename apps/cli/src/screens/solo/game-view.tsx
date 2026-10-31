@@ -17,7 +17,7 @@ export interface GameViewProps {
   /** Lines drawn over the middle of the board: the countdown, or the in-game menu. */
   readonly overlay?: readonly string[];
   /** Short notices for the status line (a config file that couldn't be used). */
-  readonly notices?: readonly string[];
+  readonly notices: readonly string[];
 }
 
 /** Rows of pre-coloured strings, one `<Text>` each (design §13.3). */
@@ -61,13 +61,7 @@ function Preview({ state, look }: Pick<GameViewProps, 'state' | 'look'>) {
 }
 
 /** Which adapter turns keys into game controls (design §7.3), and any notices. */
-export function StatusLine({
-  input,
-  notices = [],
-}: {
-  input: string;
-  notices?: readonly string[];
-}) {
+export function StatusLine({ input, notices }: { input: string; notices: readonly string[] }) {
   return (
     <Box flexDirection="row">
       <Text dimColor>input: {input}</Text>
@@ -100,7 +94,7 @@ export function GameView({ state, look, ghost, input, overlay = [], notices }: G
           <Preview state={state} look={look} />
         </Box>
       </Box>
-      <StatusLine input={input} {...(notices && { notices })} />
+      <StatusLine input={input} notices={notices} />
     </Box>
   );
 }

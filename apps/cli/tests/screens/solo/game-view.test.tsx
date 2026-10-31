@@ -43,7 +43,14 @@ function stateOf(engine: Engine, fields: Partial<SoloSessionState> = {}): SoloSe
 /** The game view's frame, without colour unless asked. */
 function view(engine: Engine, props: Partial<GameViewProps> = {}): string {
   const app = render(
-    <GameView state={stateOf(engine)} look={lookOf('none')} ghost input="precise" {...props} />,
+    <GameView
+      state={stateOf(engine)}
+      look={lookOf('none')}
+      ghost
+      input="precise"
+      notices={[]}
+      {...props}
+    />,
   );
   const frame = app.lastFrame() ?? '';
   app.unmount();

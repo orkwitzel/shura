@@ -36,7 +36,7 @@ async function settingsScreen(config?: unknown, { unwritable = false, clock = fa
   const onClose = vi.fn();
   const app = render(
     <ClientCoreProvider settings={stores.settings} records={stores.records}>
-      <SettingsScreen onClose={onClose} clock={clock} />
+      <SettingsScreen onClose={onClose} active clock={clock} />
     </ClientCoreProvider>,
   );
   cleanups.push(() => app.unmount(), temp.cleanup);

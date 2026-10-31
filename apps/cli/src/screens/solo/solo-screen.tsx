@@ -27,18 +27,18 @@ export interface SoloScreenProps {
   readonly seed?: number;
   readonly colors: ColorMode;
   /** Short notices for the status line (a config file that couldn't be used). */
-  readonly notices?: readonly string[];
-  /** The input adapter (`auto` by default) and the debug panel (design §7.3). */
-  readonly input?: InputOptions;
+  readonly notices: readonly string[];
+  /** The input adapter and the debug panel (design §7.3). */
+  readonly input: InputOptions;
   /**
    * Whether the screen can be seen. While it can't (the terminal is too small), the game pauses,
    * and the menu and results keys do nothing, so the game can't resume unseen.
    */
-  readonly visible?: boolean;
+  readonly visible: boolean;
   /** Quit to menu: Q in the in-game menu, or Enter or Esc on the results. */
-  readonly onQuit?: () => void;
+  readonly onQuit: () => void;
   /** The `auto` adapter has chosen (design §7.3). */
-  readonly onInputChosen?: (choice: 'precise' | 'basic') => void;
+  readonly onInputChosen: (choice: 'precise' | 'basic') => void;
 }
 
 /**
@@ -57,8 +57,8 @@ export function SoloScreen({
   seed,
   colors,
   notices,
-  input = { choice: 'auto' },
-  visible = true,
+  input,
+  visible,
   onQuit,
   onInputChosen,
 }: SoloScreenProps) {
@@ -92,18 +92,17 @@ export function SoloScreen({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const restart = () => session.restart(seed);
-  const quit = () => onQuit?.();
   // The in-game menu's fixed shortcuts (design §7.4).
   const menu: MenuCommand[] = [
     { keys: ['escape', 'enter'], hint: 'Esc, Enter', label: 'Resume', run: session.resume },
     { keys: ['r'], hint: 'R', label: 'Restart', run: restart },
     { keys: ['s'], hint: 'S', label: 'Settings', run: () => setSettingsOpen(true) },
-    { keys: ['q'], hint: 'Q', label: 'Quit to menu', run: quit },
+    { keys: ['q'], hint: 'Q', label: 'Quit to menu', run: onQuit },
   ];
   // The results' keys (design §13.1), as the results screen lists them.
   const results: MenuCommand[] = [
     { keys: ['r'], hint: 'R', label: 'Play again', run: restart },
-    { keys: ['enter', 'escape'], hint: 'Enter, Esc', label: 'Back', run: quit },
+    { keys: ['enter', 'escape'], hint: 'Enter, Esc', label: 'Back', run: onQuit },
   ];
 
   /**
@@ -150,7 +149,7 @@ export function SoloScreen({
           ghost={ghost}
           input={terminalInput.adapter}
           overlay={overlay}
-          {...(notices && { notices })}
+          notices={notices}
         />
       )}
       {input.debug && <DebugPanel {...terminalInput} capture={input.capture?.path} />}
