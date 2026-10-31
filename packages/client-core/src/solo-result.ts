@@ -1,3 +1,6 @@
+import type { ReadonlyEngineState } from '@shura/engine';
+import { FRAMES_PER_SECOND } from './frames';
+import type { SoloMode } from './modes';
 import type { SoloSessionState } from './solo-session';
 
 /**
@@ -26,6 +29,27 @@ export interface SoloResult {
   readonly frames: number;
 }
 
+/**
+ * A run's headline in `mode`: Sprint's is its time, every other mode's its score. The one place
+ * that says which; everything else asks the headline's `kind`.
+ */
+export function headlineOf(
+  mode: SoloMode,
+  { frames, score }: { readonly frames: number; readonly score: number },
+): SoloHeadline {
+  return mode === 'sprint' ? { kind: 'time', frames } : { kind: 'score', score };
+}
+
+/** Whether a game has ended, by a top-out or by finishing (the engine says which). */
+export function hasEnded({ toppedOut, finished }: ReadonlyEngineState): boolean {
+  return toppedOut || finished;
+}
+
+/** The frames left of a mode's time limit (Ultra's 2 minutes), down to 0, or `null` without one. */
+export function timeLeft({ frame, settings }: ReadonlyEngineState): number | null {
+  return settings.frameLimit === null ? null : Math.max(settings.frameLimit - frame, 0);
+}
+
 /** The result of a game, which the engine's state says (read it once the session has ended). */
 export function soloResult({
   mode,
@@ -34,11 +58,11 @@ export function soloResult({
   const { finished, score, linesCleared, piecesPlaced, level, frame } = engine;
   return {
     outcome: finished ? 'finished' : 'gameOver',
-    headline: mode === 'sprint' ? { kind: 'time', frames: frame } : { kind: 'score', score },
+    headline: headlineOf(mode, { frames: frame, score }),
     score,
     lines: linesCleared,
     pieces: piecesPlaced,
-    piecesPerSecond: frame === 0 ? 0 : (piecesPlaced * 60) / frame,
+    piecesPerSecond: frame === 0 ? 0 : (piecesPlaced * FRAMES_PER_SECOND) / frame,
     level,
     frames: frame,
   };

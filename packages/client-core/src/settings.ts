@@ -1,6 +1,8 @@
-import { ActionType, type PieceActionType } from '@shura/engine';
+import type { PieceActionType } from '@shura/engine';
 import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
+import { PIECE_ACTIONS } from './actions';
+import { framesToMs, msToFrames } from './frames';
 import type { Handling } from './input-engine';
 import type { Storage } from './storage';
 import type { Store } from './store';
@@ -63,10 +65,6 @@ export interface Settings {
 
 /** What `update` can change: anything but the version. */
 export type SettingsChange = Partial<Omit<Settings, 'version'>>;
-
-const PIECE_ACTIONS = Object.values(ActionType).filter(
-  (type): type is PieceActionType => type !== ActionType.GarbageAccepted,
-);
 
 /** The settings that nothing has changed yet, with a platform's default bindings. */
 export function defaultSettings(bindings: BindingsOf): Settings {
@@ -223,21 +221,16 @@ class SettingsStoreImpl implements SettingsStore {
   }
 }
 
-/** One frame in ms, rounded: the step DAS and ARR move by. */
-function frameMs(frames: number): number {
-  return Math.round((frames * 1000) / 60);
-}
-
 /** Milliseconds as whole frames, rounded (design §7.3). */
-function framesOf(ms: number): number {
-  return Math.round((ms * 60) / 1000);
+function wholeFrames(ms: number): number {
+  return Math.round(msToFrames(ms));
 }
 
 /** Handling as the input engine counts it, in frames. */
 export function handlingFrames(handling: HandlingSettings): Handling {
   return {
-    das: framesOf(handling.das),
-    arr: framesOf(handling.arr),
+    das: wholeFrames(handling.das),
+    arr: wholeFrames(handling.arr),
     softDropFactor: handling.softDropFactor,
   };
 }
@@ -271,8 +264,8 @@ export function stepHandling(
     return { ...handling, softDropFactor: step ?? current };
   }
   const { min, max } = HANDLING_RANGES[field];
-  const frames = framesOf(handling[field]) + direction;
-  const ms = Math.min(Math.max(frameMs(frames), min), max);
+  const frames = wholeFrames(handling[field]) + direction;
+  const ms = Math.min(Math.max(Math.round(framesToMs(frames)), min), max);
   return { ...handling, [field]: ms };
 }
 

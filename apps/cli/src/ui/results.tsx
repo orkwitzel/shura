@@ -1,6 +1,5 @@
-import { type SoloSessionState, soloResult } from '@shura/client-core';
+import { formatFrames, formatScore, type SoloSessionState, soloResult } from '@shura/client-core';
 import { Box, Text } from 'ink';
-import { formatFrames, formatScore } from '../format';
 import type { MenuCommand } from './game-menu';
 
 /** A label and its value, as the results screen shows them. */

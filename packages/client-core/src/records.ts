@@ -1,31 +1,21 @@
 import {
-  ActionType,
   createEngine,
   ENGINE_VERSION,
-  MARATHON,
-  type ModeSettings,
   type PieceAction,
-  type PieceActionType,
   type ReadonlyEngineState,
-  SPRINT,
-  ULTRA,
 } from '@shura/engine';
 import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { type SoloResult, soloResult } from './solo-result';
-import type { SoloMode, SoloSessionState } from './solo-session';
+import { PIECE_ACTIONS } from './actions';
+import { SOLO_PRESETS, type SoloMode } from './modes';
+import { hasEnded, type SoloResult, soloResult } from './solo-result';
+import type { SoloSessionState } from './solo-session';
 import type { Storage } from './storage';
 import type { Store } from './store';
 import { type Migration, parseVersioned, type VersionedFormat } from './versioned';
 
 /** The records format's version. Raise it, with a migration, when the format changes. */
 export const RECORDS_VERSION = 1;
-
-const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = {
-  sprint: SPRINT,
-  marathon: MARATHON,
-  ultra: ULTRA,
-};
 
 /**
  * A run's stats, as its results show them (`soloResult`): Finished or Game over, the score,
@@ -91,11 +81,7 @@ function beats(run: SoloResult, best: RunStats): boolean {
   return run.headline.kind === 'time' ? run.frames < best.frames : run.score > best.score;
 }
 
-const PIECE_ACTIONS = Object.values(ActionType).filter(
-  (type): type is PieceActionType => type !== ActionType.GarbageAccepted,
-);
-
-const count = z.int().min(0);
+const nonNegative = z.int().min(0);
 const personalBestSchema = z.object({
   date: z.iso.datetime(),
   engineVersion: z.int().min(1),
@@ -105,13 +91,13 @@ const personalBestSchema = z.object({
     .max(2 ** 32 - 1),
   stats: z.object({
     outcome: z.enum(['finished', 'gameOver']),
-    score: count,
-    lines: count,
-    pieces: count,
+    score: nonNegative,
+    lines: nonNegative,
+    pieces: nonNegative,
     level: z.int().min(1),
-    frames: count,
+    frames: nonNegative,
   }),
-  actions: z.array(z.object({ frame: z.int().min(1), type: z.enum(PIECE_ACTIONS) })),
+  actions: z.array(z.object({ frame: z.int().min(1), type: z.enum([...PIECE_ACTIONS]) })),
 });
 
 const RECORDS_FORMAT: VersionedFormat<Records> = {
@@ -187,8 +173,8 @@ class RecordsStoreImpl implements RecordsStore {
     const { outcome, score, lines, pieces, level, frames } = result;
     const run: RunStats = { outcome, score, lines, pieces, level, frames };
     const best = this.getState()[game.mode] ?? null;
-    const ended = game.engine.toppedOut || game.engine.finished;
-    if (!ended || !COUNTS[game.mode](result)) return { kind: 'notCounted', run, best };
+    if (!hasEnded(game.engine) || !COUNTS[game.mode](result))
+      return { kind: 'notCounted', run, best };
     if (best && !beats(result, best.stats)) return { kind: 'behind', run, best };
     const record: PersonalBest = {
       date: this.#now().toISOString(),
@@ -227,7 +213,7 @@ class RecordsStoreImpl implements RecordsStore {
  * engine version is the same (design §13.1; verification is §16).
  */
 export function replayPersonalBest(mode: SoloMode, best: PersonalBest): ReadonlyEngineState {
-  const engine = createEngine(PRESETS[mode], best.seed, 0);
+  const engine = createEngine(SOLO_PRESETS[mode], best.seed, 0);
   engine.step(best.stats.frames, best.actions);
   return engine.state;
 }

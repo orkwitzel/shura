@@ -9,7 +9,7 @@ import {
   ULTRA,
 } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { type SoloMode, soloResult } from '../src/index';
+import { hasEnded, type SoloMode, soloResult, timeLeft } from '../src/index';
 import {
   MARATHON_ACTIONS,
   MARATHON_FINISH,
@@ -91,6 +91,28 @@ describe('an Ultra result', () => {
 
   it('is Game over at a top-out before 2:00', () => {
     expect(soloResult(toppedOut('ultra')).outcome).toBe('gameOver');
+  });
+});
+
+describe('the time left', () => {
+  it('is what is left of Ultra’s 2 minutes, in frames, down to 0', () => {
+    const engine = createEngine(ULTRA, 7, 0);
+    expect(timeLeft(engine.state)).toBe(7_200);
+    engine.step(60, []);
+    expect(timeLeft(engine.state)).toBe(7_140);
+    expect(timeLeft(played('ultra', ULTRA_SEED, ULTRA_ACTIONS).engine)).toBe(0);
+  });
+
+  it('is null in a mode without a time limit', () => {
+    expect(timeLeft(createEngine(SPRINT, 7, 0).state)).toBeNull();
+  });
+});
+
+describe('a game', () => {
+  it('has ended once it finished or topped out', () => {
+    expect(hasEnded(createEngine(SPRINT, 7, 0).state)).toBe(false);
+    expect(hasEnded(played('sprint', SPRINT_SEED, SPRINT_ACTIONS).engine)).toBe(true);
+    expect(hasEnded(toppedOut('marathon').engine)).toBe(true);
   });
 });
 

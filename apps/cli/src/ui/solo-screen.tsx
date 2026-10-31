@@ -2,6 +2,7 @@ import {
   type Clock,
   createSoloSession,
   handlingFrames,
+  personalBestLine,
   SKINS,
   type SoloMode,
   THEMES,
@@ -11,7 +12,6 @@ import type { ReadonlyEngineState } from '@shura/engine';
 import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { keyName, type TerminalInput } from '../input/terminal-input';
-import { personalBestLine } from '../personal-best';
 import type { ColorMode, Look } from '../render/palette';
 import { useCountdownLabel } from './countdown';
 import { DebugPanel } from './debug-panel';

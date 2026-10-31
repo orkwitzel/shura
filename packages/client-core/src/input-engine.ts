@@ -6,6 +6,7 @@ import {
   type ReadonlyEngineState,
   SUBROWS_PER_ROW,
 } from '@shura/engine';
+import { DEFAULT_HANDLING_SETTINGS, handlingFrames } from './settings';
 
 /**
  * A press, repeat or release of a bound key, stamped with the time it arrived on the session's
@@ -28,8 +29,8 @@ export interface Handling {
   readonly softDropFactor: number | 'instant';
 }
 
-/** The default handling (design §7.2): DAS 167 ms, ARR 33 ms, soft-drop factor ×20. */
-export const DEFAULT_HANDLING: Handling = { das: 10, arr: 2, softDropFactor: 20 };
+/** The default handling (design §7.2), in frames: DAS 10, ARR 2, soft-drop factor ×20. */
+export const DEFAULT_HANDLING: Handling = handlingFrames(DEFAULT_HANDLING_SETTINGS);
 
 /**
  * What moves a held direction after its first move: DAS and ARR ('handling', for precise input and

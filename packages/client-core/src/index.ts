@@ -1,5 +1,8 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
+export { PIECE_ACTIONS } from './actions';
 export type { Clock } from './clock';
+export { formatFrames, formatHeadline, formatScore } from './format';
+export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './frames';
 export {
   type AutoShift,
   createInputEngine,
@@ -9,6 +12,8 @@ export {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
+export { SOLO_PRESETS, type SoloMode } from './modes';
+export { personalBestLine, personalBestSummary } from './personal-best';
 export {
   createRecordsStore,
   type GameRun,
@@ -39,13 +44,19 @@ export {
   stepHandling,
   unbind,
 } from './settings';
-export { type SoloHeadline, type SoloResult, soloResult } from './solo-result';
+export {
+  hasEnded,
+  headlineOf,
+  type SoloHeadline,
+  type SoloResult,
+  soloResult,
+  timeLeft,
+} from './solo-result';
 export {
   type AppliedActionsListener,
   createSoloSession,
   type SessionEvent,
   type SessionEventListener,
-  type SoloMode,
   type SoloPhase,
   type SoloSession,
   type SoloSessionOptions,

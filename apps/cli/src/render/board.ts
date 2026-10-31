@@ -1,3 +1,4 @@
+import { hasEnded } from '@shura/client-core';
 import {
   BOARD_WIDTH,
   canMove,
@@ -46,7 +47,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
     if (line && col >= 0 && col < BOARD_WIDTH) line[col] = paint;
   };
   const { active } = state;
-  const over = state.toppedOut || state.finished;
+  const over = hasEnded(state);
   if (ghost && !over) {
     const fall = dropDistance(state);
     for (const { col, row } of pieceCells(active)) {

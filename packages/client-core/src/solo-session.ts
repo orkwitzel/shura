@@ -1,16 +1,13 @@
 import {
   createEngine,
   type Engine,
-  MARATHON,
-  type ModeSettings,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
-  SPRINT,
-  ULTRA,
 } from '@shura/engine';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Clock } from './clock';
+import { framesToMs, msToFrames } from './frames';
 import {
   type AutoShift,
   createInputEngine,
@@ -20,17 +17,9 @@ import {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
+import { SOLO_PRESETS, type SoloMode } from './modes';
+import { hasEnded } from './solo-result';
 import type { Store } from './store';
-
-/** The single-player modes a session can play (design §4). */
-export type SoloMode = 'marathon' | 'sprint' | 'ultra';
-
-/** Each mode's preset: its rules and end conditions are the engine's. */
-const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = {
-  marathon: MARATHON,
-  sprint: SPRINT,
-  ultra: ULTRA,
-};
 
 /** The countdown before Go: frames −90 to −1 (design §13.1). */
 const COUNTDOWN_FRAMES = 90;
@@ -132,12 +121,7 @@ export interface SoloSession extends Store<SoloSessionState> {
 
 /** The frame at `elapsed` milliseconds after frame 0 started. */
 function frameAt(elapsed: number): number {
-  return Math.floor((elapsed * 60) / 1000);
-}
-
-/** The time from the start of frame 0 to the start of `frame`, in milliseconds. */
-function timeOf(frame: number): number {
-  return (frame * 1000) / 60;
+  return Math.floor(msToFrames(elapsed));
 }
 
 /** A random 32-bit unsigned seed. Only the engine needs determinism, not the choice of seed. */
@@ -182,8 +166,8 @@ class Session implements SoloSession {
     });
     this.#mode = mode;
     this.#seed = seed;
-    this.#engine = createEngine(PRESETS[mode], seed, 0);
-    this.#start = clock.now() + timeOf(COUNTDOWN_FRAMES);
+    this.#engine = createEngine(SOLO_PRESETS[mode], seed, 0);
+    this.#start = clock.now() + framesToMs(COUNTDOWN_FRAMES);
     this.#store = createStore<SoloSessionState>()(() => this.#snapshot());
     this.#cancelWake = clock.schedule(this.#wake);
   }
@@ -220,9 +204,9 @@ class Session implements SoloSession {
   resume = (): void => {
     if (this.#pausedAt === null) return;
     // The time into the loop's frame at the pause carries over, and the countdown starts again.
-    const into = this.#pausedAt - timeOf(this.#frame);
+    const into = this.#pausedAt - framesToMs(this.#frame);
     this.#frame = this.#engine.state.frame - COUNTDOWN_FRAMES;
-    this.#start = this.#clock.now() - timeOf(this.#frame) - into;
+    this.#start = this.#clock.now() - framesToMs(this.#frame) - into;
     this.#pausedAt = null;
     // Keys pressed or released at the pause or during it reach the input engine as the countdown
     // starts, so a direction held through it is charged at Go.
@@ -234,12 +218,12 @@ class Session implements SoloSession {
   restart = (seed: number = freshSeed()): void => {
     this.#cancelWake();
     this.#seed = seed;
-    this.#engine = createEngine(PRESETS[this.#mode], seed, 0);
+    this.#engine = createEngine(SOLO_PRESETS[this.#mode], seed, 0);
     this.#pending = [];
     this.#log = [];
     this.#pausedAt = null;
     this.#frame = -COUNTDOWN_FRAMES;
-    this.#start = this.#clock.now() + timeOf(COUNTDOWN_FRAMES);
+    this.#start = this.#clock.now() + framesToMs(COUNTDOWN_FRAMES);
     // As on resuming, waiting keys reach the input engine as the countdown starts.
     for (const waiting of this.#keys) waiting.frame = this.#frame + 1;
     this.#publish();
@@ -277,8 +261,7 @@ class Session implements SoloSession {
 
   /** Whether the game has ended, by a top-out or by finishing. */
   #over(): boolean {
-    const { toppedOut, finished } = this.#engine.state;
-    return toppedOut || finished;
+    return hasEnded(this.#engine.state);
   }
 
   /**
@@ -289,7 +272,7 @@ class Session implements SoloSession {
   #catchUp(): boolean {
     const now = frameAt(this.#time());
     if (now - this.#frame > MAX_CATCH_UP) {
-      this.#pausedAt = timeOf(this.#frame);
+      this.#pausedAt = framesToMs(this.#frame);
       return false;
     }
     while (this.#frame < now && !this.#over()) this.#playFrame(this.#frame + 1);
@@ -306,12 +289,12 @@ class Session implements SoloSession {
     while ((this.#keys[keys]?.frame ?? Infinity) <= frame) keys++;
     const events = this.#keys.splice(0, keys).map(({ event }) => event);
     const countdown = frame <= this.#engine.state.frame;
-    const made = this.#input.playFrame(events, countdown ? null : this.#engine.state);
+    const emitted = this.#input.playFrame(events, countdown ? null : this.#engine.state);
     if (countdown) return;
-    let count = 0;
-    while (this.#pending[count]?.frame === frame) count++;
-    const actions = this.#pending.splice(0, count);
-    for (const type of made) actions.push({ frame, type });
+    let due = 0;
+    while (this.#pending[due]?.frame === frame) due++;
+    const actions = this.#pending.splice(0, due);
+    for (const type of emitted) actions.push({ frame, type });
     this.#engine.step(frame, actions);
     this.#log.push(...actions);
     if (this.#actionListeners.size > 0) this.#unheard.push(...actions);

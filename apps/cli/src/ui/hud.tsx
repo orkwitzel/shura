@@ -1,6 +1,5 @@
-import type { SoloSessionState } from '@shura/client-core';
+import { formatFrames, formatScore, type SoloSessionState, timeLeft } from '@shura/client-core';
 import { Box, Text } from 'ink';
-import { formatFrames, formatScore } from '../format';
 
 /** A HUD label and its value. */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -40,12 +39,10 @@ function MarathonHud({ state }: { state: SoloSessionState }) {
 
 /** Ultra: the time left of the 2 minutes, and the score. */
 function UltraHud({ state }: { state: SoloSessionState }) {
-  const { frame, score, settings } = state.engine;
-  const left = Math.max((settings.frameLimit ?? 0) - frame, 0);
   return (
     <>
-      <Stat label="TIME LEFT" value={formatFrames(left)} />
-      <Stat label="SCORE" value={formatScore(score)} />
+      <Stat label="TIME LEFT" value={formatFrames(timeLeft(state.engine) ?? 0)} />
+      <Stat label="SCORE" value={formatScore(state.engine.score)} />
     </>
   );
 }

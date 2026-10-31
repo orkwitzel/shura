@@ -1,9 +1,8 @@
-import type { PersonalBest, SoloMode } from '@shura/client-core';
+import { personalBestSummary, type SoloMode } from '@shura/client-core';
 import { useRecords } from '@shura/client-core/react';
 import { Box, Text, useInput } from 'ink';
 import { useState } from 'react';
 import { SOLO_MODES } from '../args';
-import { formatFrames, formatScore } from '../format';
 
 export interface MainMenuProps {
   /** Start a game of `mode`. */
@@ -38,18 +37,6 @@ const MODE_NAMES: Record<SoloMode, string> = {
   marathon: 'Marathon',
   ultra: 'Ultra',
 };
-
-/**
- * A mode's personal best as the menu shows it beside the mode (design §13.3): Sprint's time,
- * Ultra's score, and Marathon's score with the level and lines it reached.
- */
-export function personalBestSummary(mode: SoloMode, best: PersonalBest | undefined): string {
-  if (!best) return 'no record yet';
-  const { frames, score, level, lines } = best.stats;
-  if (mode === 'sprint') return formatFrames(frames);
-  if (mode === 'ultra') return formatScore(score);
-  return `${formatScore(score)} (level ${level}, ${lines} lines)`;
-}
 
 const WIDTH = 48;
 const LABEL_WIDTH = 16;
