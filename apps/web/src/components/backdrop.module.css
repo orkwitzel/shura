@@ -1,0 +1,41 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--color-background);
+}
+
+/* The three swirls, on a layer twice the window's size that turns slowly about its centre. */
+.backdrop::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background:
+    radial-gradient(closest-side at 30% 40%, var(--color-swirl-1), transparent),
+    radial-gradient(closest-side at 70% 60%, var(--color-swirl-2), transparent),
+    radial-gradient(closest-side at 55% 25%, var(--color-swirl-3), transparent);
+  filter: blur(40px);
+  animation: drift 24s linear infinite;
+}
+
+/* A vignette, darkening the edges. */
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgb(5 0 15 / 0.7));
+}
+
+@keyframes drift {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop::before {
+    animation: none;
+  }
+}

@@ -1,0 +1,45 @@
+/*
+ * The design tokens (design §13.2, Styling): type, spacing, borders and the offset shadow.
+ *
+ * The colour variables (--color-background, --color-text, --color-border, --color-accent,
+ * --color-board, --color-grid, --color-panel, --color-deep, --color-shadow, --color-muted,
+ * --color-swirl-1 to -3, --color-well-a and -b, and --color-piece-i to -l) aren't set here: the
+ * `useTheme` hook sets them on :root from the selected theme, so switching theme needs no reload.
+ */
+:root {
+  /* Type: Pixelify Sans for display text, Silkscreen for labels and keys (self-hosted). */
+  --font-display: "Pixelify Sans", "Courier New", monospace;
+  --font-label: "Silkscreen", "Courier New", monospace;
+  --text-label: 11px;
+  --text-small: 14px;
+  --text-body: 16px;
+  --text-button: 18px;
+  --text-title: 28px;
+  --text-logo: 72px;
+
+  /* Spacing, in steps of 4 px. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Borders: 4 px cream, 3 px for small things. */
+  --border-width: 4px;
+  --border-width-small: 3px;
+  --border: var(--border-width) solid var(--color-border);
+
+  /* Hard offset shadows in ink, never blurred. */
+  --shadow-offset: 4px;
+  --shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--color-shadow);
+  --shadow-large: 6px 6px 0 var(--color-shadow);
+  --shadow-pressed: 1px 1px 0 var(--color-shadow);
+
+  /* Dark text on the gold accent. */
+  --color-on-accent: #2a1405;
+
+  /* Motion: bouncy, quick. */
+  --ease-bounce: cubic-bezier(0.2, 1.5, 0.4, 1);
+  --duration-quick: 150ms;
+}
