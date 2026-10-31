@@ -24,6 +24,21 @@ export {
   type StepOptions,
   type StepResult,
 } from './engine';
+export type {
+  ClearedRow,
+  EngineEvent,
+  EngineEventType,
+  FinishEvent,
+  GarbageLandedEvent,
+  HardDropEvent,
+  HoldEvent,
+  LevelUpEvent,
+  LockEvent,
+  LockedPiece,
+  TopOutEvent,
+  TurnEvent,
+  TurnFailedEvent,
+} from './events';
 export { cancelGarbage, type GarbageEntry, holeColumn } from './garbage';
 export {
   FFA,
