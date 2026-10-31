@@ -35,16 +35,26 @@ export interface CellSize {
 
 /** Where a match's boards go in the window, and at what cell sizes. */
 export interface MatchLayout {
-  /** Your board, the full layout. */
-  readonly own: BoardSpot & CellSize;
+  /** Your board, the full layout; `null` while you spectate, with no board of your own. */
+  readonly own: (BoardSpot & CellSize) | null;
   readonly opponents: CellSize & {
-    /** A 1v1 opponent's board is the full layout; FFA opponents' are small boards. */
+    /**
+     * A 1v1 opponent's board is the full layout, as are both boards of a 1v1 you spectate; the
+     * other boards of an FFA are small.
+     */
     readonly kind: 'full' | 'small';
     readonly columns: number;
     readonly rows: number;
-    /** Each opponent's box, in order, row by row. */
+    /** Each board's box, in order, row by row. */
     readonly spots: readonly BoardSpot[];
   };
+}
+
+export interface LayoutOptions {
+  /** Whether you have a board of your own: `false` while you spectate. True by default. */
+  readonly own?: boolean;
+  /** CSS pixels kept clear across the top of the window, for a banner. */
+  readonly top?: number;
 }
 
 /** The largest multiple of 8 physical pixels up to `fits`, at least 8. */
@@ -56,51 +66,61 @@ const cellOf = (fits: number) => Math.max(Math.floor(fits / ART_PIXELS), 1) * AR
  * in what's left on the right. One opponent (a 1v1) gets the full layout, at your cell size if the
  * window fits both, otherwise as large as fits. More get small boards in a grid whose column count
  * gives the largest cells, never larger than yours (a tie goes to more columns). Every cell size is
- * a multiple of 8 physical pixels and at least 8; the whole is centred in the window.
+ * a multiple of 8 physical pixels and at least 8; the whole is centred in the window under `top`.
+ *
+ * Spectating (`own: false`; design §13.2, Spectating), `count` is every player: there is no board
+ * of your own, and all of theirs share the window at the same size in such a grid, the full layout
+ * for a 1v1's two and small boards for more.
  */
 export function layoutOpponents(
   { width, height, pixelRatio }: Viewport,
   count: number,
+  { own: hasOwn = true, top: clear = 0 }: LayoutOptions = {},
 ): MatchLayout {
   const W = width * pixelRatio;
-  const H = height * pixelRatio;
-  const kind = count === 1 ? 'full' : 'small';
+  const reserved = Math.ceil(clear * pixelRatio);
+  const H = Math.max(height * pixelRatio - reserved, 0);
+  const kind = count === 1 || (!hasOwn && count === 2) ? 'full' : 'small';
   const box = MATCH_CELLS[kind];
 
   const leastOpponents = box.width * ART_PIXELS;
-  const own = cellOf(
-    Math.min(
-      H / MATCH_CELLS.own.height,
-      (W - leastOpponents) / (MATCH_CELLS.own.width + GAP_CELLS),
-    ),
-  );
-  const room = W - (MATCH_CELLS.own.width + GAP_CELLS) * own;
+  const own = hasOwn
+    ? cellOf(
+        Math.min(
+          H / MATCH_CELLS.own.height,
+          (W - leastOpponents) / (MATCH_CELLS.own.width + GAP_CELLS),
+        ),
+      )
+    : 0;
+  const ownSpace = hasOwn ? (MATCH_CELLS.own.width + GAP_CELLS) * own : 0;
+  const room = W - ownSpace;
 
   let best = { cell: 0, columns: 1, rows: count };
   for (let columns = 1; columns <= Math.max(count, 1); columns++) {
     const rows = Math.ceil(count / columns);
-    const fits = Math.min(room / (columns * box.width), H / (rows * box.height));
-    const cell = Math.min(cellOf(fits), own);
+    const fits = cellOf(Math.min(room / (columns * box.width), H / (rows * box.height)));
+    const cell = hasOwn ? Math.min(fits, own) : fits;
     if (cell >= best.cell) best = { cell, columns, rows };
   }
   const { cell, columns, rows } = best;
 
-  const ownWidth = MATCH_CELLS.own.width * own;
   const gridWidth = columns * box.width * cell;
   const gridHeight = rows * box.height * cell;
-  const left = Math.max(Math.floor((W - ownWidth - GAP_CELLS * own - gridWidth) / 2), 0);
-  const top = (inner: number) => Math.max(Math.floor((H - inner) / 2), 0);
-  const gridLeft = left + ownWidth + GAP_CELLS * own;
+  const left = Math.max(Math.floor((W - ownSpace - gridWidth) / 2), 0);
+  const top = (inner: number) => reserved + Math.max(Math.floor((H - inner) / 2), 0);
+  const gridLeft = left + ownSpace;
   const gridTop = top(gridHeight);
   const css = (physical: number) => physical / pixelRatio;
 
   return {
-    own: {
-      x: css(left),
-      y: css(top(MATCH_CELLS.own.height * own)),
-      cellSize: css(own),
-      physicalCellSize: own,
-    },
+    own: hasOwn
+      ? {
+          x: css(left),
+          y: css(top(MATCH_CELLS.own.height * own)),
+          cellSize: css(own),
+          physicalCellSize: own,
+        }
+      : null,
     opponents: {
       kind,
       cellSize: css(cell),
