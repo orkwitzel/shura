@@ -1,0 +1,39 @@
+/* The board fills the window, centred at the cell size that fits (design §13.2, Boards). */
+.stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.layout {
+  position: absolute;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  line-height: 0;
+}
+
+.canvas canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.label {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-family: var(--font-label);
+  font-size: calc(var(--cell-size) * 0.45);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-text);
+  text-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.aside,
+.overlay {
+  position: absolute;
+}

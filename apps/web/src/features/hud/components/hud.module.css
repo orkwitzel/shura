@@ -1,0 +1,33 @@
+/* The mode's numbers, as chips under the hold (the arcade prototype's .chip). */
+.hud {
+  margin: 0;
+  display: grid;
+  gap: calc(var(--cell-size, 32px) * 0.35);
+  align-content: start;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: calc(var(--cell-size, 32px) * 0.15) calc(var(--cell-size, 32px) * 0.2);
+  background: var(--color-deep);
+  border: var(--border-width-small) solid var(--color-border);
+  box-shadow: var(--shadow);
+}
+
+.label {
+  font-family: var(--font-label);
+  font-size: calc(var(--cell-size, 32px) * 0.34);
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.value {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: calc(var(--cell-size, 32px) * 0.38);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-piece-i);
+}

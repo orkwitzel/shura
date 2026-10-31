@@ -1,5 +1,50 @@
 import { describe, expect, test } from 'vitest';
-import { THEMES } from '../src/index';
+import { type CanvasDrawing, SKINS, THEMES } from '../src/index';
+
+/**
+ * Paints a skin's canvas drawing onto an 8×8 grid of art pixels, each named by the shade it ends
+ * up in: `E` the edge (darkened 55 %), `C` the piece colour, `L` lightened 40 %, `D` darkened 22 %,
+ * `W` white, `.` nothing.
+ */
+function paint(drawing: CanvasDrawing): string[] {
+  const names = new Map([
+    [-0.55, 'E'],
+    [0, 'C'],
+    [0.4, 'L'],
+    [-0.22, 'D'],
+    [1, 'W'],
+  ]);
+  const grid = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => '.'));
+  for (const { x, y, width, height, shade } of drawing) {
+    for (let row = y; row < y + height; row++) {
+      for (let col = x; col < x + width; col++) {
+        const line = grid[row];
+        if (line) line[col] = names.get(shade) ?? '?';
+      }
+    }
+  }
+  return grid.map((line) => line.join(''));
+}
+
+describe('skins on canvas', () => {
+  test('Pixel: a dark edge, a lit top-left, a shaded bottom-right and one shine pixel', () => {
+    // The drawing as issue #43 words it, art pixel by art pixel.
+    expect(paint(SKINS.pixel.canvas)).toEqual([
+      'EEEEEEEE',
+      'ELLLLLLE',
+      'ELWCCCDE',
+      'ELCCCCDE',
+      'ELCCCCDE',
+      'ELCCCCDE',
+      'EDDDDDDE',
+      'EEEEEEEE',
+    ]);
+  });
+
+  test('Pixel is opaque', () => {
+    for (const { alpha } of SKINS.pixel.canvas) expect(alpha ?? 1).toBe(1);
+  });
+});
 
 // The prototype's web colours (issue #42), the source the themes' web groups were taken from.
 describe('web theme colours', () => {
