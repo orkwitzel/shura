@@ -31,7 +31,12 @@ export const HARD_DROP_AT_1: Action[] = [{ frame: 1, type: ActionType.HardDrop }
 
 /** How `gameOf` changes a fresh game: any of these state fields, and the following. */
 export interface GameSetup
-  extends Partial<Pick<EngineState, 'frame' | 'level' | 'linesCleared' | 'marginCarry'>> {
+  extends Partial<
+    Pick<
+      EngineState,
+      'frame' | 'level' | 'linesCleared' | 'marginCarry' | 'combo' | 'backToBack' | 'lastTurn'
+    >
+  > {
   /** The bottom of the board, as `withBoard` takes it. */
   board?: readonly string[];
   /** The piece in play. */

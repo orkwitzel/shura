@@ -6,18 +6,20 @@ import {
   clearLines,
   collides,
   createBoard,
+  fullRows,
   isEmpty,
   lockPiece,
   VISIBLE_ROWS,
 } from './board';
+import type { ClearedRow, EngineEvent, LockedPiece } from './events';
 import { addToMeter, type GarbageEntry, type LastHole, landGarbage, sendAttack } from './garbage';
 import { hashText } from './hash';
 import { assertModeSettings, type ModeSettings, SUBROWS_PER_ROW } from './modes';
-import { type ActivePiece, bottomRow, moved, type PieceKind } from './pieces';
+import { type ActivePiece, bottomRow, moved, type PieceKind, pieceCells } from './pieces';
 import { type SevenBagState, sevenBag } from './random';
 import { srs, turned } from './rotation';
 import { HARD_DROP_POINTS, type LockClear, SOFT_DROP_POINTS, scoreLock } from './scoring';
-import { detectTSpin, type Turn } from './t-spin';
+import { detectTSpin, TSpin, type Turn } from './t-spin';
 
 /** Pieces spawn with the top row of their box in row 22 in design numbering. */
 const SPAWN_ROW = 21;
@@ -142,6 +144,11 @@ export interface StepResult {
    * the client to add to its action stream. Without it, empty.
    */
   accepted: GarbageAcceptedAction[];
+  /**
+   * What happened during the step, in order, each with its frame, for clients to drive sound,
+   * effects and callouts (design §5.2). Output only: never part of the state or its hash.
+   */
+  events: EngineEvent[];
 }
 
 export interface StepOptions {
@@ -198,6 +205,9 @@ class Engine {
    * by a top-out or the mode's end condition, the engine stops: `step` changes nothing and the frame
    * stays where the game ended.
    *
+   * It returns what happened as events, in order, each with its frame: what the frame's actions and
+   * gravity did, then at the end of the frame the game ended in, the top-out or the finish.
+   *
    * A frame's `garbageAccepted` actions don't act where they stand: they name the garbage that the
    * frame's locks that clear nothing land, in order (design §8.5). If any is left over at the end of
    * a frame the game is still on in, or names garbage that isn't the oldest in the meter, `step`
@@ -226,13 +236,19 @@ class Engine {
     // Only a `garbageAccepted` can throw once the step is under way, so only then does it step a
     // copy, so that a step that throws changes nothing.
     const s = landsAccepted ? cloneState(this.#state) : this.#state;
-    const context: LockContext = { out: { sent: [], accepted: [] }, acceptGarbage, toLand: [] };
+    const context: LockContext = {
+      out: { sent: [], accepted: [], events: [] },
+      acceptGarbage,
+      toLand: [],
+    };
     let next = 0;
     while (s.frame < frame && !isOver(s)) {
       s.frame++;
       const end = endOfFrame(actions, next, s.frame);
       playFrame(s, context, actions.slice(next, end));
       next = end;
+      if (s.toppedOut) context.out.events.push({ type: 'topOut', frame: s.frame });
+      else if (s.finished) context.out.events.push({ type: 'finish', frame: s.frame });
     }
     this.#state = s;
     return context.out;
@@ -338,6 +354,8 @@ function playFrame(s: EngineState, context: LockContext, actions: readonly Actio
 }
 
 function applyAction(s: EngineState, context: LockContext, type: PieceActionType): void {
+  const { events } = context.out;
+  const { frame } = s;
   switch (type) {
     case ActionType.MoveLeft:
       tryMove(s, -1, 0);
@@ -346,23 +364,26 @@ function applyAction(s: EngineState, context: LockContext, type: PieceActionType
       tryMove(s, 1, 0);
       break;
     case ActionType.RotateCW:
-      rotate(s, 1);
-      break;
     case ActionType.RotateCCW:
-      rotate(s, 3);
+    case ActionType.Rotate180: {
+      const turn = rotate(s, QUARTER_TURNS[type]);
+      if (turn === null) events.push({ type: 'turnFailed', frame });
+      else events.push({ type: 'turn', frame, kicked: turn.kick[0] !== 0 || turn.kick[1] !== 0 });
       break;
-    case ActionType.Rotate180:
-      rotate(s, 2);
-      break;
+    }
     case ActionType.SoftDrop:
       if (tryMove(s, 0, -1)) s.score += SOFT_DROP_POINTS;
       break;
-    case ActionType.HardDrop:
-      while (tryMove(s, 0, -1)) s.score += HARD_DROP_POINTS;
+    case ActionType.HardDrop: {
+      let rows = 0;
+      while (tryMove(s, 0, -1)) rows++;
+      s.score += HARD_DROP_POINTS * rows;
+      events.push({ type: 'hardDrop', frame, rows });
       lock(s, context);
       break;
+    }
     case ActionType.Hold:
-      hold(s);
+      if (hold(s)) events.push({ type: 'hold', frame });
       break;
   }
 }
@@ -393,21 +414,29 @@ function applyGravity(s: EngineState, context: LockContext): void {
   }
 }
 
+/** How far each turn action turns the piece clockwise. */
+const QUARTER_TURNS = {
+  [ActionType.RotateCW]: 1,
+  [ActionType.Rotate180]: 2,
+  [ActionType.RotateCCW]: 3,
+} as const;
+
 /**
  * Turns the active piece clockwise by `quarterTurns`, placing it at the first of the rotation
- * system's kicks where it fits, and records the turn for T-spin detection. If none fits, it doesn't
- * turn.
+ * system's kicks where it fits, and records the turn for T-spin detection. Returns the turn, or
+ * `null` if no kick fits and the piece doesn't turn.
  */
-function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): void {
+function rotate(s: EngineState, quarterTurns: 1 | 2 | 3): Turn | null {
   const { kind, col, row, rotation } = s.active;
   const to = turned(rotation, quarterTurns);
   for (const kick of srs.kicks(kind, rotation, to)) {
     const [cols, rows] = kick;
     if (tryPlace(s, { kind, col: col + cols, row: row + rows, rotation: to })) {
       s.lastTurn = { quarterTurns, kick };
-      return;
+      return s.lastTurn;
     }
   }
+  return null;
 }
 
 /**
@@ -481,18 +510,23 @@ function tryPlace(s: EngineState, piece: ActivePiece): boolean {
 
 /**
  * Locks the active piece, clears and scores lines and T-spins, sends its attack, lands garbage if
- * it cleared nothing, and spawns the next piece from the queue. A piece that locks entirely above
- * the visible rows locks out: the player tops out and the game stops there, with that piece left
- * active. Garbage that overflows the board tops the player out too, before the next piece spawns.
+ * it cleared nothing, and spawns the next piece from the queue, reporting the lock and what
+ * followed it as events. A piece that locks entirely above the visible rows locks out: the player
+ * tops out and the game stops there, with that piece left active, and the lock reports that it
+ * cleared nothing. Garbage that overflows the board tops the player out too, before the next piece
+ * spawns.
  */
 function lock(s: EngineState, context: LockContext): void {
   const tSpin = detectTSpin(s.board, s.active, s.lastTurn);
   lockPiece(s.board, s.active);
   s.piecesPlaced++;
+  const piece: LockedPiece = { kind: s.active.kind, cells: pieceCells(s.active) };
   if (bottomRow(s.active) >= VISIBLE_ROWS) {
     s.toppedOut = true;
+    pushLock(s, context, { lines: 0, tSpin: TSpin.None, perfectClear: false }, piece, []);
     return;
   }
+  const clearedRows = fullRows(s.board);
   const lines = clearLines(s.board);
   s.linesCleared += lines;
   const clear: LockClear = { lines, tSpin, perfectClear: isEmpty(s.board) };
@@ -503,17 +537,36 @@ function lock(s: EngineState, context: LockContext): void {
     if (sent > 0) context.out.sent.push({ frame: s.frame, lines: sent });
   }
   scoreLock(s, clear);
+  pushLock(s, context, clear, piece, clearedRows);
+  const level = s.level;
   levelUp(s);
+  if (s.level > level) context.out.events.push({ type: 'levelUp', frame: s.frame, level: s.level });
   s.holdUsed = false;
   if (reachedLineGoal(s)) {
     s.finished = true;
     return;
   }
   if (garbage && lines === 0) {
-    landGarbage(s, garbage, (oldest): oldest is GarbageEntry => lands(s, context, oldest));
+    const landed = landGarbage(s, garbage, (oldest): oldest is GarbageEntry =>
+      lands(s, context, oldest),
+    );
+    if (landed > 0)
+      context.out.events.push({ type: 'garbageLanded', frame: s.frame, lines: landed });
   }
   if (s.toppedOut) return;
   spawn(s, nextFromQueue(s));
+}
+
+/** Reports a lock, with the combo counter and back-to-back status as they stand after it. */
+function pushLock(
+  s: EngineState,
+  context: LockContext,
+  clear: LockClear,
+  piece: LockedPiece,
+  clearedRows: ClearedRow[],
+): void {
+  const { frame, combo, backToBack } = s;
+  context.out.events.push({ type: 'lock', frame, clear, combo, backToBack, piece, clearedRows });
 }
 
 /**
@@ -577,13 +630,15 @@ function levelUp(s: EngineState): void {
 /**
  * Puts the active piece in the hold slot and spawns the piece that was there, or the next one from
  * the queue if the slot was empty. Once per piece: it does nothing again until the next lock.
+ * Returns whether it held.
  */
-function hold(s: EngineState): void {
-  if (s.holdUsed) return;
+function hold(s: EngineState): boolean {
+  if (s.holdUsed) return false;
   const held = s.hold;
   s.hold = s.active.kind;
   s.holdUsed = true;
   spawn(s, held ?? nextFromQueue(s));
+  return true;
 }
 
 /** Takes the nearest piece from the queue and refills it from the randomizer. */

@@ -97,23 +97,24 @@ export function sendAttack(s: GarbageState, { marginTime }: GarbageRules, attack
  * Lands garbage at a lock that cleared nothing (design §3, §8.5): the oldest attacks in the meter,
  * one after another while `lands` says the lock lands lines of the oldest, up to the garbage cap,
  * splitting an attack the cap cuts short. Garbage that pushes the stack past the top of the board
- * tops the player out.
+ * tops the player out. Returns the lines that landed.
  */
 export function landGarbage(
   s: GarbageState,
   { cap }: GarbageRules,
   lands: (oldest: GarbageEntry | undefined) => oldest is GarbageEntry,
-): void {
+): number {
   let room = cap;
   while (room > 0 && !s.toppedOut) {
     const entry = s.garbageMeter[0];
-    if (!lands(entry)) return;
+    if (!lands(entry)) break;
     const lines = Math.min(room, entry.lines);
     room -= lines;
     entry.lines -= lines;
     if (entry.lines === 0) s.garbageMeter.shift();
     if (insertGarbage(s.board, lines, landingHole(s, entry))) s.toppedOut = true;
   }
+  return cap - room;
 }
 
 /**
