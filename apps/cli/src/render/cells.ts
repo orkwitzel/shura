@@ -1,4 +1,5 @@
-import { ANSI16, CELLS, type CellKind, type ColorMode, FAINT, GLYPHS, RGB } from './palette';
+import type { ThemeColor } from '@shura/client-core';
+import { CELLS, type CellKind, GLYPHS, type Look } from './palette';
 
 /**
  * What a cell shows: a solid cell or a ghost of a kind, a greyed-out cell (a hold already used), an
@@ -10,11 +11,10 @@ export type Paint =
 
 const RESET = '\x1b[39m';
 
-function sgr(mode: ColorMode, kind: CellKind | 'faint'): string {
-  if (kind === 'faint') {
-    return mode === 'truecolor' ? `\x1b[38;2;${FAINT.rgb.join(';')}m` : `\x1b[${FAINT.ansi16}m`;
-  }
-  return mode === 'truecolor' ? `\x1b[38;2;${RGB[kind].join(';')}m` : `\x1b[${ANSI16[kind]}m`;
+/** The SGR sequence that sets the foreground to a theme colour, in the look's colour mode. */
+function sgr({ colors }: Look, { rgb, ansi16 }: ThemeColor): string {
+  if (colors === 'truecolor') return `\x1b[38;2;${rgb.join(';')}m`;
+  return `\x1b[${ansi16 < 8 ? 30 + ansi16 : 90 + ansi16 - 8}m`;
 }
 
 function glyph(paint: Paint): string {
@@ -31,16 +31,17 @@ function glyph(paint: Paint): string {
   }
 }
 
-function colored(paint: Paint): { text: string; color: CellKind | 'faint' | null } {
+function colored(paint: Paint, { theme, skin }: Look): { text: string; color: ThemeColor | null } {
+  const of = (kind: CellKind) => (kind === 'G' ? theme.garbage : theme.pieces[kind]);
   switch (paint.look) {
     case 'solid':
-      return { text: CELLS.solid, color: paint.kind };
+      return { text: skin.terminal, color: of(paint.kind) };
     case 'ghost':
-      return { text: CELLS.ghost, color: paint.kind };
+      return { text: CELLS.ghost, color: of(paint.kind) };
     case 'grey':
-      return { text: CELLS.solid, color: 'faint' };
+      return { text: skin.terminal, color: theme.chrome.grid };
     case 'empty':
-      return { text: CELLS.empty, color: 'faint' };
+      return { text: CELLS.empty, color: theme.chrome.grid };
     case 'blank':
       return { text: CELLS.blank, color: null };
   }
@@ -50,14 +51,14 @@ function colored(paint: Paint): { text: string; color: CellKind | 'faint' | null
  * One pre-coloured string for a row of cells: the colour changes only where it has to, and the row
  * ends with the default colour back.
  */
-export function paintRow(cells: readonly Paint[], mode: ColorMode): string {
-  if (mode === 'none') return cells.map(glyph).join('');
+export function paintRow(cells: readonly Paint[], look: Look): string {
+  if (look.colors === 'none') return cells.map(glyph).join('');
   let out = '';
   let current: string | null = null;
   for (const cell of cells) {
-    const { text, color } = colored(cell);
+    const { text, color } = colored(cell, look);
     // A blank is spaces, which look the same in any colour, so it keeps the current one.
-    const code: string | null = color === null ? current : sgr(mode, color);
+    const code: string | null = color === null ? current : sgr(look, color);
     if (code !== current && code !== null) out += code;
     current = code;
     out += text;

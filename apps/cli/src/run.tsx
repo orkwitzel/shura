@@ -1,8 +1,11 @@
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SoloMode } from '@shura/client-core';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
 import { terminalClock } from './clock';
+import { fileStorage, storagePaths } from './config/file-storage';
+import { openStores } from './config/stores';
 import { captureHeader, createCaptureFile } from './input/capture';
 import type { InputChoice } from './input/detect';
 import { detectColorMode } from './render/color-mode';
@@ -58,9 +61,10 @@ export function captureFileName(now: Date): string {
 }
 
 /**
- * `shura solo <mode>`: a game in the terminal until Ctrl+C. Returns the exit code. Keys come from
- * the terminal, so it needs an interactive one. `--debug-input` adds the input panel and writes
- * every key to a capture file (design §7.3), whose path it prints on the way out.
+ * `shura solo <mode>`: a game in the terminal until Ctrl+C, with the saved settings and records
+ * (design §13.3). Returns the exit code. Keys come from the terminal, so it needs an interactive
+ * one. `--debug-input` adds the input panel and writes every key to a capture file (design §7.3),
+ * whose path it prints on the way out.
  */
 export async function runSolo(options: SoloOptions): Promise<number> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -68,6 +72,8 @@ export async function runSolo(options: SoloOptions): Promise<number> {
     return 1;
   }
   const colors = detectColorMode(options.noColor, process.env);
+  const location = { env: process.env, platform: process.platform, home: homedir() };
+  const stores = openStores(fileStorage(storagePaths(location)));
   const capture = options.debugInput
     ? createCaptureFile(
         resolve(captureFileName(new Date())),
@@ -76,11 +82,13 @@ export async function runSolo(options: SoloOptions): Promise<number> {
     : undefined;
   const input = { choice: options.input, debug: options.debugInput, ...(capture && { capture }) };
   const app = startTerminalApp(
-    <App mode={options.mode} clock={terminalClock()} colors={colors} input={input} />,
+    <App mode={options.mode} clock={terminalClock()} colors={colors} input={input} {...stores} />,
     {},
     options.input,
   );
   await app.waitUntilExit();
   if (capture) console.log(`Input capture written to ${capture.path}`);
+  // The game drew on the alternate screen, so the full messages go where they stay readable.
+  for (const { message } of stores.notices) console.error(message);
   return 0;
 }

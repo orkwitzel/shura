@@ -48,7 +48,7 @@ describe('entry points (design §13.1, ADR 0012)', () => {
   });
 
   test('the react entry is where React comes in', () => {
-    expect([...packagesReachedFrom('react.ts')].filter(bringsReact)).toEqual(['zustand']);
+    expect([...packagesReachedFrom('react.ts')].filter(bringsReact)).toEqual(['react', 'zustand']);
   });
 
   test.each([

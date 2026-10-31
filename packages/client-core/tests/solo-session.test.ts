@@ -1,11 +1,12 @@
-import { ActionType, type PieceAction } from '@shura/engine';
+import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { createSoloSession, type SoloMode, type SoloSession } from '../src/index';
-import { type FakeClock, fakeClock } from './support/fake-clock';
+import { createSoloSession, type SoloMode } from '../src/index';
+import { fakeClock } from './support/fake-clock';
 import {
   MARATHON_ACTIONS,
   MARATHON_FINISH,
   MARATHON_SEED,
+  playRecorded,
   SPRINT_ACTIONS,
   SPRINT_FINISH_FRAME,
   SPRINT_SEED,
@@ -300,23 +301,6 @@ describe('a wake', () => {
     expect(session.getState()).toMatchObject({ phase: 'paused', engine: { frame: 0 } });
   });
 });
-
-/**
- * A session of `mode` from `seed` on a fake clock, played through the countdown with `actions`, a
- * recorded action log, and then for a second more.
- */
-function playRecorded(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
-  const clock: FakeClock = fakeClock(1_000);
-  const session: SoloSession = createSoloSession({ mode, clock, seed });
-  const go = clock.now() + COUNTDOWN_MS;
-  // Each action arrives 1 ms into the frame before its own, after the wake that stepped it.
-  for (const { frame, type } of actions) {
-    clock.run(go + ((frame - 1) * 1000) / 60 + 1 - clock.now());
-    session.act(type, clock.now());
-  }
-  clock.run(1_000);
-  return { clock, session };
-}
 
 /** Hard drops, one a frame from Go, until the game tops out (12 pieces in one column at most). */
 function topOut(mode: SoloMode) {

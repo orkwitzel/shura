@@ -9,6 +9,36 @@ export {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
+export {
+  createRecordsStore,
+  type GameRun,
+  type PersonalBest,
+  type PersonalBestOutcome,
+  RECORDS_VERSION,
+  type Records,
+  type RecordsStore,
+  type RecordsStoreOptions,
+  type RunStats,
+  replayPersonalBest,
+} from './records';
+export {
+  type BindingsOf,
+  createSettingsStore,
+  DEFAULT_HANDLING_SETTINGS,
+  defaultSettings,
+  type Effects,
+  HANDLING_RANGES,
+  type HandlingSettings,
+  handlingFrames,
+  rebind,
+  SETTINGS_VERSION,
+  type Settings,
+  type SettingsChange,
+  type SettingsStore,
+  type SettingsStoreOptions,
+  stepHandling,
+  unbind,
+} from './settings';
 export { type SoloHeadline, type SoloResult, soloResult } from './solo-result';
 export {
   createSoloSession,
@@ -20,4 +50,17 @@ export {
   type SoloSessionOptions,
   type SoloSessionState,
 } from './solo-session';
+export type { Storage, StoredKind } from './storage';
 export type { Store } from './store';
+export {
+  type Ansi16,
+  SHURA_DARK,
+  SKINS,
+  type Skin,
+  type SkinId,
+  THEMES,
+  type Theme,
+  type ThemeColor,
+  type ThemeId,
+} from './themes';
+export { type Migration, type Parsed, parseVersioned, type VersionedFormat } from './versioned';

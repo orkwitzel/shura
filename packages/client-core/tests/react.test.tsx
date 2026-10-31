@@ -1,11 +1,30 @@
 // @vitest-environment happy-dom
 /// <reference lib="dom" />
+
+import { ActionType, createEngine, SPRINT } from '@shura/engine';
+import type { ReactNode } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { createSoloSession, type SoloSession, type SoloSessionState } from '../src/index';
-import { useSession } from '../src/react';
+import {
+  createRecordsStore,
+  createSettingsStore,
+  createSoloSession,
+  type RecordsStore,
+  type SettingsStore,
+  type SoloSession,
+  type SoloSessionState,
+} from '../src/index';
+import {
+  ClientCoreProvider,
+  useRecords,
+  useRecordsStore,
+  useSession,
+  useSettings,
+  useSettingsStore,
+} from '../src/react';
 import { type FakeClock, fakeClock } from './support/fake-clock';
+import { memoryStorage } from './support/memory-storage';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -77,5 +96,101 @@ describe('useSession', () => {
     run(50);
     expect(renders.at(-1)).toBe(session.getState());
     expect(renders.at(-1)?.countdown).toBe(87);
+  });
+});
+
+describe('useSettings and useRecords', () => {
+  let root: Root;
+  let settings: SettingsStore;
+  let records: RecordsStore;
+
+  beforeEach(() => {
+    root = createRoot(document.createElement('div'));
+    const storage = memoryStorage();
+    const bindings = Object.fromEntries(
+      Object.values(ActionType).map((action) => [action, [action]]),
+    ) as unknown as Parameters<typeof createSettingsStore>[0]['bindings'];
+    settings = createSettingsStore({ storage, bindings });
+    records = createRecordsStore({ storage });
+  });
+
+  afterEach(() => act(() => root.unmount()));
+
+  function renderInProvider(children: ReactNode) {
+    act(() =>
+      root.render(
+        <ClientCoreProvider settings={settings} records={records}>
+          {children}
+        </ClientCoreProvider>,
+      ),
+    );
+  }
+
+  test('find the stores the provider holds, and re-render as the selected slice changes', () => {
+    const ghosts: boolean[] = [];
+    function Probe() {
+      ghosts.push(useSettings((state) => state.ghost));
+      return null;
+    }
+    renderInProvider(<Probe />);
+    act(() => settings.update({ volume: 70 }));
+    expect(ghosts).toEqual([true]);
+    act(() => settings.update({ ghost: false }));
+    expect(ghosts).toEqual([true, false]);
+  });
+
+  test('give the whole state without a selector', () => {
+    const seen: unknown[] = [];
+    function Probe() {
+      seen.push(useSettings(), useRecords());
+      return null;
+    }
+    renderInProvider(<Probe />);
+    expect(seen).toEqual([settings.getState(), records.getState()]);
+  });
+
+  test('give the stores themselves, for their writes', () => {
+    const seen: unknown[] = [];
+    function Probe() {
+      seen.push(useSettingsStore(), useRecordsStore());
+      return null;
+    }
+    renderInProvider(<Probe />);
+    expect(seen).toEqual([settings, records]);
+  });
+
+  test('follow a new personal best', () => {
+    const bests: (number | undefined)[] = [];
+    function Probe() {
+      bests.push(useRecords((state) => state.sprint?.stats.frames));
+      return null;
+    }
+    renderInProvider(<Probe />);
+    const engine = {
+      ...createEngine(SPRINT, 1, 0).state,
+      frame: 3_000,
+      score: 0,
+      linesCleared: 40,
+      piecesPlaced: 100,
+      level: 1,
+      toppedOut: false,
+      finished: true,
+    };
+    act(() => records.submit({ mode: 'sprint', seed: 1, actions: [], engine }));
+    expect(bests).toEqual([undefined, 3_000]);
+  });
+
+  test('throw outside a provider, saying what is missing', () => {
+    function Probe() {
+      useSettings();
+      return null;
+    }
+    const error = console.error;
+    console.error = () => {};
+    try {
+      expect(() => act(() => root.render(<Probe />))).toThrow(/ClientCoreProvider/);
+    } finally {
+      console.error = error;
+    }
   });
 });

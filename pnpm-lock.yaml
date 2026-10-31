@@ -358,6 +358,9 @@ importers:
       '@shura/engine':
         specifier: workspace:*
         version: link:../engine
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@shura/tsconfig':
         specifier: workspace:*

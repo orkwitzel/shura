@@ -5,6 +5,7 @@ import { App } from '../src/ui/app';
 import type { InputOptions } from '../src/ui/use-terminal-input';
 import { fakeClock } from './support/fake-clock';
 import { resize, settle, visibleRows } from './support/ink';
+import { memoryStores } from './support/stores';
 
 /** The countdown before Go: 1.5 s. */
 const COUNTDOWN_MS = 1_500;
@@ -24,7 +25,14 @@ afterEach(() => app?.unmount());
 async function sprint(input?: InputOptions) {
   const clock = fakeClock(1_000);
   app = render(
-    <App mode="sprint" clock={clock} seed={7} colors="none" {...(input && { input })} />,
+    <App
+      mode="sprint"
+      clock={clock}
+      seed={7}
+      colors="none"
+      {...memoryStores()}
+      {...(input && { input })}
+    />,
   );
   resize(app, 100, 24);
   await settle();

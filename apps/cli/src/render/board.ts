@@ -7,11 +7,10 @@ import {
   VISIBLE_ROWS,
 } from '@shura/engine';
 import { type Paint, paintRow } from './cells';
-import { type ColorMode, WALLS } from './palette';
+import { type Look, WALLS } from './palette';
 
-/** How to draw a board: the terminal's colour mode, and whether to show the ghost (a setting). */
-export interface BoardStyle {
-  readonly colors: ColorMode;
+/** How to draw a board: the look of its cells, and whether to show the ghost (a setting). */
+export interface BoardStyle extends Look {
   readonly ghost: boolean;
 }
 
@@ -69,7 +68,7 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
 export function boardRows(state: ReadonlyEngineState, style: BoardStyle): string[] {
   const grid = cellGrid(state, style.ghost);
   const rows = grid.map((cells, index) => {
-    const painted = paintRow(cells, style.colors);
+    const painted = paintRow(cells, style);
     return index < HIDDEN_ROWS_SHOWN ? ` ${painted} ` : `${WALLS.side}${painted}${WALLS.side}`;
   });
   rows.push(`${WALLS.left}${WALLS.floor.repeat(BOARD_WIDTH * 2)}${WALLS.right}`);

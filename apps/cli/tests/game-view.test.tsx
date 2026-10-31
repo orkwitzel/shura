@@ -1,4 +1,4 @@
-import type { SoloSessionState } from '@shura/client-core';
+import { SHURA_DARK, SKINS, type SoloSessionState } from '@shura/client-core';
 import {
   ActionType,
   createEngine,
@@ -11,7 +11,7 @@ import {
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { boardRows } from '../src/render/board';
-import { RGB } from '../src/render/palette';
+import { type ColorMode, type Look, lookOf } from '../src/render/palette';
 import { GameView, type GameViewProps } from '../src/ui/game-view';
 import { visibleRows, wallRows } from './support/ink';
 
@@ -42,7 +42,7 @@ function stateOf(engine: Engine, fields: Partial<SoloSessionState> = {}): SoloSe
 /** The game view's frame, without colour unless asked. */
 function view(engine: Engine, props: Partial<GameViewProps> = {}): string {
   const app = render(
-    <GameView state={stateOf(engine)} colors="none" ghost input="precise" {...props} />,
+    <GameView state={stateOf(engine)} look={lookOf('none')} ghost input="precise" {...props} />,
   );
   const frame = app.lastFrame() ?? '';
   app.unmount();
@@ -204,25 +204,50 @@ describe("Ultra's HUD", () => {
   });
 });
 
+/** The board's rows in a colour mode, with the default theme and skin unless asked. */
+function board(colors: ColorMode, look: Partial<Look> = {}): string[] {
+  return boardRows(sprint().state, { ...lookOf(colors), ...look, ghost: true });
+}
+
 describe('board colours', () => {
-  it('draws cells as 24-bit colour blocks', () => {
-    const [, top] = boardRows(sprint().state, { colors: 'truecolor', ghost: true });
-    expect(top).toContain(`\x1b[38;2;${RGB.O.join(';')}m████`);
+  it("draws cells as 24-bit colour blocks in the theme's colours", () => {
+    const [, top] = board('truecolor');
+    expect(top).toContain(`\x1b[38;2;${SHURA_DARK.pieces.O.rgb.join(';')}m████`);
     expect(top).not.toContain('[]');
   });
 
-  it('falls back to the 16 ANSI colours', () => {
-    const [, top] = boardRows(sprint().state, { colors: 'ansi16', ghost: true });
-    expect(top).toContain('\x1b[93m██'); // O is bright yellow
+  it("falls back to the theme's 16 ANSI colours", () => {
+    const [, top] = board('ansi16');
+    expect(top).toContain('\x1b[93m██'); // O is bright yellow (11)
     expect(top).not.toContain('38;2;');
   });
 
   it('draws the ghost in the piece colour, lighter than a solid cell', () => {
-    const rows = boardRows(sprint().state, { colors: 'ansi16', ghost: true });
-    expect(rows.at(-2)).toContain('\x1b[93m░░');
+    expect(board('ansi16').at(-2)).toContain('\x1b[93m░░');
+  });
+
+  it("draws empty cells' dots in the theme's grid colour", () => {
+    const grid = SHURA_DARK.chrome.grid.rgb.join(';');
+    expect(board('truecolor')[2]).toContain(`\x1b[38;2;${grid}m . .`);
   });
 
   it('makes one pre-coloured string per row: 2 hidden rows, 20 visible, and the floor', () => {
-    expect(boardRows(sprint().state, { colors: 'truecolor', ghost: true })).toHaveLength(23);
+    expect(board('truecolor')).toHaveLength(23);
+  });
+});
+
+describe('skins', () => {
+  it.each([
+    ['outlined', '[][]'],
+    ['bevelled', '▓▓▓▓'],
+  ] as const)('draw filled cells with the characters of the %s skin', (skin, cells) => {
+    const [, top] = board('ansi16', { skin: SKINS[skin] });
+    expect(top).toContain(`\x1b[93m${cells}`);
+    expect(top).not.toContain('██');
+  });
+
+  it('leave the glyphs without colour as they are, whatever the skin', () => {
+    expect(board('none', { skin: SKINS.bevelled })).toEqual(board('none'));
+    expect(board('none', { skin: SKINS.bevelled })[1]).toContain('[][]');
   });
 });

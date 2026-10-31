@@ -4,6 +4,8 @@ import { ActionType, type PieceAction, type PieceActionType } from '@shura/engin
 import marathon from '../../../engine/recorded-matches/marathon.json';
 import sprint from '../../../engine/recorded-matches/sprint.json';
 import ultra from '../../../engine/recorded-matches/ultra.json';
+import { createSoloSession, type SoloMode, type SoloSession } from '../../src/index';
+import { type FakeClock, fakeClock } from './fake-clock';
 
 const PIECE_ACTION_TYPES = new Set<string>(
   Object.values(ActionType).filter((type) => type !== ActionType.GarbageAccepted),
@@ -51,3 +53,20 @@ export const ULTRA_ACTIONS: readonly PieceAction[] = actionsOf(ultra);
 
 /** The score the recorded Ultra finishes on, at the end of frame 7,200 (its description says so). */
 export const ULTRA_SCORE = 21_449;
+
+/**
+ * A session of `mode` from `seed` on a fake clock, played through the countdown (1.5 s) with
+ * `actions`, a recorded action log, and then for a second more.
+ */
+export function playRecorded(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {
+  const clock: FakeClock = fakeClock(1_000);
+  const session: SoloSession = createSoloSession({ mode, clock, seed });
+  const go = clock.now() + 1_500;
+  // Each action arrives 1 ms into the frame before its own, after the wake that stepped it.
+  for (const { frame, type } of actions) {
+    clock.run(go + ((frame - 1) * 1000) / 60 + 1 - clock.now());
+    session.act(type, clock.now());
+  }
+  clock.run(1_000);
+  return { clock, session };
+}

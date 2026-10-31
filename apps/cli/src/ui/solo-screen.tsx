@@ -1,10 +1,18 @@
-import { type Clock, createSoloSession, type SoloMode } from '@shura/client-core';
-import { useSession } from '@shura/client-core/react';
+import {
+  type Clock,
+  createSoloSession,
+  handlingFrames,
+  SKINS,
+  type SoloMode,
+  THEMES,
+} from '@shura/client-core';
+import { useRecordsStore, useSession, useSettings } from '@shura/client-core/react';
+import type { ReadonlyEngineState } from '@shura/engine';
 import { Box } from 'ink';
-import { useEffect, useLayoutEffect, useState } from 'react';
-import { type Bindings, DEFAULT_BINDINGS } from '../input/bindings';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { keyName, type TerminalInput } from '../input/terminal-input';
-import type { ColorMode } from '../render/palette';
+import { personalBestLine } from '../personal-best';
+import type { ColorMode, Look } from '../render/palette';
 import { useCountdownLabel } from './countdown';
 import { DebugPanel } from './debug-panel';
 import { commandFor, type MenuCommand, menuLines } from './game-menu';
@@ -19,8 +27,8 @@ export interface SoloScreenProps {
   /** A fixed seed for every game, restarts included (tests); otherwise each game gets a fresh one. */
   readonly seed?: number;
   readonly colors: ColorMode;
-  readonly ghost?: boolean;
-  readonly bindings?: Bindings;
+  /** Short notices for the status line (a config file that couldn't be used). */
+  readonly notices?: readonly string[];
   /** The input adapter (`auto` by default) and the debug panel (design §7.3). */
   readonly input?: InputOptions;
   /**
@@ -37,29 +45,53 @@ export interface SoloScreenProps {
  * over the board while paused, and the results once a game ends, with the debug panel beside them
  * if asked for. Keys come from the terminal through an input adapter. During a game only the game
  * controls and the menu binding (Esc, P) act; the menu and the results have their own shortcuts.
- * Unmounting stops the session's loop.
+ * The settings (handling, bindings, ghost, theme and skin) come from the settings store, and each
+ * game that ends goes to the records store, whose verdict the results show. Unmounting stops the
+ * session's loop.
  */
 export function SoloScreen({
   mode,
   clock,
   seed,
   colors,
-  ghost = true,
-  bindings = DEFAULT_BINDINGS,
+  notices,
   input = { choice: 'auto' },
   visible = true,
   onQuit,
 }: SoloScreenProps) {
+  const { handling, bindings, ghost, theme, skin } = useSettings();
+  const records = useRecordsStore();
   const [session] = useState(() =>
-    createSoloSession({ mode, clock, ...(seed !== undefined && { seed }) }),
+    createSoloSession({
+      mode,
+      clock,
+      handling: handlingFrames(handling),
+      ...(seed !== undefined && { seed }),
+    }),
   );
   // A session never stops waking on its own: pausing is how it lets go of the clock.
   useEffect(() => () => session.pause(), [session]);
+  // Handling changed in the settings applies from the next frame (design §7.4).
+  useEffect(() => session.setInput({ handling: handlingFrames(handling) }), [session, handling]);
   // A terminal too small to show the game pauses it (design §13.3), as the message replaces it.
   useLayoutEffect(() => {
     if (!visible) session.pause();
   }, [visible, session]);
   const state = useSession(session);
+
+  // Each game that ends goes to the records once (design §13.1): quitting mid-game writes nothing.
+  // A restart makes a new engine, which is how a new game is told apart.
+  const [verdict, setVerdict] = useState<{ game: ReadonlyEngineState; line: string } | null>(null);
+  useEffect(() => {
+    if (state.phase !== 'ended' || verdict?.game === state.engine) return;
+    const ended = session.getState();
+    setVerdict({ game: ended.engine, line: personalBestLine(ended.mode, records.submit(ended)) });
+  }, [state.phase, state.engine, verdict, records, session]);
+  const personalBest = verdict?.game === state.engine ? verdict.line : undefined;
+  const look: Look = useMemo(
+    () => ({ colors, theme: THEMES[theme], skin: SKINS[skin] }),
+    [colors, theme, skin],
+  );
   const countdown = useCountdownLabel(state);
 
   const restart = () => session.restart(seed);
@@ -104,14 +136,19 @@ export function SoloScreen({
   return (
     <Box flexDirection="row">
       {state.phase === 'ended' ? (
-        <ResultsScreen state={state} keys={results} />
+        <ResultsScreen
+          state={state}
+          keys={results}
+          {...(personalBest !== undefined && { personalBest })}
+        />
       ) : (
         <GameView
           state={state}
-          colors={colors}
+          look={look}
           ghost={ghost}
           input={keys.adapter}
           overlay={overlay}
+          {...(notices && { notices })}
         />
       )}
       {input.debug && <DebugPanel {...keys} capture={input.capture?.path} />}

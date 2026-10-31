@@ -4,6 +4,7 @@ import { startTerminalApp } from '../src/run';
 import { App } from '../src/ui/app';
 import { fakeClock } from './support/fake-clock';
 import { settle } from './support/ink';
+import { memoryStores } from './support/stores';
 
 /** A terminal's stdout: a TTY 80×24 that records what's written to it. */
 class TerminalOut extends EventEmitter {
@@ -55,16 +56,19 @@ async function gameInTerminal() {
   const stdout = new TerminalOut();
   const stdin = new TerminalIn();
   const clock = fakeClock(1_000);
-  const instance = startTerminalApp(<App mode="sprint" clock={clock} seed={7} colors="none" />, {
-    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
-    stdout: stdout as any,
-    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
-    stdin: stdin as any,
-    // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
-    stderr: new TerminalOut() as any,
-    interactive: true,
-    patchConsole: false,
-  });
+  const instance = startTerminalApp(
+    <App mode="sprint" clock={clock} seed={7} colors="none" {...memoryStores()} />,
+    {
+      // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+      stdout: stdout as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+      stdin: stdin as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+      stderr: new TerminalOut() as any,
+      interactive: true,
+      patchConsole: false,
+    },
+  );
   await settle();
   expect(stdout.written).toContain(KITTY_QUERY);
   stdin.type(KITTY_REPLY);

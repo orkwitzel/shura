@@ -12,7 +12,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@shura/engine": "workspace:*"
+    "@shura/engine": "workspace:*",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:",

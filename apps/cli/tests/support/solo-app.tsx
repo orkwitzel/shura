@@ -3,6 +3,7 @@ import { render } from 'ink-testing-library';
 import { App } from '../../src/ui/app';
 import { fakeClock } from './fake-clock';
 import { resize, settle } from './ink';
+import { memoryStores } from './stores';
 
 /** The countdown before Go: 1.5 s. */
 export const COUNTDOWN_MS = 1_500;
@@ -24,7 +25,7 @@ export const KEYS = {
  */
 export async function soloGame(mode: SoloMode = 'sprint') {
   const clock = fakeClock(1_000);
-  const app = render(<App mode={mode} clock={clock} seed={7} colors="none" />);
+  const app = render(<App mode={mode} clock={clock} seed={7} colors="none" {...memoryStores()} />);
   resize(app, 80, 24);
   await settle();
   return {
