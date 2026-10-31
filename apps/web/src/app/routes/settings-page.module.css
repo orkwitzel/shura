@@ -1,0 +1,22 @@
+.page {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+}
+
+/* Wider than the menu's panel: the settings sit in two columns. */
+.page .panel {
+  width: min(960px, 100%);
+  justify-items: stretch;
+}
+
+.title {
+  margin: 0;
+  justify-self: center;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 700;
+  text-shadow:
+    3px 3px 0 var(--color-piece-z),
+    6px 6px 0 var(--color-shadow);
+}

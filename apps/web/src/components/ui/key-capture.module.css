@@ -1,0 +1,63 @@
+.keyCapture {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A key cap: Silkscreen on cream, like <kbd>, pressing into its shadow. */
+.button {
+  min-width: 44px;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--color-shadow);
+  background: var(--color-text);
+  border: var(--border-width-small) solid var(--color-shadow);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  cursor: pointer;
+  transition: transform var(--duration-quick) var(--ease-bounce);
+}
+
+.button:hover {
+  transform: translateY(-2px);
+}
+
+.button[data-empty] {
+  color: var(--color-text);
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--color-muted);
+  box-shadow: none;
+}
+
+.button[data-waiting] {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-style: solid;
+  border-color: var(--color-shadow);
+  animation: blink 0.8s steps(2, jump-none) infinite;
+}
+
+.refused {
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-accent);
+}
+
+@keyframes blink {
+  to {
+    filter: brightness(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .button[data-waiting] {
+    animation: none;
+  }
+}

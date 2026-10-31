@@ -1,22 +1,17 @@
 import { useLocation } from 'wouter';
 import { Panel } from '@/components/panel';
-import { MenuList } from '@/components/ui/menu-list';
 import { ROUTES } from '@/config/routes';
-import styles from './placeholder-page.module.css';
+import { SettingsForm } from '@/features/settings/components/settings-form';
+import styles from './settings-page.module.css';
 
-/** The settings screen: a placeholder until #46. */
+/** The settings screen at `/settings` (design §13.2). Esc or Back returns to the main menu. */
 export function SettingsPage() {
   const [, navigate] = useLocation();
   return (
-    <main>
-      <Panel>
+    <main className={styles.page}>
+      <Panel className={styles.panel}>
         <h1 className={styles.title}>Settings</h1>
-        <p className={styles.soon}>Coming soon</p>
-        <MenuList
-          label="Settings"
-          items={[{ id: 'back', label: 'Back to menu', onSelect: () => navigate(ROUTES.mainMenu) }]}
-          autoFocus
-        />
+        <SettingsForm onClose={() => navigate(ROUTES.mainMenu)} />
       </Panel>
     </main>
   );
