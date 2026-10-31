@@ -31,10 +31,13 @@ export class RoomLinks {
   readonly #links = new Map<string, Link>();
   readonly #dial: DialGame;
   readonly #logger: Logger;
+  readonly #rooms: { readonly maxSpectators: number };
 
-  constructor(dial: DialGame, logger: Logger) {
+  /** `rooms` is what every room this gateway creates is created with. */
+  constructor(dial: DialGame, logger: Logger, rooms: { readonly maxSpectators: number }) {
     this.#dial = dial;
     this.#logger = logger;
+    this.#rooms = rooms;
   }
 
   /**
@@ -50,7 +53,7 @@ export class RoomLinks {
   ): void {
     const link = this.#links.get(roomCode) ?? this.#open(roomCode, room.podAddress, room.epoch);
     link.members.set(member.sessionId, member);
-    if (create) this.#send(link, create);
+    if (create) this.#send(link, { ...create, maxSpectators: this.#rooms.maxSpectators });
     this.#send(link, {
       type: 'attach',
       roomCode,

@@ -6,6 +6,8 @@ import type {
   ServerMessage,
   ServerMessageOf,
 } from '@shura/protocol';
+import type { ServerClock } from './clock';
+import { MatchClock } from './match-clock';
 
 /** One frame's actions, as an input batch or a relay lists them. */
 export type FrameActions = ClientMessageOf<'inputBatch'>['frames'][number];
@@ -33,6 +35,10 @@ export interface MatchOptions {
   readonly seed: number;
   /** In match order: each player's position is their index, which seeds their engine. */
   readonly players: readonly MatchPlayerInfo[];
+  /** The server's clock, which the players' batches must keep up with (design §8.4). */
+  readonly clock: ServerClock;
+  /** Server time at the start of frame 0: the countdown's `startAt`. */
+  readonly startAt: number;
   readonly output: MatchOutput;
 }
 
@@ -73,12 +79,12 @@ const UNCHECKED_GARBAGE = ActionType.GarbageReceived;
 /**
  * A match on the server (design §8.1): one engine per player, each verified by replaying that
  * player's input batches, acknowledged and relayed to the room per tick, with players going out
- * when the replay tops them out or they leave, and the placements once it's settled.
+ * when the replay tops them out, they fall behind or run ahead of the server's clock, or they
+ * leave, and the placements once it's settled.
  *
  * Seams for later tickets:
  * - #62 garbage routing and the match log: `#routeGarbage` and `#checkGarbage`, and acking only
  *   after the log append (`#acknowledge`);
- * - #63 clock enforcement: `#checkClock`, and lag-outs through `goOut`;
  * - #64 reconnects and snapshots: `snapshot()` and the `seq` already acknowledged in `receive`.
  */
 export class Match {
@@ -86,12 +92,14 @@ export class Match {
   readonly seed: number;
   readonly #players: Map<string, Player>;
   readonly #output: MatchOutput;
+  readonly #clock: MatchClock;
   #ended = false;
 
-  constructor({ matchId, mode, seed, players, output }: MatchOptions) {
+  constructor({ matchId, mode, seed, players, clock, startAt, output }: MatchOptions) {
     this.matchId = matchId;
     this.seed = seed;
     this.#output = output;
+    this.#clock = new MatchClock(clock, startAt);
     this.#players = new Map(
       players.map(({ id }, index) => [
         id,
@@ -107,6 +115,12 @@ export class Match {
         },
       ]),
     );
+    for (const player of this.#players.values()) {
+      this.#clock.watch(
+        () => (player.out ? null : player.frame),
+        (frame) => this.goOut(player.id, 'laggedOut', frame),
+      );
+    }
   }
 
   /** The players by index, as `countdown` lists them. */
@@ -202,8 +216,22 @@ export class Match {
   }
 
   /**
-   * Takes `playerId` out of the match at `frame`, as the replay topped them out, they left, or
-   * their batch was refused (and, from #63, as they lagged out). Announced at once (`playerOut`).
+   * `playerId` leaves the match (`leaveRoom`, or `leaveMatch` to watch the rest): out with `left`
+   * at their last verified frame (design §10.1).
+   */
+  leave(playerId: string): void {
+    const player = this.#players.get(playerId);
+    if (player) this.goOut(playerId, 'left', player.frame);
+  }
+
+  /** Stops the match's timers, as its room stops it before it ends. */
+  stop(): void {
+    this.#clock.stop();
+  }
+
+  /**
+   * Takes `playerId` out of the match at `frame`, as the replay topped them out, they left, they
+   * lagged out or their batch was refused. Announced at once (`playerOut`).
    */
   goOut(playerId: string, reason: OutReason, frame: number): void {
     const player = this.#players.get(playerId);
@@ -220,10 +248,21 @@ export class Match {
   }
 
   /**
-   * Whether the batch's frames are on time (design §8.4). Always, until #63 enforces the 1 s
-   * window and `CLOCK_LEAD_TOLERANCE`, and lags out or removes the player itself when they aren't.
+   * Whether the batch keeps to the server's clock (design §8.4), and if not, takes the player out:
+   * lagged out at their last verified frame if they were already more than 3 s behind when it
+   * came (the lag-out timer is due, or late), removed at the batch's first frame if it runs more
+   * than `CLOCK_LEAD_TOLERANCE` frames ahead of the expected frame.
    */
-  #checkClock(_player: Player, _frames: readonly FrameActions[]): boolean {
+  #checkClock(player: Player, frames: readonly FrameActions[]): boolean {
+    if (this.#clock.laggedOut(player.frame)) {
+      this.goOut(player.id, 'laggedOut', player.frame);
+      return false;
+    }
+    const first = frames[0]?.frame ?? player.frame + 1;
+    if (this.#clock.tooFarAhead(frames.at(-1)?.frame ?? player.frame)) {
+      this.goOut(player.id, 'removed', first);
+      return false;
+    }
     return true;
   }
 
@@ -271,6 +310,7 @@ export class Match {
     if (still.some(({ frame }) => frame < lastOut)) return;
     this.tick();
     this.#ended = true;
+    this.#clock.stop();
     const result: ServerMessageOf<'matchEnd'> = {
       type: 'matchEnd',
       placements: placements(players),

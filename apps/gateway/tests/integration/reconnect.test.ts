@@ -1,5 +1,6 @@
 import type { OnlineSession } from '@shura/client-core';
 import { ActionType } from '@shura/engine';
+import { SEAT_HOLD_MS } from '@shura/protocol';
 import { expect, test } from 'vitest';
 import {
   gameOf,
@@ -164,17 +165,18 @@ test('a player who drops after going out comes back to watch the rest from a sna
   }
 });
 
-// Needs #63's lag-outs (design §8.4): until they merge, nothing lags a silent player out and this
-// fails. Once #63 is in, make it a plain `test`.
-test.fails('a drop of 5 s lags the player out, then a snapshot, then watching to matchEnd', async () => {
+test('a drop of 5 s lags the player out, then a snapshot, then watching to matchEnd', async () => {
   const world = await onlineWorld();
   const ada = world.client('Ada');
   const bo = world.client('Bo');
-  const code = await openRoom(world, '1v1', ada, bo);
-  await startMatch(world, ada, bo);
+  const cy = world.client('Cy');
+  // Three players, so the match goes on after Ada is out and she has the rest of it to watch.
+  const code = await openRoom(world, 'ffa', ada, bo, cy);
+  await startMatch(world, ada, bo, cy);
   const drops: [OnlineSession, number][] = [
     [ada, 8],
-    [bo, 6],
+    [bo, 20],
+    [cy, 30],
   ];
   let count = 0;
   for (; count < 80; count++) await step(world, count, drops);
@@ -185,12 +187,96 @@ test.fails('a drop of 5 s lags the player out, then a snapshot, then watching to
   for (const end = count + 60; count < end; count++) await step(world, count, drops);
   expect(ada.getState().connection).toEqual({ status: 'connected' });
   expect(ownGame(ada).out?.reason).toBe('laggedOut');
+  expect(ada.getState().match?.result).toBeNull();
   // Her board is the server's copy of her game now: what she played offline never counted.
   expect(hashOf(ownGame(ada).engine)).toBe(verifiedGameOf(world, code, ada).hash);
 
-  await playToEnd(world, [ada, bo], drops, count);
-  expect(ada.getState().match?.result?.placements[0]?.playerId).toBe(bo.getState().sessionId);
+  await playToEnd(world, [ada, bo, cy], drops, count);
+  expect(ada.getState().match?.result).toEqual(bo.getState().match?.result);
+  for (const opponent of [bo, cy]) {
+    const seen = gameOf(ada, opponent.getState().sessionId).engine;
+    expect(hashOf(seen)).toBe(verifiedGameOf(world, code, opponent).hash);
+    expect(hashOf(seen)).toBe(hashOf(ownGame(opponent).engine));
+  }
+});
+
+test('a player back after their match ended gets its result and the final boards', async () => {
+  const world = await onlineWorld();
+  const ada = world.client('Ada');
+  const bo = world.client('Bo');
+  const code = await openRoom(world, '1v1', ada, bo);
+  await startMatch(world, ada, bo);
+  const drops: [OnlineSession, number][] = [
+    [ada, 8],
+    [bo, 20],
+  ];
+  let count = 0;
+  for (; count < 80; count++) await step(world, count, drops);
+
+  // Her lag-out ends the 1v1 while she's away.
+  world.line(ada).cut();
+  for (const end = count + 100; count < end; count++) await step(world, count, drops);
+  expect(bo.getState().match?.result).not.toBeNull();
+  world.line(ada).restore();
+  for (const end = count + 60; count < end; count++) await step(world, count, drops);
+
+  expect(ada.getState().connection).toEqual({ status: 'connected' });
+  expect(ada.getState().room?.phase).toBe('lobby');
+  expect(ada.getState().match?.result).toEqual(bo.getState().match?.result);
+  expect(ownGame(ada).out?.reason).toBe('laggedOut');
+  expect(hashOf(ownGame(ada).engine)).toBe(verifiedGameOf(world, code, ada).hash);
   const seen = gameOf(ada, bo.getState().sessionId).engine;
   expect(hashOf(seen)).toBe(verifiedGameOf(world, code, bo).hash);
-  expect(hashOf(seen)).toBe(hashOf(ownGame(bo).engine));
+});
+
+/** Two clients paired by quick match, their match counting down. */
+async function quickMatched(world: OnlineWorld) {
+  const ada = world.client('Ada');
+  const bo = world.client('Bo');
+  ada.quickMatch();
+  await world.time.settle();
+  bo.quickMatch();
+  await world.time.settle();
+  return { ada, bo, code: ada.getState().room?.code ?? '' };
+}
+
+test('a quick-match player who drops for 1 s plays on, and the room stays together', async () => {
+  const world = await onlineWorld();
+  const { ada, bo, code } = await quickMatched(world);
+  const drops: [OnlineSession, number][] = [
+    [ada, 8],
+    [bo, 20],
+  ];
+  let count = 0;
+  for (; count < 80; count++) await step(world, count, drops);
+  world.line(ada).cut();
+  for (const end = count + 20; count < end; count++) await step(world, count, drops);
+  world.line(ada).restore();
+  await playToEnd(world, [ada, bo], drops, count);
+  expect(bo.getState().quickMatch).toBe('idle');
+  expect(bo.getState().room?.code).toBe(code);
+  expect(ada.getState().room?.code).toBe(code);
+  expect(verifiedGameOf(world, code, ada).hash).toBe(hashOf(ownGame(ada).engine));
+});
+
+test('a quick-match room breaks up only once a dropped player’s hold runs out', async () => {
+  const world = await onlineWorld();
+  const { ada, bo, code } = await quickMatched(world);
+  const drops: [OnlineSession, number][] = [[bo, 20]];
+  let count = 0;
+  for (; count < 80; count++) await step(world, count, drops);
+  world.line(ada).cut();
+  // Lagged out, Ada loses the match; Bo sees the result, still in the room.
+  for (let end = count + 200; count < end && !bo.getState().match?.result; count++) {
+    await step(world, count, drops);
+  }
+  expect(bo.getState().match?.result?.placements[0]?.playerId).toBe(bo.getState().sessionId);
+  expect(bo.getState().room?.code).toBe(code);
+  expect(bo.getState().quickMatch).toBe('idle');
+
+  await world.time.advance(SEAT_HOLD_MS - 1000);
+  expect(bo.getState().room?.code).toBe(code);
+  await world.time.advance(1000);
+  expect(bo.getState().quickMatch).toBe('opponentLeft');
+  expect(bo.getState().room).toBeNull();
 });

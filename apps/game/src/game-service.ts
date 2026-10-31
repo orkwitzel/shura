@@ -149,7 +149,7 @@ class Service implements GameService {
     const room = this.#rooms.get(message.roomCode);
     switch (message.type) {
       case 'createRoom':
-        if (!room) this.#create(message.roomCode, message.epoch, message.mode, message.hostId);
+        if (!room) this.#create(message);
         return;
       case 'attach':
         if (!room) {
@@ -169,13 +169,15 @@ class Service implements GameService {
     }
   }
 
-  #create(code: string, epoch: number, mode: Room['mode'], hostId: string | undefined): void {
+  #create(message: GatewayToGame & { type: 'createRoom' }): void {
+    const { roomCode: code, epoch, mode, hostId, maxSpectators } = message;
     const { clock, logger, stores } = this.#options;
     const room: Room = new Room({
       code,
       epoch,
       mode,
       ...(hostId !== undefined && { hostId }),
+      ...(maxSpectators !== undefined && { maxSpectators }),
       clock,
       logger: logger.child({ roomCode: code }),
       newMatch: () => ({ matchId: randomUUID(), seed: freshSeed() }),

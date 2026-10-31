@@ -18,6 +18,9 @@ export function createMemoryRateLimiter(now: () => number): RateLimiter {
       counts.set(key, count + 1, ttlMs);
       return true;
     },
+    async refresh(key, ttlMs) {
+      counts.expire(key, ttlMs);
+    },
     async release(key) {
       const count = counts.get(key) ?? 0;
       if (count <= 1) counts.delete(key);

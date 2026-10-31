@@ -4,6 +4,7 @@ import { PROTOCOL_VERSION } from '@shura/protocol';
 import { createMemoryStores } from '@shura/valkey';
 import { pino } from 'pino';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import { WebSocket as WsClient } from 'ws';
 import { systemClock } from '../src/clock';
 import { createGateway } from '../src/gateway';
 import { createHttpServer } from '../src/server';
@@ -81,4 +82,49 @@ test('an invalid nickname gets nickname_invalid, and is closed', async () => {
     nickname: '  ',
   });
   expect(messages).toEqual([expect.objectContaining({ type: 'error', code: 'nickname_invalid' })]);
+});
+
+test('a message over the size limit closes the connection (1009)', async () => {
+  const small = createHttpServer(gateway, { maxPayloadBytes: 64, trustedProxies: [] });
+  await new Promise<void>((resolve) => small.listen(0, resolve));
+  const socket = new WebSocket(`ws://localhost:${(small.address() as AddressInfo).port}/ws`);
+  await new Promise((resolve) => {
+    socket.onopen = resolve;
+  });
+  const closed = new Promise<number>((resolve) => {
+    socket.onclose = (event) => resolve(event.code);
+  });
+  socket.send('x'.repeat(65));
+  expect(await closed).toBe(1009);
+  small.close();
+});
+
+/** The address the gateway is given for a connection with `X-Forwarded-For: forwardedFor`. */
+async function addressSeen(trustedProxies: string[], forwardedFor: string): Promise<string> {
+  const seen: string[] = [];
+  const server = createHttpServer(
+    {
+      accept(socket, ip) {
+        seen.push(ip);
+        socket.close();
+      },
+    },
+    { maxPayloadBytes: 1024, trustedProxies },
+  );
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const socket = new WsClient(`ws://127.0.0.1:${(server.address() as AddressInfo).port}/ws`, {
+    headers: { 'x-forwarded-for': forwardedFor },
+  });
+  await new Promise((resolve) => socket.on('close', resolve));
+  server.close();
+  return seen[0] ?? '';
+}
+
+test('X-Forwarded-For is ignored from a peer that is not a trusted proxy', async () => {
+  expect(await addressSeen([], '198.51.100.1')).toBe('127.0.0.1');
+  expect(await addressSeen(['10.0.0.0/8'], '198.51.100.1')).toBe('127.0.0.1');
+});
+
+test('X-Forwarded-For names the client behind a trusted proxy', async () => {
+  expect(await addressSeen(['127.0.0.1'], '198.51.100.1')).toBe('198.51.100.1');
 });

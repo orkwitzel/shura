@@ -334,10 +334,19 @@ export class OnlineMatch {
     return this.#me !== undefined && this.#phase !== 'ended' && !this.#over();
   }
 
-  /** Whether your own game is over: topped out, or there is none (you watch). */
+  /**
+   * Whether your own game is over: topped out, out as the server said (`playerOut`: you watch the
+   * rest), or there is none (you watch).
+   */
   #over(): boolean {
     const engine = this.#me?.engine.state;
-    return !engine || engine.toppedOut || engine.finished || this.#phase === 'ended';
+    return (
+      !engine ||
+      engine.toppedOut ||
+      engine.finished ||
+      this.#me?.out != null ||
+      this.#phase === 'ended'
+    );
   }
 
   #myEngine(): Engine {

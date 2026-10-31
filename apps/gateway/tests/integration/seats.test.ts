@@ -39,7 +39,8 @@ test('a full 1v1 room makes spectators, who take freed seats at the next lobby i
 });
 
 test(`the spectator after the ${MAX_SPECTATORS}th gets room_full`, async () => {
-  const world = await onlineWorld();
+  // Every client is on this machine, which a laptop's limits exempt (design §11).
+  const world = await onlineWorld({ limits: { exemptIps: ['127.0.0.1'] } });
   const host = world.client('Host');
   const guest = world.client('Guest');
   const watchers = Array.from({ length: MAX_SPECTATORS + 1 }, (_, n) => world.client(`W${n}`));

@@ -8,9 +8,13 @@ import { createHttpServer } from './server';
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL, config.POD_ID);
-const stores = createValkeyStores(config.VALKEY_URL, { prefix: config.VALKEY_PREFIX });
-const gateway = createGateway({ clock: systemClock, stores, dial: dialGame, logger });
-const server = createHttpServer(gateway);
+const { limits } = config;
+const stores = createValkeyStores(config.VALKEY_URL, {
+  prefix: config.VALKEY_PREFIX,
+  requeueCooldownMs: limits.quickMatchCooldownMs,
+});
+const gateway = createGateway({ clock: systemClock, stores, dial: dialGame, logger, limits });
+const server = createHttpServer(gateway, limits);
 
 server.listen(config.PORT, () => {
   logger.info({ port: config.PORT }, 'gateway listening');
