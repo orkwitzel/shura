@@ -6,7 +6,8 @@ import {
   type ReadonlyEngineState,
   SUBROWS_PER_ROW,
 } from '@shura/engine';
-import { DEFAULT_HANDLING_SETTINGS, handlingFrames } from './settings';
+import type { Direction } from './actions';
+import { DEFAULT_HANDLING, type Handling } from './handling';
 
 /**
  * A press, repeat or release of a bound key, stamped with the time it arrived on the session's
@@ -18,19 +19,6 @@ export interface KeyEvent {
   readonly kind: 'press' | 'repeat' | 'release';
   readonly time: number;
 }
-
-/** Handling (design §7.2), in frames. */
-export interface Handling {
-  /** DAS: the frames a direction is held before auto-repeat starts. */
-  readonly das: number;
-  /** ARR: the frames between auto-repeated moves, 0 for all the way to the wall at once. */
-  readonly arr: number;
-  /** The soft-drop factor: how many times faster than gravity soft drop falls, or 'instant'. */
-  readonly softDropFactor: number | 'instant';
-}
-
-/** The default handling (design §7.2), in frames: DAS 10, ARR 2, soft-drop factor ×20. */
-export const DEFAULT_HANDLING: Handling = handlingFrames(DEFAULT_HANDLING_SETTINGS);
 
 /**
  * What moves a held direction after its first move: DAS and ARR ('handling', for precise input and
@@ -64,12 +52,6 @@ export interface InputEngine {
 export function createInputEngine(settings: Partial<InputSettings> = {}): InputEngine {
   return new InputEngineImpl({ handling: DEFAULT_HANDLING, autoShift: 'handling', ...settings });
 }
-
-/**
- * One way or the other: for a move, left is −1 column and right +1; for a stepper or a list, −1 is
- * back (smaller, up) and +1 forward.
- */
-export type Direction = -1 | 1;
 
 const MOVES: Readonly<Record<Direction, PieceActionType>> = {
   [-1]: ActionType.MoveLeft,

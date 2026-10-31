@@ -8,11 +8,10 @@ import {
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Clock } from './clock';
 import { framesToMs, msToFrames } from './frames';
+import { DEFAULT_HANDLING, type Handling } from './handling';
 import {
   type AutoShift,
   createInputEngine,
-  DEFAULT_HANDLING,
-  type Handling,
   type InputEngine,
   type InputSettings,
   type KeyEvent,

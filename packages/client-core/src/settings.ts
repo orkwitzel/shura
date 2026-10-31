@@ -2,8 +2,8 @@ import type { PieceActionType } from '@shura/engine';
 import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PIECE_ACTIONS } from './actions';
-import { framesToMs, msToFrames } from './frames';
-import type { Direction, Handling } from './input-engine';
+import { type Bindings, sharedKeys } from './bindings';
+import { DEFAULT_HANDLING_SETTINGS, HANDLING_RANGES, type HandlingSettings } from './handling';
 import type { Storage } from './storage';
 import type { Store } from './store';
 import { SKINS, type SkinId, THEMES, type ThemeId } from './themes';
@@ -11,34 +11,6 @@ import { type Migration, parseVersioned, type VersionedFormat } from './versione
 
 /** The settings format's version. Raise it, with a migration, when the format changes. */
 export const SETTINGS_VERSION = 1;
-
-/** Handling as people set it, in milliseconds (design §7.2). The input engine counts frames. */
-export interface HandlingSettings {
-  /** Delay before auto-repeat, in ms. */
-  readonly das: number;
-  /** Auto-repeat interval, in ms: 0 moves to the wall at once. */
-  readonly arr: number;
-  readonly softDropFactor: number | 'instant';
-}
-
-/** The handling ranges (design §7.2): DAS and ARR in ms, the soft-drop factor up to ×40, then instant. */
-export const HANDLING_RANGES = {
-  das: { min: 0, max: 333 },
-  arr: { min: 0, max: 83 },
-  softDropFactor: { min: 5, max: 40 },
-} as const;
-
-export const DEFAULT_HANDLING_SETTINGS: HandlingSettings = {
-  das: 167,
-  arr: 33,
-  softDropFactor: 20,
-};
-
-/**
- * The keys bound to each game control, by the platform's own key names (the CLI's `left`, `x`; the
- * web's). A key is bound to one action at most.
- */
-export type Bindings = Readonly<Record<PieceActionType, readonly string[]>>;
 
 /** The web's effects setting (design §13.2). Unset, the web follows `prefers-reduced-motion`. */
 export type Effects = 'full' | 'reduced' | 'off';
@@ -75,16 +47,6 @@ export function defaultSettings(bindings: Bindings): Settings {
     skin: 'pixel',
     volume: 50,
   };
-}
-
-/** The keys bound to more than one action. */
-function sharedKeys(bindings: Bindings): string[] {
-  const seen = new Set<string>();
-  const shared = new Set<string>();
-  for (const keys of Object.values(bindings)) {
-    for (const key of keys) (seen.has(key) ? shared : seen).add(key);
-  }
-  return [...shared];
 }
 
 /**
@@ -217,89 +179,4 @@ class SettingsStoreImpl implements SettingsStore {
   #unusable(why: string): string {
     return `${this.#storage.describe('settings')} can't be used (${why}), so Shura is using the defaults.`;
   }
-}
-
-/** Milliseconds as whole frames, rounded (design §7.3). */
-function wholeFrames(ms: number): number {
-  return Math.round(msToFrames(ms));
-}
-
-/** Handling as the input engine counts it, in frames. */
-export function handlingFrames(handling: HandlingSettings): Handling {
-  return {
-    das: wholeFrames(handling.das),
-    arr: wholeFrames(handling.arr),
-    softDropFactor: handling.softDropFactor,
-  };
-}
-
-/** The soft-drop factor's steps: every 5 from ×5 to ×40, then instant. */
-const SOFT_DROP_STEPS: readonly (number | 'instant')[] = [5, 10, 15, 20, 25, 30, 35, 40, 'instant'];
-
-/**
- * One handling setting a step up or down, within its range (design §7.2): DAS and ARR a frame at a
- * time (in ms, rounded), the soft-drop factor through ×5, ×10 … ×40, instant.
- */
-export function stepHandling(
-  handling: HandlingSettings,
-  field: keyof HandlingSettings,
-  direction: Direction,
-): HandlingSettings {
-  if (field === 'softDropFactor') {
-    const current = handling.softDropFactor;
-    // A hand-edited factor between steps goes to the next step its way.
-    let step: number | 'instant' | undefined;
-    if (direction > 0) {
-      step =
-        current === 'instant'
-          ? current
-          : SOFT_DROP_STEPS.find((s) => s === 'instant' || s > current);
-    } else {
-      step = SOFT_DROP_STEPS.findLast(
-        (s) => s !== 'instant' && (current === 'instant' || s < current),
-      );
-    }
-    return { ...handling, softDropFactor: step ?? current };
-  }
-  const { min, max } = HANDLING_RANGES[field];
-  const frames = wholeFrames(handling[field]) + direction;
-  const ms = Math.min(Math.max(Math.round(framesToMs(frames)), min), max);
-  return { ...handling, [field]: ms };
-}
-
-/**
- * Binds `key` to `action` in its `slot` (its first key is slot 0; the slot after its last adds a
- * key). A key already in use swaps (design §7.4): the action that had it takes the key this slot
- * had, or just loses it when this slot was empty.
- */
-export function rebind(
-  bindings: Bindings,
-  action: PieceActionType,
-  slot: number,
-  key: string,
-): Bindings {
-  const next = Object.fromEntries(
-    Object.entries(bindings).map(([name, keys]) => [name, [...keys]]),
-  ) as Record<PieceActionType, string[]>;
-  const own = next[action];
-  const replaced = own[slot];
-  if (replaced === undefined) {
-    for (const keys of Object.values(next)) {
-      const at = keys.indexOf(key);
-      if (at !== -1) keys.splice(at, 1);
-    }
-    own.push(key);
-  } else {
-    for (const keys of Object.values(next)) {
-      const at = keys.indexOf(key);
-      if (at !== -1) keys[at] = replaced;
-    }
-    own[slot] = key;
-  }
-  return next;
-}
-
-/** Removes the key in `action`'s `slot`, if there is one. */
-export function unbind(bindings: Bindings, action: PieceActionType, slot: number): Bindings {
-  return { ...bindings, [action]: bindings[action].filter((_, index) => index !== slot) };
 }

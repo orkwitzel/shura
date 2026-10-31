@@ -1,14 +1,21 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
-export { PIECE_ACTIONS } from './actions';
+export { type Direction, PIECE_ACTIONS } from './actions';
+export { type Bindings, rebind, unbind } from './bindings';
 export type { Clock } from './clock';
 export { formatFrames, formatHeadline, formatScore } from './format';
 export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './frames';
 export {
+  DEFAULT_HANDLING,
+  DEFAULT_HANDLING_SETTINGS,
+  HANDLING_RANGES,
+  type Handling,
+  type HandlingSettings,
+  handlingFrames,
+  stepHandling,
+} from './handling';
+export {
   type AutoShift,
   createInputEngine,
-  DEFAULT_HANDLING,
-  type Direction,
-  type Handling,
   type InputEngine,
   type InputSettings,
   type KeyEvent,
@@ -28,22 +35,14 @@ export {
   replayPersonalBest,
 } from './records';
 export {
-  type Bindings,
   createSettingsStore,
-  DEFAULT_HANDLING_SETTINGS,
   defaultSettings,
   type Effects,
-  HANDLING_RANGES,
-  type HandlingSettings,
-  handlingFrames,
-  rebind,
   SETTINGS_VERSION,
   type Settings,
   type SettingsChange,
   type SettingsStore,
   type SettingsStoreOptions,
-  stepHandling,
-  unbind,
 } from './settings';
 export {
   hasEnded,
