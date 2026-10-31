@@ -21,17 +21,19 @@ export function commandFor(
   return key === null ? undefined : commands.find((command) => command.keys.includes(key));
 }
 
+/** The in-game menu's width: the board's 20 columns, less one each side. */
+const MENU_WIDTH = 18;
+
 /**
- * The in-game menu as lines to draw over the board: a title, then each command's keys and label
- * in two columns, with a blank line around them.
+ * The in-game menu as lines to draw over the board: a title, then each command's label with its keys
+ * at the right, with a blank line around them.
  */
 export function menuLines(title: string, commands: readonly MenuCommand[]): string[] {
-  const width = Math.max(...commands.map((command) => command.hint.length)) + 2;
   return [
     '',
     title,
     '',
-    ...commands.map((command) => `${command.hint.padEnd(width)}${command.label}`),
+    ...commands.map(({ label, hint }) => `${label.padEnd(MENU_WIDTH - hint.length)}${hint}`),
     '',
   ];
 }

@@ -102,7 +102,7 @@ export function SoloScreen({
   const quit = () => onQuit?.();
   // The in-game menu's fixed shortcuts (design §7.4).
   const menu: MenuCommand[] = [
-    { keys: ['escape', 'enter'], hint: 'Esc', label: 'Resume', run: session.resume },
+    { keys: ['escape', 'enter'], hint: 'Esc, Enter', label: 'Resume', run: session.resume },
     { keys: ['r'], hint: 'R', label: 'Restart', run: restart },
     { keys: ['s'], hint: 'S', label: 'Settings', run: () => setSettingsOpen(true) },
     { keys: ['q'], hint: 'Q', label: 'Quit to menu', run: quit },

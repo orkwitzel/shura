@@ -59,10 +59,10 @@ describe('the in-game menu', () => {
     await game.type(key);
     expect(overBoard(game.frame())).toEqual([
       'PAUSED',
-      'Esc  Resume',
-      'R    Restart',
-      'S    Settings',
-      'Q    Quit to menu',
+      'Resume  Esc, Enter',
+      'Restart          R',
+      'Settings         S',
+      'Quit to menu     Q',
     ]);
     const paused = time(game.frame());
     await game.run(2_000);

@@ -37,7 +37,9 @@ const pieces = (game: Game) =>
 describe('settings from the in-game menu', () => {
   it('are an entry of the menu, between Restart and Quit', async () => {
     const game = await inMenu();
-    expect(game.frame()).toMatch(/R {4}Restart[^\n]*\n[^\n]*S {4}Settings[^\n]*\n[^\n]*Q {4}Quit/);
+    expect(game.frame()).toMatch(
+      /Restart +R[^\n]*\n[^\n]*Settings +S[^\n]*\n[^\n]*Quit to menu +Q/,
+    );
   });
 
   it('open with S in place of the game, and Esc goes back to the menu, still paused', async () => {
