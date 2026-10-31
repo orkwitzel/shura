@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { CaptureEntry, CaptureHeader, KeyEntry } from '../../src/input/capture';
+import type { CaptureEntry, CaptureHeader, KeyEntry } from '../../src/platform/input/capture';
 import type { TimedBytes } from './terminal-bytes';
 
 /**

@@ -1,5 +1,5 @@
 import type { Storage, StoredKind } from '@shura/client-core';
-import { type CliStores, openStores } from '../../src/config/stores';
+import { type CliStores, openStores } from '../../src/app/stores';
 
 /**
  * Settings and records stores over storage in memory, starting with `config` and `records` as

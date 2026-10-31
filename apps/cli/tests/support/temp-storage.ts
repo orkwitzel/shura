@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileStorage, type StoragePaths, storagePaths } from '../../src/config/file-storage';
+import { fileStorage, type StoragePaths, storagePaths } from '../../src/platform/file-storage';
 
 /**
  * File storage in a fresh temporary directory standing in for the XDG config and data

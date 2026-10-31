@@ -1,6 +1,6 @@
 import { type Key, useInput } from 'ink';
 import { render } from 'ink-testing-library';
-import type { RawKey, TerminalInput } from '../../src/input/terminal-input';
+import type { RawKey, TerminalInput } from '../../src/platform/input/terminal-input';
 
 function Recorder({ onKey }: { onKey: (raw: RawKey) => void }) {
   useInput((input, key) => onKey({ input, key }));

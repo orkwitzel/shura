@@ -1,8 +1,8 @@
 import type { SoloMode } from '@shura/client-core';
 import { render } from 'ink-testing-library';
-import type { CliStores } from '../../src/config/stores';
-import { App } from '../../src/ui/app';
-import type { InputOptions } from '../../src/ui/use-terminal-input';
+import { App } from '../../src/app/app';
+import type { CliStores } from '../../src/app/stores';
+import type { InputOptions } from '../../src/platform/input/use-terminal-input';
 import { fakeClock } from './fake-clock';
 import { resize, settle } from './ink';
 import { memoryStores } from './stores';
