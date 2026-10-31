@@ -35,6 +35,8 @@ export interface RoomOptions {
   readonly epoch: number;
   readonly mode: RoomMode;
   readonly hostId?: string;
+  /** The most spectators it holds: `MAX_SPECTATORS` unless the gateway says otherwise. */
+  readonly maxSpectators?: number;
   readonly clock: ServerClock;
   readonly logger: Logger;
   /** A fresh match: its id and seed. */
@@ -100,7 +102,7 @@ export class Room {
     }
     const seat = this.#phase === 'lobby' ? this.#freeSeat() : null;
     const spectators = [...this.#members.values()].filter((member) => member.seat === null);
-    if (seat === null && spectators.length >= MAX_SPECTATORS) {
+    if (seat === null && spectators.length >= (this.#options.maxSpectators ?? MAX_SPECTATORS)) {
       deliver(sessionId, error('room_full', 'That room is full.'));
       return;
     }

@@ -25,6 +25,8 @@ export const gatewayToGameSchema = z.discriminatedUnion('type', [
     epoch: envelope.epoch,
     mode: roomModeSchema,
     hostId: z.string().optional(),
+    /** The most spectators the room holds (the gateway's `MAX_SPECTATORS`, design §11). */
+    maxSpectators: z.number().int().min(0).optional(),
   }),
   /** A session joins the room, or comes back to it, through this gateway. */
   z.looseObject({

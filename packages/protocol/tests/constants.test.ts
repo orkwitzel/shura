@@ -48,5 +48,6 @@ test('the limit defaults are the design’s (§11)', () => {
     hostedRoomsPerSession: 1,
     failedJoinsPerIpPerMinute: 10,
     maxSpectators: 16,
+    quickMatchCooldownMs: 3000,
   });
 });

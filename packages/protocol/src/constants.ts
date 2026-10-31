@@ -69,4 +69,6 @@ export const LIMIT_DEFAULTS = {
   failedJoinsPerIpPerMinute: 10,
   /** Spectators in one room. */
   maxSpectators: MAX_SPECTATORS,
+  /** How long a session that left the quick-match queue waits before it can rejoin, in ms. */
+  quickMatchCooldownMs: 3000,
 } as const;

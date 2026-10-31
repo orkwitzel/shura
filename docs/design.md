@@ -332,7 +332,7 @@ The authoritative definitions are the zod schemas in `packages/protocol`. Every 
 
 **Gateway ⇄ game (internal):** the room-scoped messages above, wrapped with `{roomCode, epoch, sessionId}`, plus `createRoom`, `attach`, `detach`, `drain`:
 
-- gateway → game: `createRoom{ roomCode, epoch, mode, hostId? }` (no `hostId` for a quick-match room), `attach{ roomCode, epoch, sessionId, nickname, kind }` (a session joins or comes back through this gateway), `detach{ roomCode, epoch, sessionId }` (its connection closed; leaving on purpose is its `leaveRoom`), and `room{ roomCode, epoch, sessionId, message }` carrying a client message;
+- gateway → game: `createRoom{ roomCode, epoch, mode, hostId?, maxSpectators? }` (no `hostId` for a quick-match room; `maxSpectators` is the gateway's `MAX_SPECTATORS`, §11), `attach{ roomCode, epoch, sessionId, nickname, kind }` (a session joins or comes back through this gateway), `detach{ roomCode, epoch, sessionId }` (its connection closed; leaving on purpose is its `leaveRoom`), and `room{ roomCode, epoch, sessionId, message }` carrying a client message;
 - game → gateway: `room{ roomCode, epoch, sessionId, message }` carrying a message for that session's client, and `drain` (the pod is shutting down, §9.7).
 
 ---
@@ -399,7 +399,7 @@ Accessed only through `packages/valkey` interfaces, using `iovalkey`. Initial ke
 | `pod:{id}` | hash | address, room count, engineVersion, draining | 5 s, refreshed every 2 s |
 | `log:{matchId}` | stream | seed + settings entry, then one entry per room every 100 ms of verified batches and garbage routings (tagged with epoch) | deleted at match end |
 | `rl:bucket:{key}` | hash | a token bucket's tokens and when they were counted (`RateLimiter`, §11) | until it would be full again |
-| `rl:count:{key}` | counter | a connection count (`RateLimiter`, §11) | set by the caller, restarted on each count |
+| `rl:count:{key}` | counter | a connection count (`RateLimiter`, §11) | set by the caller, restarted on each count or refresh |
 
 The `{key}` of a rate limit is the caller's, such as `ip:{address}` or `session:{id}`. Every key and channel can take a prefix, which tests use to share one Valkey. Each interface has an in-memory version with the same behaviour, on an injected clock, for tests and single-process runs. Every change that reads and then writes runs as one Lua script, so concurrent calls from several pods stay atomic. Rate-limit buckets refill on the calling pod's clock, passed into the script, so pods' clocks must be in sync (NTP).
 
@@ -476,20 +476,22 @@ All limits are enforced in the gateway (the only public entry point). Each is an
 
 | Threat | Protection |
 |---|---|
-| Oversized / malformed messages | `maxPayload` 16 KB. Every message is validated with zod. 3 invalid messages → disconnect |
-| Message floods | Token bucket per connection: 60 msg/s, burst 120 |
-| Connection floods | Per IP: 10 concurrent connections, 30 new per minute. Counted in Valkey, so the limits hold across gateway pods |
-| Room spam | 3 rooms created per minute per IP. 1 hosted room per session. At most 16 spectators per room |
-| Room-code guessing | 10 failed joins per minute per IP |
+| Oversized / malformed messages | `maxPayload` 16 KB (`MAX_PAYLOAD_BYTES`): a bigger message closes the connection (1009). Every message is validated with zod, and each invalid one gets `invalid_message`. 3 invalid messages → disconnect (`INVALID_MESSAGES_BEFORE_DISCONNECT`) |
+| Message floods | Token bucket per connection: 60 msg/s, burst 120 (`MESSAGES_PER_SECOND`, `MESSAGE_BURST`). The first message over it gets `rate_limited`, the rest are dropped unanswered until one fits again |
+| Connection floods | Per IP: 10 concurrent connections, 30 new per minute (`CONNECTIONS_PER_IP`, `NEW_CONNECTIONS_PER_IP_PER_MINUTE`), refused with `too_many_connections` before the `hello`. Counted in Valkey, so the limits hold across gateway pods |
+| Room spam | 3 rooms created per minute per IP (`ROOMS_PER_IP_PER_MINUTE`). 1 hosted room per session (`HOSTED_ROOMS_PER_SESSION`): a session is in one room at a time, so this refuses a `createRoom` from the host of the room it's in. Both get `room_limit`. At most 16 spectators per room (`MAX_SPECTATORS`, which the gateway sends the pod in `createRoom`), beyond which a join gets `room_full` |
+| Room-code guessing | 10 failed joins per minute per IP (`FAILED_JOINS_PER_IP_PER_MINUTE`): a join that finds no room counts, and once the count is at the limit every join gets `rate_limited` until a minute after the last one counted |
 | Nicknames | 1–16 characters (code points): Unicode letters with their marks (Hebrew and niqqud included), digits, `_`, `-`, spaces. NFC-normalized, control and zero-width characters stripped, spaces trimmed and runs of them collapsed, plus an extendable blocklist file (`packages/protocol/src/nickname-blocklist.ts`, matched inside the name ignoring case, spaces, `_`, `-` and accents). `validateNickname` in `protocol` does all of it, for the clients and the gateway alike. Duplicates in a room get `#2` |
-| Quick-match | One queue entry per session, with a cooldown on rapid requeueing |
+| Quick-match | One queue entry per session, with a 3 s cooldown on rapid requeueing (`QUICK_MATCH_COOLDOWN_MS`) |
 | Cheating | Server re-simulation (§8.1), clock enforcement (§8.4), version handshake (§8.3) |
 
-Counts and buckets that must hold across gateway pods live in Valkey (`rl:*`), behind the `RateLimiter` interface in `packages/valkey`, with in-memory and Valkey versions like the others.
+Counts and buckets that must hold across gateway pods live in Valkey (`rl:*`), behind the `RateLimiter` interface in `packages/valkey`, with in-memory and Valkey versions like the others: per IP, the new-connection and rooms-created buckets (`ip:{address}:new`, `ip:{address}:rooms`) and the concurrent-connection and failed-join counts (`ip:{address}:connections`, `ip:{address}:failed-joins`). An IP's connection count lasts 10 minutes after it was last counted, and each open connection refreshes it every 5, so it outlives the connections it counts but a count left by a crashed gateway goes. The per-connection limits (the message bucket and the invalid-message count) are kept by the connection's own gateway, since the connection lives there. The defaults are `LIMIT_DEFAULTS` in `protocol`; the gateway's limit code is `apps/gateway/src/limits.ts`.
 
-`LIMITS_EXEMPT_IPS` (empty by default) exempts the listed addresses from the **per-IP** limits only: the connection caps, room creation and failed joins. The per-connection protections (message size, validation, the message-rate bucket) always apply, so a looping bug still gets caught. `.env.example` sets it to `127.0.0.1,::1`, so a laptop running web, CLI and bot clients at once isn't blocked (§14).
+`LIMITS_EXEMPT_IPS` (empty by default; addresses or CIDR ranges, comma-separated) exempts the listed addresses from the **per-IP** limits only: the connection caps, room creation and failed joins. The per-connection protections (message size, validation, the message-rate bucket) always apply, so a looping bug still gets caught. `.env.example` sets it to `127.0.0.1,::1`, and so does the gateway's `pnpm dev` script (nothing loads `.env` yet), so a laptop running web, CLI and bot clients at once isn't blocked (§14).
 
-Client IPs come from `X-Forwarded-For`, trusted only from the peers listed in `TRUSTED_PROXIES` (the cluster's own load balancer). With it empty, as on a laptop, the socket's own address is used. Network-level DDoS protection is left to the hosting provider or a CDN/WAF.
+Client IPs come from `X-Forwarded-For`, trusted only from the peers listed in `TRUSTED_PROXIES` (the cluster's own load balancer; addresses or CIDR ranges). The client is the nearest address in the header, read from the right, that isn't a trusted proxy, since a client can write anything at its front. With it empty, as on a laptop, the socket's own address is used. IPv4 addresses mapped to IPv6 (`::ffff:1.2.3.4`) count as IPv4.
+
+client-core's `errorText` gives the plain words both clients show for `rate_limited`, `too_many_connections` and `room_limit`, and keeps the server's message for the other codes. Network-level DDoS protection is left to the hosting provider or a CDN/WAF.
 
 ---
 
@@ -704,7 +706,7 @@ pnpm bot        join K7QX --count 5 · quick: asks the bot tool for bots
 pnpm check      Biome + typecheck + test across the repo (the same command CI runs)
 ```
 
-`.env.example` sets `LIMITS_EXEMPT_IPS=127.0.0.1,::1`, so the per-IP limits (§11) don't block a laptop running several clients and bots.
+`.env.example` sets `LIMITS_EXEMPT_IPS=127.0.0.1,::1`, and the gateway's `dev` script sets it too, so the per-IP limits (§11) don't block a laptop running several clients and bots.
 
 **Testing online play (from M4):**
 
