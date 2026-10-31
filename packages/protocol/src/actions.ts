@@ -4,13 +4,10 @@ import { z } from 'zod';
 /** A frame on the wire: game frames start at 1, frame 0 being the state before any step. */
 export const frameSchema = z.int().min(1);
 
-/** The name of the received-garbage action on the wire (design §8.5, ADR 0013). */
-const GARBAGE_RECEIVED = 'garbageReceived';
-
-/** The action types that aren't piece actions: they carry an attack's details. */
-const GARBAGE_ACTIONS: ReadonlySet<string> = new Set([
+/** The action types that carry an attack's details rather than move the piece. */
+const GARBAGE_ACTIONS: ReadonlySet<ActionType> = new Set([
+  ActionType.GarbageReceived,
   ActionType.GarbageAccepted,
-  GARBAGE_RECEIVED,
 ]);
 
 const PIECE_ACTION_TYPES = Object.values(ActionType).filter(
@@ -21,31 +18,33 @@ const actionUnion = z.discriminatedUnion('type', [
   z.looseObject({ frame: frameSchema, type: z.enum(PIECE_ACTION_TYPES) }),
   z.looseObject({
     frame: frameSchema,
-    type: z.literal(ActionType.GarbageAccepted),
-    id: z.int().min(0),
-  }),
-  z.looseObject({
-    frame: frameSchema,
-    type: z.literal(GARBAGE_RECEIVED),
+    type: z.literal(ActionType.GarbageReceived),
     id: z.int().min(0),
     lines: z.int().min(1),
     holeSeed: z.uint32(),
+  }),
+  z.looseObject({
+    frame: frameSchema,
+    type: z.literal(ActionType.GarbageAccepted),
+    id: z.int().min(0),
   }),
 ]);
 
 /**
  * One engine action on the wire (design §7.1, §8.5): the engine's own `Action`, `garbageReceived`
- * included. It's typed as the engine's `Action`, so messages hand their actions to `step` as they
- * are; a test checks that it has a branch for every one of the engine's action types.
+ * included, so messages hand their actions to `step` as they are. A test checks that it has a
+ * branch for every one of the engine's action types.
  */
-export const actionSchema = actionUnion as unknown as z.ZodType<Action>;
+export const actionSchema: z.ZodType<Action> = actionUnion;
 
-// Every engine action must parse, so the union can only be wider than `Action`, never narrower.
+// The annotation above makes every parsed action an engine action; this makes every engine action
+// parse, so the two can't drift apart.
 type KnownFields<T> = T extends unknown
   ? { [K in keyof T as string extends K ? never : K]: T[K] }
   : never;
-type Parsed = KnownFields<z.infer<typeof actionUnion>>;
-const everyEngineActionParses: Action extends Parsed ? true : false = true;
+const everyEngineActionParses: Action extends KnownFields<z.infer<typeof actionUnion>>
+  ? true
+  : false = true;
 void everyEngineActionParses;
 
 /**
