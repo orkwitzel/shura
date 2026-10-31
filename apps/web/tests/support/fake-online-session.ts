@@ -85,6 +85,7 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     quickMatch: vi.fn(),
     cancelQuickMatch: vi.fn(),
     rematch: vi.fn(),
+    now: vi.fn(() => 0),
     key: vi.fn(),
     act: vi.fn(),
     setInput: vi.fn(),

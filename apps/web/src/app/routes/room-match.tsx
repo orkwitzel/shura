@@ -68,8 +68,7 @@ export function RoomMatch({ session }: RoomMatchProps) {
   useSound(session);
   useGameKeys({
     game: session,
-    // The online clock's time (lib/online-clock), which the session's loop runs on.
-    now: () => performance.now(),
+    now: session.now,
     acceptKeys: playing && !menuOpen,
     onMenu: () => setMenuOpen(true),
     onAway: () => {

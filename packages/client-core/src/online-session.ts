@@ -152,6 +152,8 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   cancelQuickMatch(): void;
   /** In a quick-match room after results: the next match starts once both ask (design §9.4). */
   rematch(): void;
+  /** The time on the session's clock: what the UI stamps key events (`key`, `act`) with. */
+  now(): number;
   /** A key event from the UI's adapter, for your game in the current match. */
   key(event: KeyEvent): void;
   /** An action that arrived at `time`, for your game in the current match. */
@@ -252,6 +254,7 @@ class Session implements OnlineSession {
 
   leaveMatch = (): void => this.#send({ type: 'leaveMatch' });
 
+  now = (): number => this.#options.clock.now();
   key = (event: KeyEvent): void => this.#match?.key(event);
   act = (type: PieceActionType, time: number): void => this.#match?.act(type, time);
   setInput = (settings: Partial<InputSettings>): void => this.#input.configure(settings);

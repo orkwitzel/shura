@@ -51,6 +51,7 @@ export function fakeOnlineSession(state: Partial<OnlineSessionState> = {}): Fake
     quickMatch: vi.fn(),
     cancelQuickMatch: vi.fn(),
     rematch: vi.fn(),
+    now: vi.fn(() => 0),
     key: vi.fn(),
     act: vi.fn(),
     setInput: vi.fn(),
