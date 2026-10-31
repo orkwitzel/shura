@@ -9,7 +9,10 @@ import { createStore } from 'zustand/vanilla';
 import { resize, settle } from './ink';
 import { memoryStores } from './stores';
 
-type Method = Exclude<keyof OnlineSession, 'getState' | 'getInitialState' | 'subscribe'>;
+type Method = Exclude<
+  keyof OnlineSession,
+  'getState' | 'getInitialState' | 'subscribe' | 'sessionToken'
+>;
 
 /** An online session whose store a test sets by hand, and whose methods record their calls. */
 export type FakeOnlineSession = OnlineSession & { [Name in Method]: Mock<OnlineSession[Name]> } & {
@@ -34,6 +37,7 @@ export function fakeOnlineSession(state: Partial<OnlineSessionState> = {}): Fake
     getState: store.getState,
     getInitialState: store.getInitialState,
     subscribe: store.subscribe,
+    sessionToken: null,
     set: (change) => store.setState(change),
     createRoom: vi.fn(),
     joinRoom: vi.fn(),
