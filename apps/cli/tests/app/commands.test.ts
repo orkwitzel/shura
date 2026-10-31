@@ -148,30 +148,26 @@ describe('the online commands, until online play exists (M4)', () => {
 });
 
 describe('global flags', () => {
-  test('--server and --name go with every command, before or after it', async () => {
-    const flags = ['--server', 'wss://example.org', '--name', 'Or'];
+  test.each([
+    [['--server', 'wss://example.org', '--name', 'Or'], DEFAULTS],
+    [['--input', 'basic', '--no-color'], { ...DEFAULTS, input: 'basic', noColor: true }],
+  ] as const)('%j go with every command, before or after it', async (flags, options) => {
     for (const argv of [['quick'], ['create'], ['join', 'K7QX']]) {
       expect((await shura(...argv, ...flags)).code).toBe(1);
       expect((await shura(...flags, ...argv)).code).toBe(1);
     }
-    for (const argv of [[], ['solo', 'sprint']]) {
-      expect(await shura(...argv, ...flags)).toMatchObject({ code: 0, played: [{ ...DEFAULTS }] });
-    }
+    expect((await shura(...flags)).played).toEqual([options]);
+    expect((await shura('solo', 'sprint', ...flags)).played).toEqual([
+      { mode: 'sprint', ...options },
+    ]);
+    expect((await shura(...flags, 'solo', 'sprint')).played).toEqual([
+      { mode: 'sprint', ...options },
+    ]);
   });
 
   test('--server and --name need a value', async () => {
     expect((await shura('--server')).code).toBe(2);
     expect((await shura('quick', '--name')).code).toBe(2);
-  });
-
-  test('--input and --no-color go with every command, before or after it', async () => {
-    for (const argv of [['quick'], ['create'], ['join', 'K7QX']]) {
-      expect((await shura(...argv, '--input', 'basic', '--no-color')).code).toBe(1);
-      expect((await shura('--input', 'basic', '--no-color', ...argv)).code).toBe(1);
-    }
-    expect((await shura('--input', 'basic', '--no-color')).played).toEqual([
-      { ...DEFAULTS, input: 'basic', noColor: true },
-    ]);
   });
 });
 
@@ -191,15 +187,6 @@ describe('the interactive commands', () => {
     expect((await shura('solo')).code).toBe(2);
     expect((await shura('solo', 'tetris')).code).toBe(2);
     expect((await shura('solo', 'sprint', 'extra')).code).toBe(2);
-  });
-
-  test('--no-color goes anywhere', async () => {
-    expect((await shura('--no-color', 'solo', 'sprint')).played).toEqual([
-      { mode: 'sprint', ...DEFAULTS, noColor: true },
-    ]);
-    expect((await shura('solo', 'sprint', '--no-color')).played).toEqual([
-      { mode: 'sprint', ...DEFAULTS, noColor: true },
-    ]);
   });
 
   test('--input precise|basic fixes the input adapter (design §7.3)', async () => {

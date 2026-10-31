@@ -13,7 +13,7 @@ export {
   type InputSettings,
   type KeyEvent,
 } from './input-engine';
-export { SOLO_PRESETS, type SoloMode } from './modes';
+export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './modes';
 export { personalBestLine, personalBestSummary } from './personal-best';
 export {
   createRecordsStore,

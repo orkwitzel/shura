@@ -5,10 +5,9 @@ import {
   InvalidArgumentError,
   Option,
 } from '@commander-js/extra-typings';
-import type { SoloMode } from '@shura/client-core';
+import { SOLO_MODES, type SoloMode } from '@shura/client-core';
 import pkg from '../../package.json' with { type: 'json' };
 import type { InputChoice } from '../platform/input/detect';
-import { SOLO_MODES } from '../screens/main-menu/main-menu-screen';
 
 /** The adapters `--input` can fix; without it the CLI chooses (design §7.3). */
 const FIXED_INPUTS = ['precise', 'basic'] as const satisfies readonly InputChoice[];
@@ -52,19 +51,6 @@ export interface CommandIO {
   err(text: string): void;
   play(options: PlayOptions): Promise<number>;
 }
-
-/** The global options as Commander parses them. */
-interface GlobalFlags {
-  readonly color: boolean;
-  readonly input?: (typeof FIXED_INPUTS)[number];
-  readonly debugInput?: true;
-}
-
-const playOptions = ({ color, input, debugInput }: GlobalFlags): PlayOptions => ({
-  noColor: !color,
-  input: input ?? 'auto',
-  debugInput: debugInput ?? false,
-});
 
 const roomCode = (code: string): string => {
   const upper = code.toUpperCase();
@@ -112,9 +98,9 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
     )
     .option('--no-color', 'draw cells as characters instead of colour (or set NO_COLOR)')
     .version(pkg.version, '-v, --version', 'print the version')
-    .addOption(new Option('--debug-input').hideHelp())
+    .addOption(new Option('--debug-input').default(false).hideHelp())
     // `--mode` is `create`'s, but like every flag it may come before the command too: the program
-    // takes it wherever it is (create's own `--mode` is for its help), and refuses it elsewhere.
+    // takes it wherever it is, and refuses it with any other command.
     .addOption(new Option('--mode <mode>').choices(ROOM_MODES).hideHelp())
     .hook('preAction', (program, command) => {
       if (program.opts().mode !== undefined && command.name() !== 'create') {
@@ -122,6 +108,16 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
       }
     })
     .addHelpText('after', "\nOnline play isn't available yet: quick, create and join exit with 1.");
+
+  const playOptions = ({
+    color,
+    input,
+    debugInput,
+  }: ReturnType<typeof program.opts>): PlayOptions => ({
+    noColor: !color,
+    input: input ?? 'auto',
+    debugInput,
+  });
 
   program
     .command('solo')
@@ -138,7 +134,8 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
   program
     .command('create')
     .description('create a room (1v1 unless --mode ffa) and print its code and link')
-    .addOption(new Option('--mode <mode>', "the room's mode").choices(ROOM_MODES).default('1v1'))
+    // Only for the help: the program's own `--mode` takes the value, wherever it is.
+    .addOption(new Option('--mode <mode>', "the room's mode").choices(ROOM_MODES))
     .action(offline);
   program
     .command('join')

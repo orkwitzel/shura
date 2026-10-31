@@ -12,8 +12,6 @@ import {
 /** The adapter `--input` asks for, or `auto` to choose from the first key events (design §7.3). */
 export type InputChoice = 'auto' | 'precise' | 'basic';
 
-export const INPUT_CHOICES: readonly InputChoice[] = ['auto', 'precise', 'basic'];
-
 /**
  * Which keyboard encoding a terminal key proves the terminal speaks:
  *
