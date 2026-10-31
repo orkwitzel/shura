@@ -1,6 +1,6 @@
 {
   "description": "80 pieces: 70 placed by a greedy bot, then hard dropped in place until a top-out. 22 rotateCW, 25 rotateCCW and 18 rotate180: 10 turns kick away from the turn in place, 2 fit no kick, and 6 made on the stack restart the lock delay. Every third bot piece is soft dropped onto the stack, turned there and locked by the lock delay. 25 lines cleared. One T turned onto the stack locks as a mini T-spin zero.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 4242,
   "mode": "sprint",
   "settings": {
@@ -9,7 +9,7 @@
   "lastFrame": 2025,
   "players": [
     {
-      "expectedHash": "3f30606957c123a3",
+      "expectedHash": "ab327850dbc776e1",
       "actions": [
         { "frame": 1, "type": "rotate180" },
         { "frame": 2, "type": "moveRight" },

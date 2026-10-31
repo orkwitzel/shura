@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { ActionType, ENGINE_VERSION, MARATHON, SPRINT } from '../src/index';
+import { ActionType, createEngine, ENGINE_VERSION, MARATHON, SPRINT } from '../src/index';
 import {
   checkRecordedMatch,
   expectedHashes,
@@ -53,6 +53,23 @@ describe.each(versusMatches)('the 2-player match $file', ({ match }) => {
 
   test('lands garbage on both players', () => {
     for (const actions of accepted) expect(actions.length).toBeGreaterThan(0);
+  });
+
+  test("records each attack sent in the opponent's log, as a garbageReceived at the next frame", () => {
+    const recorded = match.players.map(({ actions }) =>
+      actions.filter((action) => action.type === ActionType.GarbageReceived),
+    );
+    for (const actions of recorded) expect(actions.length).toBeGreaterThan(0);
+    expect(replay(match).received).toEqual(recorded);
+  });
+
+  test("replays each player's log on its own to their hash: the log is the whole input", () => {
+    const alone = match.players.map(({ actions }, index) => {
+      const engine = createEngine(settingsOf(match), match.seed, index);
+      engine.step(match.lastFrame, actions);
+      return engine.hash();
+    });
+    expect(alone).toEqual(expectedHashes(match));
   });
 
   test('records the garbageAccepted actions that clients accepting garbage record', () => {

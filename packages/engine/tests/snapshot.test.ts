@@ -242,6 +242,9 @@ describe('hash', () => {
     'an attack in the garbage meter': (s) => {
       s.garbageMeter.push({ id: 1, lines: 2, holeSeed: 3 });
     },
+    'the ids of the attacks received': (s) => {
+      s.receivedGarbageIds.push(1);
+    },
   };
 
   test.each(Object.keys(changes))('changes when %s changes', (name) => {
