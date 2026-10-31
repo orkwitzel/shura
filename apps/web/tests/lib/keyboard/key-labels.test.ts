@@ -21,6 +21,7 @@ describe('keyLabel', () => {
     ['BracketLeft', '['],
     ['Backquote', '`'],
     ['Enter', 'Enter'],
+    ['Escape', 'Esc'],
     ['F5', 'F5'],
   ])('names %s as %s', (code, name) => {
     expect(keyLabel(code)).toBe(name);
