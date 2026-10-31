@@ -34,37 +34,79 @@ export interface Theme {
   };
 }
 
-/**
- * Shura Dark, the one v1 theme. The values are placeholders until the theme is designed (M3):
- * guideline hues on a near-black background.
- */
-export const SHURA_DARK = {
-  id: 'shura-dark',
-  name: 'Shura Dark',
-  pieces: {
-    I: { rgb: [49, 199, 239], ansi16: 6 },
-    O: { rgb: [247, 211, 8], ansi16: 11 },
-    T: { rgb: [173, 77, 156], ansi16: 5 },
-    S: { rgb: [66, 182, 66], ansi16: 2 },
-    Z: { rgb: [239, 32, 41], ansi16: 1 },
-    J: { rgb: [90, 101, 173], ansi16: 4 },
-    // Many terminal colour schemes draw yellow (3) as orange.
-    L: { rgb: [239, 121, 33], ansi16: 3 },
-  },
-  ghost: { rgb: [96, 100, 112], ansi16: 8 },
-  garbage: { rgb: [128, 128, 128], ansi16: 8 },
+/** The piece colours, which every theme shares: the themes differ in their backdrop. */
+const PIECES = {
+  I: { rgb: [62, 224, 255], ansi16: 14 },
+  O: { rgb: [255, 210, 63], ansi16: 11 },
+  T: { rgb: [200, 107, 250], ansi16: 13 },
+  S: { rgb: [92, 242, 122], ansi16: 10 },
+  Z: { rgb: [255, 77, 109], ansi16: 9 },
+  J: { rgb: [77, 124, 255], ansi16: 12 },
+  // Many terminal colour schemes draw yellow (3) as orange.
+  L: { rgb: [255, 154, 60], ansi16: 3 },
+} as const satisfies Theme['pieces'];
+
+/** The cream text and borders and the gold accent, which every theme shares. */
+const CREAM = { rgb: [255, 244, 220], ansi16: 15 } as const satisfies ThemeColor;
+const GOLD = { rgb: [255, 210, 63], ansi16: 11 } as const satisfies ThemeColor;
+
+/** Indigo, the default theme: a deep violet backdrop. */
+const INDIGO = {
+  id: 'indigo',
+  name: 'Indigo',
+  pieces: PIECES,
+  ghost: { rgb: [106, 90, 156], ansi16: 8 },
+  garbage: { rgb: [138, 128, 168], ansi16: 8 },
   chrome: {
-    background: { rgb: [16, 17, 22], ansi16: 0 },
-    text: { rgb: [220, 222, 228], ansi16: 7 },
-    border: { rgb: [70, 74, 86], ansi16: 8 },
-    accent: { rgb: [49, 199, 239], ansi16: 14 },
-    board: { rgb: [10, 11, 15], ansi16: 0 },
-    grid: { rgb: [72, 72, 72], ansi16: 8 },
+    background: { rgb: [27, 15, 54], ansi16: 0 },
+    text: CREAM,
+    border: CREAM,
+    accent: GOLD,
+    board: { rgb: [23, 12, 46], ansi16: 0 },
+    grid: { rgb: [58, 42, 99], ansi16: 8 },
   },
 } as const satisfies Theme;
 
-/** Every theme, by id. More themes are new entries here, with no code changes. */
-export const THEMES = { [SHURA_DARK.id]: SHURA_DARK } as const satisfies Record<string, Theme>;
+/** Plum: a deep purple-red backdrop. */
+const PLUM = {
+  id: 'plum',
+  name: 'Plum',
+  pieces: PIECES,
+  ghost: { rgb: [138, 90, 136], ansi16: 8 },
+  garbage: { rgb: [160, 128, 152], ansi16: 8 },
+  chrome: {
+    background: { rgb: [42, 11, 42], ansi16: 0 },
+    text: CREAM,
+    border: CREAM,
+    accent: GOLD,
+    board: { rgb: [29, 8, 28], ansi16: 0 },
+    grid: { rgb: [77, 35, 80], ansi16: 8 },
+  },
+} as const satisfies Theme;
+
+/** Deep Sea: a deep blue backdrop. */
+const DEEP_SEA = {
+  id: 'deep-sea',
+  name: 'Deep Sea',
+  pieces: PIECES,
+  ghost: { rgb: [79, 111, 148], ansi16: 8 },
+  garbage: { rgb: [127, 147, 168], ansi16: 8 },
+  chrome: {
+    background: { rgb: [7, 26, 46], ansi16: 0 },
+    text: CREAM,
+    border: CREAM,
+    accent: GOLD,
+    board: { rgb: [7, 24, 39], ansi16: 0 },
+    grid: { rgb: [30, 61, 92], ansi16: 8 },
+  },
+} as const satisfies Theme;
+
+/** Every theme, by id, the default first. More themes are new entries here, with no code changes. */
+export const THEMES = {
+  [INDIGO.id]: INDIGO,
+  [PLUM.id]: PLUM,
+  [DEEP_SEA.id]: DEEP_SEA,
+} as const satisfies Record<string, Theme>;
 
 export type ThemeId = keyof typeof THEMES;
 
@@ -79,11 +121,11 @@ export interface Skin {
   readonly terminal: string;
 }
 
-/** Every skin, by id. */
+/** Every skin, by id, the default first. */
 export const SKINS = {
-  flat: { id: 'flat', name: 'Flat', terminal: '██' },
-  outlined: { id: 'outlined', name: 'Outlined', terminal: '[]' },
-  bevelled: { id: 'bevelled', name: 'Bevelled', terminal: '▓▓' },
+  pixel: { id: 'pixel', name: 'Pixel', terminal: '██' },
+  flat: { id: 'flat', name: 'Flat', terminal: '▓▓' },
+  outline: { id: 'outline', name: 'Outline', terminal: '[]' },
 } as const satisfies Record<string, Skin>;
 
 export type SkinId = keyof typeof SKINS;

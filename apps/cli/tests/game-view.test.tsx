@@ -1,4 +1,4 @@
-import { SHURA_DARK, SKINS, type SoloSessionState } from '@shura/client-core';
+import { SKINS, type SoloSessionState, THEMES } from '@shura/client-core';
 import {
   ActionType,
   createEngine,
@@ -212,7 +212,7 @@ function board(colors: ColorMode, look: Partial<Look> = {}): string[] {
 describe('board colours', () => {
   it("draws cells as 24-bit colour blocks in the theme's colours", () => {
     const [, top] = board('truecolor');
-    expect(top).toContain(`\x1b[38;2;${SHURA_DARK.pieces.O.rgb.join(';')}m████`);
+    expect(top).toContain(`\x1b[38;2;${THEMES.indigo.pieces.O.rgb.join(';')}m████`);
     expect(top).not.toContain('[]');
   });
 
@@ -223,14 +223,14 @@ describe('board colours', () => {
   });
 
   it("draws the ghost in the theme's ghost colour, lighter than a solid cell", () => {
-    const ghost = SHURA_DARK.ghost.rgb.join(';');
+    const ghost = THEMES.indigo.ghost.rgb.join(';');
     expect(board('truecolor').at(-2)).toContain(`\x1b[38;2;${ghost}m░░`);
     // Bright black (8) in 16 colours, as the grid is: the cells tell them apart.
     expect(board('ansi16').at(-2)).toContain('\x1b[90m . . . .░░░░');
   });
 
   it("draws empty cells' dots in the theme's grid colour", () => {
-    const grid = SHURA_DARK.chrome.grid.rgb.join(';');
+    const grid = THEMES.indigo.chrome.grid.rgb.join(';');
     expect(board('truecolor')[2]).toContain(`\x1b[38;2;${grid}m . .`);
   });
 
@@ -241,8 +241,8 @@ describe('board colours', () => {
 
 describe('skins', () => {
   it.each([
-    ['outlined', '[][]'],
-    ['bevelled', '▓▓▓▓'],
+    ['flat', '▓▓▓▓'],
+    ['outline', '[][]'],
   ] as const)('draw filled cells with the characters of the %s skin', (skin, cells) => {
     const [, top] = board('ansi16', { skin: SKINS[skin] });
     expect(top).toContain(`\x1b[93m${cells}`);
@@ -250,7 +250,7 @@ describe('skins', () => {
   });
 
   it('leave the glyphs without colour as they are, whatever the skin', () => {
-    expect(board('none', { skin: SKINS.bevelled })).toEqual(board('none'));
-    expect(board('none', { skin: SKINS.bevelled })[1]).toContain('[][]');
+    expect(board('none', { skin: SKINS.flat })).toEqual(board('none'));
+    expect(board('none', { skin: SKINS.flat })[1]).toContain('[][]');
   });
 });

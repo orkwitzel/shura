@@ -71,8 +71,8 @@ export function defaultSettings(bindings: Bindings): Settings {
     handling: DEFAULT_HANDLING_SETTINGS,
     bindings,
     ghost: true,
-    theme: 'shura-dark',
-    skin: 'flat',
+    theme: 'indigo',
+    skin: 'pixel',
     volume: 50,
   };
 }
@@ -126,7 +126,7 @@ function settingsSchema(defaults: Settings): z.ZodType<Settings, unknown> {
     handling,
     bindings,
     ghost: z.boolean().default(defaults.ghost),
-    theme: z.enum(Object.keys(THEMES) as [ThemeId]).default(defaults.theme),
+    theme: z.enum(Object.keys(THEMES) as [ThemeId, ...ThemeId[]]).default(defaults.theme),
     skin: z.enum(Object.keys(SKINS) as [SkinId, ...SkinId[]]).default(defaults.skin),
     volume: z.int().min(0).max(100).multipleOf(10).default(defaults.volume),
     effects: z.enum(['full', 'reduced', 'off']).optional(),

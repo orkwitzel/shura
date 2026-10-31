@@ -39,8 +39,8 @@ describe('loading the settings', () => {
       handling: { das: 167, arr: 33, softDropFactor: 20 },
       bindings: BINDINGS,
       ghost: true,
-      theme: 'shura-dark',
-      skin: 'flat',
+      theme: 'indigo',
+      skin: 'pixel',
       volume: 50,
     });
   });
@@ -50,7 +50,7 @@ describe('loading the settings', () => {
       version: SETTINGS_VERSION,
       handling: { das: 100, arr: 0, softDropFactor: 'instant' },
       ghost: false,
-      skin: 'bevelled',
+      skin: 'flat',
       volume: 0,
       effects: 'reduced',
       nickname: 'or',
@@ -59,7 +59,7 @@ describe('loading the settings', () => {
     expect(settings.getState()).toMatchObject({
       handling: { das: 100, arr: 0, softDropFactor: 'instant' },
       ghost: false,
-      skin: 'bevelled',
+      skin: 'flat',
       volume: 0,
       effects: 'reduced',
       nickname: 'or',
@@ -113,12 +113,12 @@ describe('loading the settings', () => {
 describe('saving the settings', () => {
   test('writes them where the next load finds them', () => {
     const { storage, settings } = load();
-    settings.update({ ghost: false, skin: 'outlined' });
+    settings.update({ ghost: false, skin: 'outline' });
     expect(settings.save()).toBeNull();
     const again = createSettingsStore({ storage, bindings: BINDINGS });
     expect(again.problem).toBeNull();
     expect(again.getState()).toEqual(settings.getState());
-    expect(again.getState()).toMatchObject({ ghost: false, skin: 'outlined' });
+    expect(again.getState()).toMatchObject({ ghost: false, skin: 'outline' });
   });
 
   test('replaces a file that fell back to the defaults', () => {

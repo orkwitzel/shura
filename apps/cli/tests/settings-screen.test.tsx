@@ -220,21 +220,26 @@ describe('the display rows', () => {
     expect(screen.line('Ghost')).toBe('› Ghost < on >');
   });
 
-  it('pick the theme, of which there is one', async () => {
+  it('pick the theme and save it', async () => {
     const screen = await settingsScreen();
-    await screen.type(...down(12), KEY.right);
-    expect(screen.line('Theme')).toBe('› Theme Shura Dark');
+    await screen.type(...down(12));
+    expect(screen.line('Theme')).toBe('› Theme Indigo >');
+    await screen.type(KEY.right);
+    expect(screen.line('Theme')).toBe('› Theme < Plum >');
+    await screen.type(KEY.right);
+    expect(screen.line('Theme')).toBe('› Theme < Deep Sea');
+    expect(screen.saved().theme).toBe('deep-sea');
   });
 
   it('pick the skin, each shown with its cell, and save it', async () => {
     const screen = await settingsScreen();
     await screen.type(...down(13));
-    expect(screen.line('Skin')).toBe('› Skin Flat ██ >');
+    expect(screen.line('Skin')).toBe('› Skin Pixel ██ >');
     await screen.type(KEY.right);
-    expect(screen.line('Skin')).toBe('› Skin < Outlined [] >');
+    expect(screen.line('Skin')).toBe('› Skin < Flat ▓▓ >');
     await screen.type(KEY.right, KEY.right);
-    expect(screen.line('Skin')).toBe('› Skin < Bevelled ▓▓');
-    expect(screen.saved().skin).toBe('bevelled');
+    expect(screen.line('Skin')).toBe('› Skin < Outline []');
+    expect(screen.saved().skin).toBe('outline');
   });
 
   it('stop the cursor at the last row', async () => {

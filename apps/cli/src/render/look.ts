@@ -1,4 +1,4 @@
-import { SHURA_DARK, SKINS, type Skin, type Theme } from '@shura/client-core';
+import { SKINS, type Skin, THEMES, type Theme } from '@shura/client-core';
 import type { GARBAGE, PieceKind } from '@shura/engine';
 
 /**
@@ -25,7 +25,7 @@ export interface Look {
 
 /** A look in `colors` with the default theme and skin. */
 export function lookOf(colors: ColorMode): Look {
-  return { colors, theme: SHURA_DARK, skin: SKINS.flat };
+  return { colors, theme: THEMES.indigo, skin: SKINS.pixel };
 }
 
 /** Cell strings other than a filled cell (the skin's), each 2 characters wide (design §13.3). */

@@ -67,7 +67,6 @@ export type { Storage, StoredKind } from './storage';
 export type { AppStores, Store } from './store';
 export {
   type Ansi16,
-  SHURA_DARK,
   SKINS,
   type Skin,
   type SkinId,

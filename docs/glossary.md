@@ -171,7 +171,7 @@ A designed set of colours shared by the web and the CLI: the piece colours, ghos
 _Avoid_: palette (for the whole set), color scheme
 
 **Skin**:
-How a cell is drawn, separately from its colour: on the canvas and as two terminal characters. Flat, Outlined or Bevelled.
+How a cell is drawn, separately from its colour: on the canvas and as two terminal characters. Pixel, Flat or Outline.
 _Avoid_: block style, tile set, theme (for this)
 
 ## Online play

@@ -94,7 +94,7 @@ describe('config.json', () => {
   });
 
   it('sets the skin', async () => {
-    const game = await sprint({ config: { version: 1, skin: 'bevelled' } }, 'truecolor');
+    const game = await sprint({ config: { version: 1, skin: 'flat' } }, 'truecolor');
     expect(game.app.lastFrame()).toContain('▓▓▓▓');
     expect(game.app.lastFrame()).not.toContain('██');
   });
