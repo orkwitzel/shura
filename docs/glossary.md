@@ -73,7 +73,7 @@ The one empty cell in a line of garbage. Every line of one attack has its hole i
 _Avoid_: gap, well (a well is an open column the player leaves in their own stack)
 
 **Garbage meter**:
-A player's queue of incoming garbage that hasn't landed yet, oldest attack first.
+A player's queue of incoming garbage that hasn't landed yet, oldest attack first. An attack enters it at the frame of its `garbageReceived` action. The web and the CLI draw it as a bar on the well's left edge.
 _Avoid_: pending bar, incoming
 
 **Garbage cap**:
@@ -100,6 +100,14 @@ _Avoid_: win, complete, game over
 A player being counted as topped out because their client fell too far behind the server clock or stopped acknowledging garbage.
 _Avoid_: timeout, kick
 
+**Removal**:
+The server putting a player out of a match for a batch it can't accept: one too far ahead of the server clock, or one that fails verification.
+_Avoid_: kick, ban, disqualification
+
+**Placement**:
+A player's final place in a match, by the game frame at which they went out: later is better, and players out at the same frame share a place.
+_Avoid_: rank, position, standing
+
 **Countdown**:
 The "3, 2, 1, Go" before a single-player game starts or resumes: frames −90 to −1, during which keys charge but the engine doesn't step.
 _Avoid_: ready-go, intro
@@ -111,7 +119,7 @@ _Avoid_: high score, PB (in code)
 ## Input
 
 **Action**:
-One atomic engine instruction (move, rotate, hold, soft drop, hard drop, garbage accepted) at a specific frame.
+One atomic engine instruction (move, rotate, hold, soft drop, hard drop, garbage received, garbage accepted) at a specific frame.
 _Avoid_: command, keypress, event
 
 **Frame**:
@@ -158,6 +166,10 @@ _Avoid_: session (alone), match (that's online), game (for the whole session)
 Something that happened during an engine step (a lock and what it cleared, a hold, a turn, a hard drop, a level-up, a top-out), reported to clients for sound, effects and callouts. Output only: never part of the engine state or its hash.
 _Avoid_: action (actions go into the engine, events come out), signal
 
+**Attack streak**:
+The effect of pixels flying from an attacker's board to the target's garbage meter when the server routes garbage.
+_Avoid_: attack animation, projectile
+
 **Callout**:
 A short on-screen label for a notable lock, worked out from engine events: "T-SPIN DOUBLE", "BACK-TO-BACK", "COMBO 3", "PERFECT CLEAR".
 _Avoid_: popup, toast, announcement
@@ -193,8 +205,12 @@ The short code (e.g. `K7QX`) used to join a room.
 _Avoid_: room id, invite code
 
 **Host**:
-The player who controls a room's mode and starts its matches.
+The player who starts a room's matches: whoever created it, or after they leave, whoever has been there longest. A room's mode is fixed when it's created.
 _Avoid_: owner, admin
+
+**Seat**:
+A place to play in a room: 2 in a 1v1 room, 8 in an FFA room. Everyone else in the room is a spectator.
+_Avoid_: slot, player slot
 
 **Quick-match**:
 The global queue that pairs waiting players into a new 1v1 room.
@@ -204,13 +220,25 @@ _Avoid_: matchmaking, random match
 An anonymous player's identity on the server for as long as their session token is valid. A single-player session is something else.
 _Avoid_: user, account, connection
 
+**Guest**:
+A player known only by a nickname and a session token, with no account. Every player in v1 is a guest; accounts come later.
+_Avoid_: anonymous user, visitor
+
+**Online session**:
+client-core's `OnlineSession`: one client's connection to the server, its room and its matches, which both UIs and the bot tool use. Not the server's session.
+_Avoid_: connection (for the whole thing), network client
+
 **Session token**:
 The secret a client presents to reclaim its session, seat and nickname after reconnecting.
 _Avoid_: auth token, cookie
 
 **Spectator**:
-A session in a room watching the current match without a board in it.
+A session in a room watching the current match without a board in it: someone without a seat, a late joiner, or a player who is out.
 _Avoid_: observer, viewer
+
+**Clock offset**:
+A client's estimate of the server's clock minus its own, from the ping sample with the shortest round trip. It turns the server's `startAt` into the client's game loop start.
+_Avoid_: clock skew, time sync, drift
 
 **Input batch**:
 A sequence-numbered group of a client's actions covering a few frames, sent to the server.
@@ -225,7 +253,7 @@ Verified input batches forwarded to the other players in a room so they can simu
 _Avoid_: broadcast, echo
 
 **Snapshot**:
-The serialized engine state of every player at a frame, sent to a client joining or reconnecting mid-match.
+The serialized engine state of every player, each at their own last verified frame, sent to a client joining or reconnecting mid-match.
 _Avoid_: state dump, sync
 
 **Recorded match**:
@@ -233,8 +261,12 @@ An engine test case: the seed, mode (by its preset's name) and action log of a g
 _Avoid_: replay, fixture, recording
 
 **Match log**:
-The complete, ordered record of a match's seed, mode settings and verified input batches.
+The complete, ordered record of a match's seed, mode settings, verified input batches and garbage routings.
 _Avoid_: replay (for the stored data), event log, journal
+
+**Garbage routing**:
+The server's choice of target for an attack, sent as `garbageQueued` and written to the match log.
+_Avoid_: targeting (for one attack's choice), dispatch
 
 ## Backend
 
@@ -257,6 +289,14 @@ _Avoid_: generation, version, term
 **Heartbeat**:
 A game pod's periodic announcement that it's alive, with its address, room count and engine version.
 _Avoid_: ping, health check (that's the HTTP probe)
+
+**Bot**:
+A headless client from the testing tool (`apps/bot`) that plays like a person, to fill rooms and load-test. Not part of the product.
+_Avoid_: AI, CPU, NPC
+
+**Bot profile**:
+The knobs that set how a bot plays: think time, target speed, mistake rate and lookahead. v1 has one, `casual`.
+_Avoid_: difficulty (until PvE), bot config
 
 **Draining**:
 A game pod's state while shutting down: it gets no new rooms and finishes or hands off the ones it has.
