@@ -33,12 +33,18 @@ export interface ClientOptions {
 export interface OnlineWorldOptions {
   /** The gateway's limits, where they differ from the defaults. */
   readonly limits?: Partial<GatewayLimits>;
-  /** The seed of every match. Random by default. */
+  /** The seed of every match: `DEFAULT_MATCH_SEED` unless given. */
   readonly seed?: number;
 }
 
+/**
+ * Every match's seed in a world that doesn't choose one, so a test deals the same pieces every
+ * run and a failure reproduces.
+ */
+export const DEFAULT_MATCH_SEED = 7;
+
 export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<OnlineWorld> {
-  const { seed } = options;
+  const { seed = DEFAULT_MATCH_SEED } = options;
   // A whole number of 50 ms steps from 0, so each step of 50 ms is exactly 3 frames.
   const time = fakeTime(1_800_000_000_000);
   const cooldown = options.limits?.quickMatchCooldownMs;
@@ -54,7 +60,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     podId: 'game-1',
     address: POD_ADDRESS,
     logger,
-    ...(seed !== undefined && { newSeed: () => seed }),
+    newSeed: () => seed,
   });
   await game.start();
   const gateway = createGateway({
