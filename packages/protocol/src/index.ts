@@ -4,6 +4,7 @@
  */
 export const PROTOCOL_VERSION = 1;
 
+export { actionSchema, frameActionsSchema, frameSchema } from './actions';
 export {
   BATCH_FRAMES,
   CLOCK_BEHIND_WINDOW,
@@ -15,10 +16,36 @@ export {
   LIMIT_DEFAULTS,
   MAX_SPECTATORS,
   ROOM_TICK_MS,
-  type RoomMode,
   SEAT_HOLD_MS,
   SEATS,
 } from './constants';
+export {
+  type GameToGateway,
+  type GatewayToGame,
+  gameToGatewaySchema,
+  gatewayToGameSchema,
+} from './internal';
+export {
+  type ClientMessage,
+  type ClientMessageOf,
+  type ClientMessageType,
+  clientMessageSchema,
+  ERROR_CODES,
+  type ErrorCode,
+  errorCodeSchema,
+  type OutReason,
+  outReasonSchema,
+  type PlayerKind,
+  playerKindSchema,
+  type RoomMode,
+  type RoomPhase,
+  roomModeSchema,
+  roomPhaseSchema,
+  type ServerMessage,
+  type ServerMessageOf,
+  type ServerMessageType,
+  serverMessageSchema,
+} from './messages';
 export {
   NICKNAME_MAX_LENGTH,
   type NicknameProblem,

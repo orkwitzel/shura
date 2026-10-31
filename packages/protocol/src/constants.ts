@@ -1,3 +1,5 @@
+import type { RoomMode } from './messages';
+
 // Timing and room constants that the clients, the gateway and the game service share (design §8,
 // §10, §11). Durations in frames are game time (60 frames a second); durations in ms are on the
 // server's clock.
@@ -26,9 +28,6 @@ export const ROOM_TICK_MS = 50;
 
 /** A client sends an input batch about every this many frames (design §8.1): ~20 a second. */
 export const BATCH_FRAMES = 3;
-
-/** A room's mode, fixed when it's created (design §10.1). */
-export type RoomMode = '1v1' | 'ffa';
 
 /** The seats in a room of each mode (design §10.1). */
 export const SEATS: Readonly<Record<RoomMode, number>> = { '1v1': 2, ffa: 8 };
