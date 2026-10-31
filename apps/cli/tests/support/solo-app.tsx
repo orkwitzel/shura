@@ -1,3 +1,4 @@
+import type { SoloMode } from '@shura/client-core';
 import { render } from 'ink-testing-library';
 import { App } from '../../src/ui/app';
 import { fakeClock } from './fake-clock';
@@ -18,12 +19,12 @@ export const KEYS = {
 };
 
 /**
- * `shura solo sprint` with seed 7 (O first, in columns 4–5) on a fake clock, at 80×24. Unmount it
+ * `shura solo <mode>` with seed 7 (O first, in columns 4–5) on a fake clock, at 80×24. Unmount it
  * at the end of the test.
  */
-export async function soloSprint() {
+export async function soloGame(mode: SoloMode = 'sprint') {
   const clock = fakeClock(1_000);
-  const app = render(<App mode="sprint" clock={clock} seed={7} colors="none" />);
+  const app = render(<App mode={mode} clock={clock} seed={7} colors="none" />);
   resize(app, 80, 24);
   await settle();
   return {

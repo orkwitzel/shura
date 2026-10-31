@@ -1,17 +1,22 @@
 import type { SoloSessionState } from '@shura/client-core';
-import { createEngine, SPRINT } from '@shura/engine';
+import { createEngine, MARATHON, SPRINT, ULTRA } from '@shura/engine';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { ResultsScreen } from '../src/ui/results';
 
-/** An ended Sprint, its engine state's numbers replaced by `engine`. */
-function ended(engine: Partial<SoloSessionState['engine']>): SoloSessionState {
+const PRESETS = { sprint: SPRINT, marathon: MARATHON, ultra: ULTRA };
+
+/** An ended game of `mode` (Sprint unless given), its engine state's numbers replaced by `engine`. */
+function ended(
+  engine: Partial<SoloSessionState['engine']>,
+  mode: SoloSessionState['mode'] = 'sprint',
+): SoloSessionState {
   return {
-    mode: 'sprint',
+    mode,
     seed: 7,
     phase: 'ended',
     countdown: 0,
-    engine: { ...createEngine(SPRINT, 7, 0).state, ...engine },
+    engine: { ...createEngine(PRESETS[mode], 7, 0).state, ...engine },
     actions: [],
   };
 }
@@ -63,7 +68,7 @@ describe('the results screen', () => {
         'LINES  40',
         'PIECES  100',
         'PPS  4.91',
-        'SCORE  12345',
+        'SCORE  12,345',
         'LEVEL  1',
       ]),
     );
@@ -83,6 +88,42 @@ describe('the results screen', () => {
       ]),
     );
     expect(lines).not.toContain('FINISHED');
+  });
+
+  it('shows a finished Marathon: its score as the headline, its time with the stats', () => {
+    const state = ended(
+      {
+        finished: true,
+        frame: 4_065,
+        linesCleared: 150,
+        piecesPlaced: 380,
+        score: 171_349,
+        level: 15,
+      },
+      'marathon',
+    );
+    expect(screen(state)).toEqual(
+      expect.arrayContaining([
+        'MARATHON',
+        'FINISHED',
+        'SCORE  171,349',
+        'LINES  150',
+        'PIECES  380',
+        'PPS  5.61',
+        'TIME  1:07.750',
+        'LEVEL  15',
+      ]),
+    );
+  });
+
+  it('shows a finished Ultra: its score as the headline', () => {
+    const state = ended(
+      { finished: true, frame: 7_200, linesCleared: 60, piecesPlaced: 170, score: 21_449 },
+      'ultra',
+    );
+    expect(screen(state)).toEqual(
+      expect.arrayContaining(['ULTRA', 'FINISHED', 'SCORE  21,449', 'TIME  2:00.000', 'PPS  1.42']),
+    );
   });
 
   it('lists the keys it takes', () => {

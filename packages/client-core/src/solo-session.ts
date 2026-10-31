@@ -1,11 +1,13 @@
 import {
   createEngine,
   type Engine,
+  MARATHON,
   type ModeSettings,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
   SPRINT,
+  ULTRA,
 } from '@shura/engine';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { Clock } from './clock';
@@ -20,10 +22,15 @@ import {
 } from './input-engine';
 import type { Store } from './store';
 
-/** The single-player modes a session can play. */
-export type SoloMode = 'sprint';
+/** The single-player modes a session can play (design §4). */
+export type SoloMode = 'marathon' | 'sprint' | 'ultra';
 
-const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = { sprint: SPRINT };
+/** Each mode's preset: its rules and end conditions are the engine's. */
+const PRESETS: Readonly<Record<SoloMode, ModeSettings>> = {
+  marathon: MARATHON,
+  sprint: SPRINT,
+  ultra: ULTRA,
+};
 
 /** The countdown before Go: frames −90 to −1 (design §13.1). */
 const COUNTDOWN_FRAMES = 90;

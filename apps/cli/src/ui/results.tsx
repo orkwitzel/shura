@@ -1,6 +1,6 @@
-import type { SoloSessionState } from '@shura/client-core';
+import { type SoloSessionState, soloResult } from '@shura/client-core';
 import { Box, Text } from 'ink';
-import { formatFrames } from '../format';
+import { formatFrames, formatScore } from '../format';
 import type { MenuCommand } from './game-menu';
 
 /** A label and its value, as the results screen shows them. */
@@ -20,30 +20,26 @@ export interface Results {
   readonly stats: readonly ResultField[];
 }
 
-/** Pieces per second over the game's frames, to two decimals. */
-function piecesPerSecond(pieces: number, frames: number): string {
-  return (frames === 0 ? 0 : (pieces * 60) / frames).toFixed(2);
-}
-
 /**
- * The results of an ended game. Sprint's headline is its time; every other mode's is its score, and
- * the time moves into the stats.
+ * What the results screen shows of an ended game, from client-core's `soloResult` (design §13.1):
+ * Sprint's headline is its time, every other mode's its score, and whichever of the two isn't the
+ * headline goes with the stats.
  */
 export function resultsOf(state: SoloSessionState): Results {
-  const { finished, frame, linesCleared, piecesPlaced, score, level } = state.engine;
-  const time: ResultField = { label: 'TIME', value: formatFrames(frame) };
-  const points: ResultField = { label: 'SCORE', value: String(score) };
-  const timed = state.mode === 'sprint';
+  const result = soloResult(state);
+  const time: ResultField = { label: 'TIME', value: formatFrames(result.frames) };
+  const score: ResultField = { label: 'SCORE', value: formatScore(result.score) };
+  const timed = result.headline.kind === 'time';
   return {
     title: state.mode.toUpperCase(),
-    outcome: finished ? 'FINISHED' : 'GAME OVER',
-    headline: timed ? time : points,
+    outcome: result.outcome === 'finished' ? 'FINISHED' : 'GAME OVER',
+    headline: timed ? time : score,
     stats: [
-      { label: 'LINES', value: String(linesCleared) },
-      { label: 'PIECES', value: String(piecesPlaced) },
-      { label: 'PPS', value: piecesPerSecond(piecesPlaced, frame) },
-      timed ? points : time,
-      { label: 'LEVEL', value: String(level) },
+      { label: 'LINES', value: String(result.lines) },
+      { label: 'PIECES', value: String(result.pieces) },
+      { label: 'PPS', value: result.piecesPerSecond.toFixed(2) },
+      timed ? score : time,
+      { label: 'LEVEL', value: String(result.level) },
     ],
   };
 }

@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { visibleRows } from './support/ink';
-import { COUNTDOWN_MS, KEYS, soloSprint } from './support/solo-app';
+import { COUNTDOWN_MS, KEYS, soloGame } from './support/solo-app';
 
-type Game = Awaited<ReturnType<typeof soloSprint>>;
+type Game = Awaited<ReturnType<typeof soloGame>>;
 
 let game: Game | undefined;
 afterEach(() => game?.app.unmount());
 
 async function start(): Promise<Game> {
-  game = await soloSprint();
+  game = await soloGame();
   return game;
 }
 
