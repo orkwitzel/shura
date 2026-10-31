@@ -70,6 +70,7 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     setInput: vi.fn(),
     onEvents: vi.fn(() => () => {}),
     onActions: vi.fn(() => () => {}),
+    onRoutings: vi.fn(() => () => {}),
     close: vi.fn(() => store.setState({ connection: { status: 'closed' } })),
   };
   return {

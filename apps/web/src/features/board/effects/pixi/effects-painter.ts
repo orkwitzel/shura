@@ -1,5 +1,6 @@
-import { type Application, Graphics } from 'pixi.js';
+import { Graphics } from 'pixi.js';
 import { drawShapes } from '@/lib/pixi/draw-shapes';
+import { layerOf, type PixiTarget } from '@/lib/pixi/pixi-app';
 import {
   type EffectView,
   effectFrame,
@@ -9,8 +10,9 @@ import {
 import type { Effect } from '../utils/effects-for-events';
 
 /**
- * Draws effects over a board painted on the same Pixi application, and shakes or nudges the whole
- * stage. Thin and untested (design §13.2): what to draw comes from `effectFrame`.
+ * Draws effects over a board painted on the same target, and shakes or nudges that target (an
+ * application's whole stage, or a board's layer). Thin and untested (design §13.2): what to draw
+ * comes from `effectFrame`.
  */
 export interface EffectsPainter {
   /** Starts `effects` at `now` (ms), each after its delay. */
@@ -21,10 +23,11 @@ export interface EffectsPainter {
   paint(view: EffectView, now: number): void;
 }
 
-export function createEffectsPainter(app: Application): EffectsPainter {
+export function createEffectsPainter(target: PixiTarget): EffectsPainter {
+  const layer = layerOf(target);
   const graphics = new Graphics();
   // Added after the board's graphics, so effects are drawn over the board.
-  app.stage.addChild(graphics);
+  layer.addChild(graphics);
   let running: readonly RunningEffect[] = [];
   /** What was last drawn, to skip frames that would draw the same. */
   let drawn: { view: EffectView; changing: boolean } | null = null;
@@ -41,7 +44,7 @@ export function createEffectsPainter(app: Application): EffectsPainter {
       running = [];
       drawn = null;
       graphics.clear();
-      app.stage.position.set(0, 0);
+      layer.position.set(0, 0);
     },
     paint(view, now) {
       if (drawn !== null && drawn.view === view && !drawn.changing) return;
@@ -49,7 +52,7 @@ export function createEffectsPainter(app: Application): EffectsPainter {
       running = frame.running;
       graphics.clear();
       drawShapes(graphics, frame.shapes);
-      app.stage.position.set(frame.offset.x, frame.offset.y);
+      layer.position.set(frame.offset.x, frame.offset.y);
       drawn = { view, changing: frame.changing };
     },
   };

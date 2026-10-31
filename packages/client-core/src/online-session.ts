@@ -64,7 +64,10 @@ export type QuickMatchStatus = 'idle' | 'queued' | 'opponentLeft';
  * A garbage routing (design §8.5): the server sent an attack of `lines` from `from` to `to`. Only
  * its target's game takes it in; every client draws it (the attack streak, design §13.2).
  */
-export type GarbageRouting = Omit<ServerMessageOf<'garbageQueued'>, 'type'>;
+export type GarbageRouting = Pick<
+  ServerMessageOf<'garbageQueued'>,
+  'id' | 'from' | 'to' | 'lines' | 'holeSeed'
+>;
 
 /** Hears each garbage routing of the current match. */
 export type RoutingListener = (routing: GarbageRouting) => void;

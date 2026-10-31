@@ -1,4 +1,4 @@
-import { Application } from 'pixi.js';
+import { Application, Container } from 'pixi.js';
 
 /** A Pixi application's canvas size, in CSS pixels, and the pixel ratio it renders at. */
 export interface PixiSize {
@@ -39,4 +39,27 @@ export function resizePixiApp(app: Application, { width, height, resolution }: P
  */
 export function destroyPixiApp(app: Application): void {
   app.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });
+}
+
+/** Where painters draw: an application's stage, or a layer on it. */
+export type PixiTarget = Application | Container;
+
+/** The container a target draws into: an application's stage, or the layer itself. */
+export function layerOf(target: PixiTarget): Container {
+  return target instanceof Application ? target.stage : target;
+}
+
+/**
+ * A new layer on `target`, drawn over what is there already: a board's place on a match's stage,
+ * which `placeLayer` moves.
+ */
+export function addLayer(target: PixiTarget): Container {
+  const layer = new Container();
+  layerOf(target).addChild(layer);
+  return layer;
+}
+
+/** Moves a layer to `x`, `y` in its parent, in CSS pixels. */
+export function placeLayer(layer: Container, x: number, y: number): void {
+  layer.position.set(x, y);
 }

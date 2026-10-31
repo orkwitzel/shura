@@ -1,16 +1,17 @@
-import { type Application, Graphics } from 'pixi.js';
-import { drawShapes } from '@/lib/pixi/draw-shapes';
-import type { BoardLayout } from '../utils/layout-board';
+import { Graphics } from 'pixi.js';
+import { drawShapes, type ShapeArt } from '@/lib/pixi/draw-shapes';
+import { layerOf, type PixiTarget } from '@/lib/pixi/pixi-app';
 
 /** Paints board layouts onto a Pixi application's stage. Thin and untested (design §13.2). */
 export interface BoardPainter {
-  /** Replaces what was painted with `layout`'s shapes. */
-  paint(layout: BoardLayout): void;
+  /** Replaces what was painted with `layout`'s shapes: a board's, or a small board's. */
+  paint(layout: { readonly shapes: readonly ShapeArt[] }): void;
 }
 
-export function createBoardPainter(app: Application): BoardPainter {
+/** A painter onto `target`: an application's stage, or a board's layer on a match's stage. */
+export function createBoardPainter(target: PixiTarget): BoardPainter {
   const graphics = new Graphics();
-  app.stage.addChild(graphics);
+  layerOf(target).addChild(graphics);
   return {
     paint(layout) {
       graphics.clear();

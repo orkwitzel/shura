@@ -189,6 +189,39 @@ export function boardRegions(cellSize: number): BoardLayout['regions'] {
   return { well, hold, preview, aside };
 }
 
+/**
+ * The garbage meter's bar beside `well` at `cellSize`: on a full board (in the gap between the hold
+ * and the well) or a small one, an art pixel clear of the well's border.
+ */
+export function meterBar(well: Rect, cellSize: number, kind: 'full' | 'small'): Rect {
+  const art = cellSize / 8;
+  const width = METER_WIDTH[kind];
+  return {
+    x: well.x - (BORDER + 1 + width) * art,
+    y: well.y,
+    width: width * art,
+    height: well.height,
+  };
+}
+
+/**
+ * Where an attack streak to a board lands (design §13.2, Match): the top of its garbage meter's
+ * segments, in the middle of the bar, in the board's layout pixels.
+ */
+export function meterTop(
+  well: Rect,
+  cellSize: number,
+  kind: 'full' | 'small',
+  meter: ReadonlyEngineState['garbageMeter'],
+): { readonly x: number; readonly y: number } {
+  const bar = meterBar(well, cellSize, kind);
+  const lines = meter.reduce((sum, { lines }) => sum + lines, 0);
+  return {
+    x: bar.x + bar.width / 2,
+    y: Math.max(well.y + well.height - lines * cellSize, well.y),
+  };
+}
+
 /** Draws shapes at one cell size, in one theme and skin, a game out or not. */
 function shapesFor(theme: Theme, skin: Skin, cellSize: number, grey: boolean) {
   const c = cellSize;
@@ -273,11 +306,13 @@ function shapesFor(theme: Theme, skin: Skin, cellSize: number, grey: boolean) {
   const meterOf = (
     well: Rect,
     meter: ReadonlyEngineState['garbageMeter'],
-    width: number,
+    kind: keyof typeof METER_WIDTH,
     flash: number | undefined,
   ) => {
-    const x = well.x - (BORDER + 1 + width) * art;
-    rect('meter', { x, y: well.y, width: width * art, height: well.height }, theme.web.shadow);
+    const bar = meterBar(well, c, kind);
+    const { x } = bar;
+    const width = METER_WIDTH[kind];
+    rect('meter', bar, theme.web.shadow);
     let bottom = well.y + well.height;
     for (const { id, lines } of meter) {
       const top = Math.max(bottom - lines * c, well.y);
@@ -340,7 +375,7 @@ export function layoutBoard(
   draw.wellOf(well);
   // The locked cells and the active piece, the hidden rows shown included.
   draw.gameIn(well, state, VISIBLE_ROWS + HIDDEN_ROWS_SHOWN, ghost);
-  if (meter) draw.meterOf(well, state.garbageMeter, METER_WIDTH.full, flash);
+  if (meter) draw.meterOf(well, state.garbageMeter, 'full', flash);
 
   // The hold, greyed out once used for this piece.
   frame(hold, BOX_SHADOW, theme.web.deep);
@@ -390,7 +425,7 @@ export function layoutSmallBoard(
   const well = smallBoardWell(cellSize);
   draw.wellOf(well);
   draw.gameIn(well, state, VISIBLE_ROWS, false);
-  draw.meterOf(well, state.garbageMeter, METER_WIDTH.small, flash);
+  draw.meterOf(well, state.garbageMeter, 'small', flash);
   return {
     width: SMALL_LAYOUT_CELLS.width * cellSize,
     height: SMALL_LAYOUT_CELLS.height * cellSize,
