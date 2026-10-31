@@ -1,5 +1,5 @@
 import { SKINS, type Skin, THEMES, type Theme } from '@shura/client-core';
-import type { GARBAGE, PieceKind } from '@shura/engine';
+import type { BoardCell } from '@shura/engine';
 import type { ColorMode } from '../platform/terminal/color-mode';
 
 /**
@@ -9,7 +9,7 @@ import type { ColorMode } from '../platform/terminal/color-mode';
  */
 
 /** What fills a cell: a piece kind, or garbage. */
-export type CellKind = PieceKind | typeof GARBAGE;
+export type CellKind = NonNullable<BoardCell>;
 
 /** Everything that decides how a cell looks: the colour mode, the theme and the skin. */
 export interface Look {
@@ -33,13 +33,16 @@ export const CELLS = {
   blank: '  ',
 };
 
-/** Cell strings without colour, so every kind of cell still reads differently. */
+/**
+ * Cell strings without colour, so every kind of cell still reads differently. Empty cells and
+ * blanks read differently already.
+ */
 export const GLYPHS: Readonly<Record<'solid' | 'garbage' | 'ghost' | 'empty' | 'blank', string>> = {
   solid: '[]',
   garbage: '##',
   ghost: '::',
-  empty: ' .',
-  blank: '  ',
+  empty: CELLS.empty,
+  blank: CELLS.blank,
 };
 
 /** The board's walls and floor. */

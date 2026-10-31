@@ -18,31 +18,30 @@ function sgr({ colors }: Look, { rgb, ansi16 }: ThemeColor): string {
   return `\x1b[${ansi16 < 8 ? 30 + ansi16 : 90 + ansi16 - 8}m`;
 }
 
-function glyph(paint: Paint): string {
+/**
+ * A cell's text and colour in `look`: the skin's characters in the theme's colours, or without
+ * colour (`null`) a glyph that tells the kinds of cell apart.
+ */
+function cell(
+  paint: Paint,
+  { colors, theme, skin }: Look,
+): { text: string; color: ThemeColor | null } {
+  const plain = colors === 'none';
   switch (paint.fill) {
     case 'solid':
-    case 'grey':
-      return paint.kind === GARBAGE ? GLYPHS.garbage : GLYPHS.solid;
+    case 'grey': {
+      const garbage = paint.kind === GARBAGE;
+      if (plain) return { text: garbage ? GLYPHS.garbage : GLYPHS.solid, color: null };
+      if (paint.fill === 'grey') return { text: skin.terminal, color: theme.chrome.grid };
+      return { text: skin.terminal, color: garbage ? theme.garbage : theme.pieces[paint.kind] };
+    }
     case 'ghost':
-      return GLYPHS.ghost;
+      return plain
+        ? { text: GLYPHS.ghost, color: null }
+        : { text: CELLS.ghost, color: theme.ghost };
+    // Empty cells and blanks read the same with colour as without (their glyphs are these too).
     case 'empty':
-      return GLYPHS.empty;
-    case 'blank':
-      return GLYPHS.blank;
-  }
-}
-
-function colored(paint: Paint, { theme, skin }: Look): { text: string; color: ThemeColor | null } {
-  const of = (kind: CellKind) => (kind === GARBAGE ? theme.garbage : theme.pieces[kind]);
-  switch (paint.fill) {
-    case 'solid':
-      return { text: skin.terminal, color: of(paint.kind) };
-    case 'ghost':
-      return { text: CELLS.ghost, color: theme.ghost };
-    case 'grey':
-      return { text: skin.terminal, color: theme.chrome.grid };
-    case 'empty':
-      return { text: CELLS.empty, color: theme.chrome.grid };
+      return { text: CELLS.empty, color: plain ? null : theme.chrome.grid };
     case 'blank':
       return { text: CELLS.blank, color: null };
   }
@@ -53,11 +52,10 @@ function colored(paint: Paint, { theme, skin }: Look): { text: string; color: Th
  * ends with the default colour back.
  */
 export function paintRow(cells: readonly Paint[], look: Look): string {
-  if (look.colors === 'none') return cells.map(glyph).join('');
   let out = '';
   let current: string | null = null;
-  for (const cell of cells) {
-    const { text, color } = colored(cell, look);
+  for (const paint of cells) {
+    const { text, color } = cell(paint, look);
     // A blank is spaces, which look the same in any colour, so it keeps the current one.
     const code: string | null = color === null ? current : sgr(look, color);
     if (code !== current && code !== null) out += code;
