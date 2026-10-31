@@ -1,3 +1,4 @@
+import type { PieceActionType } from '@shura/engine';
 import { Box, Text } from 'ink';
 import { type CaptureEntry, showBytes } from '../input/capture';
 import type { AdapterName, InputSignal } from '../input/terminal-input';
@@ -10,8 +11,23 @@ function showSignal(signal: InputSignal): string {
   return signal.kind === 'key' ? `${signal.event.action} ${signal.event.kind}` : 'menu';
 }
 
-/** One entry: the time since the one before, the key's bytes (`·` if inferred), what it made. */
+/** A frame's actions, a run of the same one counted: `moveRight×3 hardDrop`. */
+function showActions(actions: readonly PieceActionType[]): string {
+  const runs: { action: PieceActionType; count: number }[] = [];
+  for (const action of actions) {
+    const last = runs.at(-1);
+    if (last?.action === action) last.count++;
+    else runs.push({ action, count: 1 });
+  }
+  return runs.map(({ action, count }) => (count > 1 ? `${action}×${count}` : action)).join(' ');
+}
+
+/**
+ * One entry: a frame's actions under the key that made them (`f12 moveRight×3`), or a key: the
+ * time since the entry before, its bytes (`·` if inferred) and what it made.
+ */
 function showEntry(entry: CaptureEntry, previous: CaptureEntry | undefined): string {
+  if ('actions' in entry) return `  f${entry.frame} ${showActions(entry.actions)}`;
   const gap = previous ? `+${Math.round(entry.time - previous.time)}` : '+0';
   const bytes = entry.bytes === null ? '·' : showBytes(entry.bytes);
   const made = entry.signals.length > 0 ? entry.signals.map(showSignal).join(', ') : '-';
@@ -26,8 +42,8 @@ export interface DebugPanelProps {
 }
 
 /**
- * The hidden `--debug-input` side panel (design §7.3): the adapter, and each raw key with the key
- * events it made, newest last. It's what recordings are captured with and what an input bug
+ * The hidden `--debug-input` side panel (design §7.3): the adapter, each raw key with the key
+ * events it made, and each frame's actions, newest last. It's what recordings are captured with and what an input bug
  * report should show.
  */
 export function DebugPanel({ adapter, log, capture }: DebugPanelProps) {

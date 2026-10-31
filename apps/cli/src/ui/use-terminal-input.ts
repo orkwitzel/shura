@@ -3,7 +3,7 @@ import type { AutoShift, Clock, SoloSession } from '@shura/client-core';
 import { useInput, useStdin } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Bindings } from '../input/bindings';
-import type { CaptureEntry, CaptureFile } from '../input/capture';
+import type { ActionsEntry, CaptureEntry, CaptureFile, KeyEntry } from '../input/capture';
 import { createInputAdapter, type InputChoice } from '../input/detect';
 import type {
   AdapterName,
@@ -15,7 +15,7 @@ import type {
 /** How keys are read: the adapter choice and the hidden `--debug-input` (design §7.3). */
 export interface InputOptions {
   readonly choice: InputChoice;
-  /** Keep a log of raw keys and what they made, for the debug panel. */
+  /** Keep a log of raw keys, what they made and the actions applied, for the debug panel. */
   readonly debug?: boolean;
   /** Where the log is also written, with `debug`. */
   readonly capture?: CaptureFile;
@@ -27,12 +27,14 @@ export const DEBUG_LOG_SIZE = 18;
 export interface TerminalInputState {
   /** The adapter, for the status line. */
   readonly adapter: AdapterName;
-  /** The latest raw keys and inferred releases, oldest first (`debug` only). */
+  /**
+   * The latest raw keys, inferred releases and frames' actions, oldest first (`debug` only).
+   */
   readonly log: readonly CaptureEntry[];
 }
 
 interface TerminalInputProps {
-  readonly session: Pick<SoloSession, 'key' | 'setInput'>;
+  readonly session: Pick<SoloSession, 'key' | 'setInput' | 'onActions'>;
   /** The session's clock, which also stamps keys and wakes the adapter's polling. */
   readonly clock: Clock;
   readonly bindings: Bindings;
@@ -80,6 +82,28 @@ export function useTerminalInput({
   const menu = useRef(onMenu);
   menu.current = onMenu;
 
+  const record = (entries: readonly CaptureEntry[]) => {
+    for (const entry of entries) options.capture?.write(entry);
+    setLog((log) => [...log, ...entries].slice(-DEBUG_LOG_SIZE));
+  };
+
+  // The actions the game applies, a frame per entry, so the log shows what the input engine made of
+  // each key: its auto-shift and soft drop too (design §7.3).
+  useEffect(() => {
+    if (!options.debug) return;
+    return session.onActions((actions) => {
+      const time = clock.now();
+      const frames: ActionsEntry[] = [];
+      for (const { frame, type } of actions) {
+        const last = frames.at(-1);
+        if (last?.frame === frame)
+          frames[frames.length - 1] = { ...last, actions: [...last.actions, type] };
+        else frames.push({ time, frame, actions: [type] });
+      }
+      record(frames);
+    });
+  }, [session, options.debug]);
+
   const deliver = (signals: readonly InputSignal[], raw: string | null, time: number) => {
     const { adapter } = reading;
     if (adapter.autoShift !== autoShift.current) {
@@ -94,9 +118,8 @@ export function useTerminalInput({
     shown.current = adapter.name;
     setName(adapter.name);
     if (options.debug && (raw !== null || signals.length > 0 || changed)) {
-      const entry: CaptureEntry = { time, bytes: raw, adapter: adapter.name, signals };
-      options.capture?.write(entry);
-      setLog((entries) => [...entries, entry].slice(-DEBUG_LOG_SIZE));
+      const entry: KeyEntry = { time, bytes: raw, adapter: adapter.name, signals };
+      record([entry]);
     }
     if (wake.current === null && adapter.deadline !== null) {
       wake.current = clock.schedule(() => {

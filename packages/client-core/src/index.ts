@@ -41,6 +41,7 @@ export {
 } from './settings';
 export { type SoloHeadline, type SoloResult, soloResult } from './solo-result';
 export {
+  type AppliedActionsListener,
   createSoloSession,
   type SessionEvent,
   type SessionEventListener,

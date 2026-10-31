@@ -456,6 +456,27 @@ describe('engine events', () => {
   });
 });
 
+describe('applied actions', () => {
+  it('reach listeners after each wake, with their frames: the input engine’s auto-shift too', () => {
+    const { clock, session } = sprint();
+    const heard: { frame: number; type: string }[][] = [];
+    const unsubscribe = session.onActions((actions) => heard.push([...actions]));
+    clock.run(COUNTDOWN_MS);
+    // Held from frame 1: one move at once, then DAS (10 frames) and a move every 2 (ARR).
+    session.key({ action: ActionType.MoveLeft, kind: 'press', time: clock.now() });
+    clock.run(250);
+    const moves = heard.flat();
+    expect(moves.map(({ frame }) => frame)).toEqual([1, 11, 13, 15]);
+    expect(new Set(moves.map(({ type }) => type))).toEqual(new Set([ActionType.MoveLeft]));
+    // Each wake passes on only the actions it applied: none hears an empty list.
+    expect(heard.every((actions) => actions.length > 0)).toBe(true);
+    unsubscribe();
+    session.key({ action: ActionType.HardDrop, kind: 'press', time: clock.now() });
+    clock.run(100);
+    expect(heard.flat()).toHaveLength(4);
+  });
+});
+
 describe('the countdown', () => {
   it('counts down the 90 frames before Go without stepping the engine', () => {
     const { clock, session } = sprint();

@@ -1,4 +1,5 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
+import type { PieceActionType } from '@shura/engine';
 import type { InputChoice } from './detect';
 import type { AdapterName, InputSignal } from './terminal-input';
 
@@ -22,16 +23,27 @@ export interface CaptureHeader {
 }
 
 /**
- * One line after the header, and one row of the debug panel: a raw key (its bytes) or an inferred
- * release (no bytes), the adapter after it, and the signals it made.
+ * A raw key (its bytes) or an inferred release (no bytes), the adapter after it, and the signals it
+ * made.
  */
-export interface CaptureEntry {
+export interface KeyEntry {
   /** When it arrived, or fell due, on the session clock (ms). */
   readonly time: number;
   readonly bytes: string | null;
   readonly adapter: AdapterName;
   readonly signals: readonly InputSignal[];
 }
+
+/** The actions one frame applied: what the input engine made of the keys (design §7.3). */
+export interface ActionsEntry {
+  /** When the session told of them, on its clock (ms). */
+  readonly time: number;
+  readonly frame: number;
+  readonly actions: readonly PieceActionType[];
+}
+
+/** One line after the header, and one row of the debug panel. */
+export type CaptureEntry = KeyEntry | ActionsEntry;
 
 /** The header for a capture made now. */
 export function captureHeader(

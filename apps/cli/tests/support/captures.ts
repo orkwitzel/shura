@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { CaptureEntry, CaptureHeader } from '../../src/input/capture';
+import type { CaptureEntry, CaptureHeader, KeyEntry } from '../../src/input/capture';
 import type { TimedBytes } from './terminal-bytes';
 
 /**
@@ -19,9 +19,8 @@ export interface Capture {
 export const CAPTURES_DIR = join(import.meta.dirname, 'captures');
 
 /**
- * Reads a capture file: a JSON header line, then one JSON line per raw key or inferred release.
- * Inferred releases (no bytes) and what the adapter made of each key are left out: tests work them
- * out again.
+ * Reads a capture file: a JSON header line, then one JSON line per raw key, inferred release or
+ * frame's actions. Only the raw keys are kept: tests work out the rest again.
  */
 export function readCapture(path: string): Capture {
   const [first = '', ...rest] = readFileSync(path, 'utf8').split('\n').filter(Boolean);
@@ -30,12 +29,14 @@ export function readCapture(path: string): Capture {
     throw new Error(`${path} is not a version 1 shura input capture`);
   }
   const entries = rest.map((line) => JSON.parse(line) as CaptureEntry);
-  const keys = entries.filter((entry) => entry.bytes !== null);
+  const keys = entries.filter(
+    (entry): entry is KeyEntry & { bytes: string } => 'bytes' in entry && entry.bytes !== null,
+  );
   const start = keys[0]?.time ?? 0;
   return {
     file: basename(path),
     header,
-    chunks: keys.map(({ time, bytes }) => ({ time: time - start, bytes: bytes ?? '' })),
+    chunks: keys.map(({ time, bytes }) => ({ time: time - start, bytes })),
   };
 }
 

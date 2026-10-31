@@ -79,6 +79,9 @@ export interface SessionEvent {
 /** Hears the events of each wake, in frame order. */
 export type SessionEventListener = (events: readonly SessionEvent[]) => void;
 
+/** Hears the actions each wake applied, in frame order: never an empty list. */
+export type AppliedActionsListener = (actions: readonly PieceAction[]) => void;
+
 export interface SoloSession extends Store<SoloSessionState> {
   /**
    * An action that arrived at `time` (on the session's clock). It applies at the first frame that
@@ -118,6 +121,13 @@ export interface SoloSession extends Store<SoloSessionState> {
    * removes the listener. Nothing calls listeners until the engine reports events (M3).
    */
   onEvents(listener: SessionEventListener): () => void;
+  /**
+   * Adds a listener for the actions the game applies, which each wake (or pause) that applied any
+   * passes on in frame order: what the input engine made of the key events, auto-shift and soft
+   * drop included, for a debug view of the input (design §7.3). Returns a function that removes
+   * the listener.
+   */
+  onActions(listener: AppliedActionsListener): () => void;
 }
 
 /** The frame at `elapsed` milliseconds after frame 0 started. */
@@ -158,6 +168,9 @@ class Session implements SoloSession {
   /** Key events waiting for the frame the input engine takes them at, in frame order. */
   #keys: { event: KeyEvent; frame: number }[] = [];
   readonly #eventListeners = new Set<SessionEventListener>();
+  readonly #actionListeners = new Set<AppliedActionsListener>();
+  /** The actions applied since listeners last heard of them. */
+  #unheard: PieceAction[] = [];
   readonly #mode: SoloMode;
   #seed: number;
 
@@ -242,6 +255,14 @@ class Session implements SoloSession {
     };
   };
 
+  onActions = (listener: AppliedActionsListener): (() => void) => {
+    const call: AppliedActionsListener = (actions) => listener(actions);
+    this.#actionListeners.add(call);
+    return () => {
+      this.#actionListeners.delete(call);
+    };
+  };
+
   #wake = (): void => {
     const before = this.#frame;
     const caughtUp = this.#catchUp();
@@ -293,11 +314,19 @@ class Session implements SoloSession {
     for (const type of made) actions.push({ frame, type });
     this.#engine.step(frame, actions);
     this.#log.push(...actions);
+    if (this.#actionListeners.size > 0) this.#unheard.push(...actions);
   }
 
-  /** Replaces the store's state with a fresh snapshot, notifying every subscriber. */
+  /**
+   * Replaces the store's state with a fresh snapshot, notifying every subscriber, then tells the
+   * action listeners what was applied since they last heard.
+   */
   #publish(): void {
     this.#store.setState(this.#snapshot(), true);
+    if (this.#unheard.length === 0) return;
+    const actions = this.#unheard;
+    this.#unheard = [];
+    for (const listener of this.#actionListeners) listener(actions);
   }
 
   #snapshot(): SoloSessionState {
