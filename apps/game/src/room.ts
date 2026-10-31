@@ -15,6 +15,12 @@ import type { ServerClock } from './clock';
 import type { Logger } from './logger';
 import { Match, type VerifiedGame } from './match';
 
+/**
+ * How long a quick-match room waits for its second player (design §9.4). A player paired with
+ * someone whose gateway never attached them goes back to the waiting screen after it.
+ */
+export const QUICK_MATCH_ARRIVAL_MS = 10_000;
+
 /** Where a room's messages to one session go: the gateway link it attached through. */
 export type Deliver = (sessionId: string, message: ServerMessage) => void;
 
@@ -53,14 +59,23 @@ export interface RoomOptions {
  * - #64: `detach` holds the seat (30 s in the lobby, the 3 s window in a match) instead of
  *   leaving, `attach` of a known session restores it with a snapshot, and `spectate`/`takeSeat`
  *   move seats;
- * - #65: quick-match rooms (no host, `rematch`);
  * - #63: lag-outs, through `Match.goOut`.
  */
 export class Room {
   readonly code: string;
   readonly epoch: number;
   readonly mode: RoomMode;
+  /**
+   * A quick-match room (design §9.4): created with no host, it starts by itself once both seats
+   * are taken, rematches when both players ask, and sends the other player away when one leaves.
+   */
+  readonly quickMatch: boolean;
   #hostId: string | undefined;
+  /** In a quick-match room: a player left mid-match, so the room breaks up once it ends. */
+  #opponentGone = false;
+  /** A quick-match room that broke up: whoever arrives late is sent away at once. */
+  #brokenUp = false;
+  #stopArrival: () => void = () => {};
   #phase: RoomPhase = 'lobby';
   /** In the order they joined: the first is the longest there. */
   readonly #members = new Map<string, Member>();
@@ -76,6 +91,12 @@ export class Room {
     this.epoch = options.epoch;
     this.mode = options.mode;
     this.#hostId = options.hostId;
+    this.quickMatch = options.hostId === undefined;
+    if (this.quickMatch) {
+      this.#stopArrival = options.clock.after(QUICK_MATCH_ARRIVAL_MS, () => {
+        if (!this.empty && this.#seated().length < SEATS[this.mode]) this.#breakUp();
+      });
+    }
   }
 
   get empty(): boolean {
@@ -98,6 +119,10 @@ export class Room {
       this.#broadcastState();
       return;
     }
+    if (this.#brokenUp) {
+      deliver(sessionId, { type: 'opponentLeft' });
+      return;
+    }
     const seat = this.#phase === 'lobby' ? this.#freeSeat() : null;
     const spectators = [...this.#members.values()].filter((member) => member.seat === null);
     if (seat === null && spectators.length >= MAX_SPECTATORS) {
@@ -115,6 +140,10 @@ export class Room {
     this.#members.set(sessionId, member);
     this.#options.logger.info({ roomCode: this.code, sessionId, seat }, 'joined room');
     this.#broadcastState();
+    if (this.quickMatch && this.#seated().length === SEATS[this.mode] && !this.#lastMatch) {
+      this.#stopArrival();
+      this.#launch(this.#seated());
+    }
   }
 
   /** The session's connection closed. Until #64 holds its seat, that's leaving. */
@@ -133,6 +162,9 @@ export class Room {
       case 'startMatch':
         this.#start(member);
         return;
+      case 'rematch':
+        this.#rematch(member);
+        return;
       case 'leaveRoom':
         this.leave(sessionId);
         return;
@@ -140,7 +172,7 @@ export class Room {
         this.#match?.receive(sessionId, message);
         return;
       default:
-        // spectate, takeSeat and setNickname come with #64; rematch with #65.
+        // spectate, takeSeat and setNickname come with #64.
         member.deliver(sessionId, error('wrong_phase', "That isn't available yet."));
         return;
     }
@@ -148,7 +180,8 @@ export class Room {
 
   /**
    * A member leaves: out of the match at their last verified frame if they were playing, and a new
-   * host if they were the host, the longest-seated player (or member) left.
+   * host if they were the host, the longest-seated player (or member) left. A quick-match room
+   * breaks up instead, once any match running has ended.
    */
   leave(sessionId: string): void {
     const member = this.#members.get(sessionId);
@@ -158,6 +191,12 @@ export class Room {
     if (this.#match?.has(sessionId)) {
       const frame = this.#match.verifiedGames().find((game) => game.playerId === sessionId)?.frame;
       this.#match.goOut(sessionId, 'left', frame ?? 0);
+    }
+    if (this.quickMatch && !this.empty) {
+      // Leaving can end the match there and then, which already broke the room up.
+      if (this.#match) this.#opponentGone = true;
+      else this.#breakUp();
+      return;
     }
     if (this.#hostId === sessionId) {
       const members = [...this.#members.values()];
@@ -175,10 +214,15 @@ export class Room {
 
   /** Stops the room's timers, as the room is deleted. */
   close(): void {
+    this.#stopArrival();
     this.#stopMatch();
   }
 
   #ready(member: Member, ready: boolean): void {
+    if (this.quickMatch) {
+      this.#refuse(member, 'wrong_phase', 'Quick-match rooms start by themselves.');
+      return;
+    }
     if (this.#phase !== 'lobby') {
       this.#refuse(member, 'wrong_phase', 'Not in the lobby.');
       return;
@@ -196,6 +240,10 @@ export class Room {
    * seated player must be ready. Seated players who aren't sit it out and watch.
    */
   #start(member: Member): void {
+    if (this.quickMatch) {
+      this.#refuse(member, 'wrong_phase', 'Quick-match rooms start by themselves.');
+      return;
+    }
     if (member.id !== this.#hostId) {
       this.#refuse(member, 'not_host', 'Only the host starts.');
       return;
@@ -209,6 +257,25 @@ export class Room {
       this.#refuse(member, 'wrong_phase', 'Waiting for another player to be ready.');
       return;
     }
+    this.#launch(players);
+  }
+
+  /** After results in a quick-match room: the next match starts once both players ask. */
+  #rematch(member: Member): void {
+    if (!this.quickMatch || this.#phase !== 'lobby' || !this.#lastMatch || member.seat === null) {
+      this.#refuse(member, 'wrong_phase', 'Rematch comes after a quick-match result.');
+      return;
+    }
+    member.ready = true;
+    this.#broadcastState();
+    const seated = this.#seated();
+    if (seated.length === SEATS[this.mode] && seated.every(({ ready }) => ready)) {
+      this.#launch(seated);
+    }
+  }
+
+  /** The countdown to a match between `players`, in seat order. */
+  #launch(players: readonly Member[]): void {
     const { matchId, seed } = this.#options.newMatch();
     const { clock } = this.#options;
     this.#match = new Match({
@@ -254,7 +321,27 @@ export class Room {
     for (const member of this.#members.values()) member.ready = false;
     this.#stopMatch();
     this.#setPhase('lobby');
+    if (this.#opponentGone) {
+      this.#breakUp();
+      return;
+    }
     this.#broadcastState();
+  }
+
+  /**
+   * A quick-match room's players are no longer a pair (design §9.4): everyone still in it gets
+   * `opponentLeft` and is out of the room, back at the waiting screen, free to queue again.
+   */
+  #breakUp(): void {
+    this.#brokenUp = true;
+    this.#stopArrival();
+    for (const member of [...this.#members.values()]) {
+      this.#members.delete(member.id);
+      this.#to(member, { type: 'opponentLeft' });
+    }
+    this.#options.logger.info({ roomCode: this.code }, 'quick-match room broke up');
+    this.#stopMatch();
+    this.#options.emptied();
   }
 
   #stopMatch(): void {
