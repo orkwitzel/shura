@@ -49,6 +49,11 @@ export interface SoloSessionState {
   readonly phase: SoloPhase;
   /** During the countdown, the frames left before Go (90 to 1). Otherwise 0. */
   readonly countdown: number;
+  /**
+   * The frame the latest countdown (a new game's, a restart's or a resume's) ends at: Go, the frame
+   * play starts or carries on from.
+   */
+  readonly goFrame: number;
   /** The game, live: the engine's own state, which the next step changes. */
   readonly engine: ReadonlyEngineState;
   /** Every action the game has applied, in order: its action log, live like `engine`. */
@@ -141,6 +146,8 @@ class Session implements SoloSession {
   #start: number;
   /** The last frame the loop has reached, the countdown's included. */
   #frame = -COUNTDOWN_FRAMES;
+  /** The engine's frame when the latest countdown started: Go. */
+  #goFrame = 0;
   /** While paused, the time since frame 0 started at the pause. */
   #pausedAt: number | null = null;
   #cancelWake: () => void;
@@ -244,7 +251,8 @@ class Session implements SoloSession {
    * loop: the loop's frame starts `into` milliseconds in, as it was at the pause.
    */
   #beginCountdown(into: number): void {
-    this.#frame = this.#engine.state.frame - COUNTDOWN_FRAMES;
+    this.#goFrame = this.#engine.state.frame;
+    this.#frame = this.#goFrame - COUNTDOWN_FRAMES;
     this.#start = this.#clock.now() - framesToMs(this.#frame) - into;
     this.#pausedAt = null;
     // Keys pressed or released at the pause, during it or after the game ended reach the input
@@ -322,6 +330,7 @@ class Session implements SoloSession {
       seed: this.#seed,
       phase,
       countdown,
+      goFrame: this.#goFrame,
       engine: this.#engine.state,
       actions: this.#log,
     };

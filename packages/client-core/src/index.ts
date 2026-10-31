@@ -2,6 +2,7 @@
 export { type Direction, PIECE_ACTIONS } from './actions';
 export { type Bindings, rebind, unbind } from './bindings';
 export type { Clock } from './clock';
+export { countdownLabel } from './countdown';
 export { formatFrames, formatHeadline, formatScore } from './format';
 export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './frames';
 export {

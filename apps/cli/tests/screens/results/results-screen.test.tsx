@@ -14,6 +14,7 @@ function ended(
     seed: 7,
     phase: 'ended',
     countdown: 0,
+    goFrame: 0,
     engine: { ...createEngine(SOLO_PRESETS[mode], 7, 0).state, ...engine },
     actions: [],
   };

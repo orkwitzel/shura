@@ -1,5 +1,6 @@
 import {
   type Clock,
+  countdownLabel,
   createSoloSession,
   handlingFrames,
   SKINS,
@@ -15,7 +16,6 @@ import { keyName, type TerminalInput } from '../../platform/input/terminal-input
 import { type InputOptions, useTerminalInput } from '../../platform/input/use-terminal-input';
 import { ResultsScreen } from '../results/results-screen';
 import { SettingsScreen } from '../settings/settings-screen';
-import { useCountdownLabel } from './countdown';
 import { DebugPanel } from './debug-panel';
 import { GameView } from './game-view';
 
@@ -87,7 +87,7 @@ export function SoloScreen({
     () => ({ colors, theme: THEMES[theme], skin: SKINS[skin] }),
     [colors, theme, skin],
   );
-  const countdown = useCountdownLabel(state);
+  const countdown = countdownLabel(state);
   // The settings screen, opened from the menu, takes the game's place and every key until it closes.
   const [settingsOpen, setSettingsOpen] = useState(false);
 

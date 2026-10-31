@@ -33,6 +33,7 @@ function stateOf(engine: Engine, fields: Partial<SoloSessionState> = {}): SoloSe
     seed: 7,
     phase: 'playing',
     countdown: 0,
+    goFrame: 0,
     engine: engine.state,
     actions: [],
     ...fields,
