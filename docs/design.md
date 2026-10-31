@@ -439,8 +439,10 @@ See [ADR 0007](adr/0007-full-match-log-in-valkey.md).
 ### 10.1 Lifecycle
 
 ```
-lobby ──(host starts, ≥ 1 other seated player ready)──▶ countdown (3 s) ──▶ playing ──(one left)──▶ results ──▶ lobby
+lobby ──(host starts, ≥ 1 other seated player ready)──▶ countdown (3 s) ──▶ playing ──(one left: matchEnd)──▶ lobby
 ```
+
+The room goes straight back to the lobby when the match ends; the results are the clients' own screen over `matchEnd`, not a phase of the room. `roomState`'s `phase` keeps a `results` value the server doesn't set in v1.
 
 - **Mode:** chosen when the room is created (`createRoom{ mode }`, 1v1 unless FFA is asked for) and fixed for the room's life. Playing another mode means creating another room.
 - **Seats:** a 1v1 room has 2 seats and an FFA room 8. Anyone who joins a full room, or joins mid-match, becomes a **spectator**, and takes a free seat at the next lobby in the order they arrived: when a match ends, these waiting spectators fill the free seats, first come first seated. A spectator who stepped out with `spectate` isn't waiting, and in the lobby itself a free seat is taken with `takeSeat`. `roomState` lists the spectators in the order they came. A room holds at most `MAX_SPECTATORS` (16, in `protocol`); a join beyond that gets `room_full`.

@@ -24,7 +24,10 @@ export type RoomMode = z.infer<typeof roomModeSchema>;
 export const playerKindSchema = z.enum(['guest', 'bot']);
 export type PlayerKind = z.infer<typeof playerKindSchema>;
 
-/** A room's phase (design §10.1). */
+/**
+ * A room's phase (design §10.1). The server doesn't set `results` in v1: a room goes from `playing`
+ * straight back to `lobby`. It stays, since removing a value would be a breaking change.
+ */
 export const roomPhaseSchema = z.enum(['lobby', 'countdown', 'playing', 'results']);
 export type RoomPhase = z.infer<typeof roomPhaseSchema>;
 
