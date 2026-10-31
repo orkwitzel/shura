@@ -7,6 +7,7 @@ const NAMES: Readonly<Record<string, string>> = {
   ArrowRight: '→',
   ArrowUp: '↑',
   ArrowDown: '↓',
+  Escape: 'Esc',
   Backquote: '`',
   Minus: '-',
   Equal: '=',

@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { AppRouter } from '@/app/router';
@@ -30,6 +30,19 @@ describe('the main menu, at /', () => {
     expect(item('Ultra')).toHaveAccessibleDescription('no record yet');
   });
 
+  test('shows all three personal bests: Sprint’s time, Marathon’s score, level and lines, Ultra’s score', () => {
+    const records = {
+      version: 1,
+      sprint: personalBest({ frames: 3_000 }),
+      marathon: personalBest({ outcome: 'gameOver', score: 54_321, lines: 87, level: 9 }),
+      ultra: personalBest({ score: 21_449, lines: 101, frames: 7_200 }),
+    };
+    renderWithStores(<AppRouter />, { stored: { records } });
+    expect(item('Sprint')).toHaveAccessibleDescription('0:50.000');
+    expect(item('Marathon')).toHaveAccessibleDescription('54,321 (level 9, 87 lines)');
+    expect(item('Ultra')).toHaveAccessibleDescription('21,449');
+  });
+
   test('starts on Sprint, past the disabled Play online', () => {
     renderWithStores(<AppRouter />);
     expect(item('Sprint')).toHaveFocus();
@@ -50,7 +63,22 @@ describe('the main menu, at /', () => {
     const app = renderWithStores(<AppRouter />);
     await userEvent.keyboard(`${'{ArrowDown}'.repeat(downs)}{Enter}`);
     expect(app.location()).toBe(`/solo/${mode.toLowerCase()}`);
-    expect(screen.getByRole('heading', { name: mode })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: mode })).toBeInTheDocument();
+  });
+
+  test('comes back on the mode the player left it for, as the CLI does', async () => {
+    const app = renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+    await screen.findByRole('heading', { name: 'Marathon' });
+    act(() => app.navigate('/'));
+    expect(item('Marathon')).toHaveFocus();
+  });
+
+  test('comes back on Settings after the settings', async () => {
+    renderWithStores(<AppRouter />);
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    await userEvent.keyboard('{Escape}');
+    expect(item('Settings')).toHaveFocus();
   });
 
   test('tells the player when the stored settings or records could not be used', () => {
@@ -85,9 +113,9 @@ describe('the other routes', () => {
   test.each([
     ['marathon', 'Marathon', 'Level'],
     ['ultra', 'Ultra', 'Time left'],
-  ])('/solo/%s plays %s, with its HUD', (mode, name, stat) => {
+  ])('/solo/%s plays %s, with its HUD', async (mode, name, stat) => {
     renderWithStores(<AppRouter />, { path: `/solo/${mode}` });
-    expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name })).toBeInTheDocument();
     expect(screen.getByText(stat, { selector: 'dt' })).toBeInTheDocument();
   });
 

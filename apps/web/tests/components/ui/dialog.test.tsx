@@ -52,4 +52,17 @@ describe('Dialog', () => {
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  test('an Esc that something inside has already handled does not ask to close it', async () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open title="Paused" onClose={onClose}>
+        <Button autoFocus onKeyDown={(event) => event.preventDefault()}>
+          Resume
+        </Button>
+      </Dialog>,
+    );
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

@@ -1,14 +1,9 @@
 import type { Effects } from '@shura/client-core';
-import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { AppRouter } from '@/app/router';
+// The engine's recorded Sprint (design §5.3): a full game whose action log finishes it.
+import sprint from '../../../../packages/engine/recorded-matches/sprint.json';
 import { pixiApps } from '../support/fake-pixi';
-import {
-  playRecordedSprint,
-  RECORDED_SPRINT,
-  seedRecordedSprint,
-} from '../support/play-recorded-sprint';
-import { renderWithStores } from '../support/render-with-stores';
+import { dialog, finishRecorded } from '../support/solo-game';
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance'] });
@@ -20,18 +15,12 @@ afterEach(() => {
 
 /** Plays the recorded Sprint with `effects`: what it ended on, and how many effects it started. */
 async function sprintWith(effects: Effects) {
-  seedRecordedSprint();
-  const start = performance.now();
-  const app = renderWithStores(<AppRouter />, {
-    path: '/solo/sprint',
+  const app = await finishRecorded('/solo/sprint', 'Sprint', sprint, {
     stored: { settings: { version: 1, effects } },
   });
-  // Lets the Pixi app's asynchronous start-up finish.
-  await act(async () => {});
-  playRecordedSprint(start);
   const result = {
     frames: app.stores.records.getState().sprint?.stats.frames,
-    time: screen.getByText('Finished').closest('[role="status"]')?.textContent,
+    results: dialog('Finished')?.textContent,
     effects: pixiApps.at(-1)?.effects.length ?? 0,
   };
   app.unmount();
@@ -45,9 +34,10 @@ describe('effects on /solo/sprint', () => {
     // Full drew effects all the way; Off none.
     expect(full.effects).toBeGreaterThan(0);
     expect(off.effects).toBe(0);
-    expect(full.frames).toBe(RECORDED_SPRINT.frames);
-    expect(off.frames).toBe(RECORDED_SPRINT.frames);
-    expect(full.time).toContain(RECORDED_SPRINT.time);
-    expect(off.time).toContain(RECORDED_SPRINT.time);
+    // The recorded game finishes 40 lines at frame 1,222: 20.367 s.
+    expect(full.frames).toBe(1_222);
+    expect(off.frames).toBe(1_222);
+    expect(full.results).toContain('0:20.367');
+    expect(off.results).toContain('0:20.367');
   });
 });

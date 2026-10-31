@@ -34,6 +34,11 @@ export interface BoardCanvasProps {
   readonly overlay?: ReactNode;
   /** Shown in the column under the hold: the HUD and the callouts. */
   readonly aside?: ReactNode;
+  /**
+   * Called once, on the tick after the first paint: the board has been drawn on screen, and
+   * Pixi's start-up (which can hold the main thread for a second on a slow machine) is over.
+   */
+  readonly onShown?: () => void;
 }
 
 /** What the board is drawn with, besides the game: the settings and the window. */
@@ -64,12 +69,13 @@ const place = ({ x, y, width, height }: Rect): CSSProperties => ({
  * unmount. On each tick of Pixi's own ticker, outside React's render cycle, it reads the session's
  * store and repaints when the game, the settings or the window changed, so React never re-renders
  * per frame. React draws the labels and whatever is given to show over the well and beside it.
+ * `onShown` says when the first board has been on screen, so a game can start its clock then.
  *
  * It also draws the effects (design §13.2, Effects) from the session's engine events, under the
  * *Effects* setting in force, over the board on the same ticker. They live in the effects painter,
  * not in the session's store, and never touch the game. A new game drops them.
  */
-export function BoardCanvas({ session, overlay, aside }: BoardCanvasProps) {
+export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasProps) {
   const theme = useSettings((settings) => settings.theme);
   const skin = useSettings((settings) => settings.skin);
   const ghost = useSettings((settings) => settings.ghost);
@@ -82,10 +88,12 @@ export function BoardCanvas({ session, overlay, aside }: BoardCanvasProps) {
   // The ticker reads the look from here, so a change needs no new application.
   const look = useRef<Look>({ theme, skin, ghost, effects, fit });
   const resolution = useRef(viewport.pixelRatio);
+  const shown = useRef(onShown);
   useLayoutEffect(() => {
     look.current = { theme, skin, ghost, effects, fit };
     resolution.current = viewport.pixelRatio;
-  }, [theme, skin, ghost, effects, fit, viewport.pixelRatio]);
+    shown.current = onShown;
+  }, [theme, skin, ghost, effects, fit, viewport.pixelRatio, onShown]);
 
   useEffect(() => {
     let gone = false;
@@ -99,7 +107,12 @@ export function BoardCanvas({ session, overlay, aside }: BoardCanvasProps) {
       const painter = createBoardPainter(app);
       const effectsPainter = createEffectsPainter(app);
       let drawn: { state: SoloSessionState; look: Look; view: EffectView } | null = null;
+      let told = false;
       const draw = () => {
+        if (drawn !== null && !told) {
+          told = true;
+          shown.current?.();
+        }
         const state = session.getState();
         const now = look.current;
         if (drawn?.state !== state || drawn.look !== now) {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { type MenuItem, MenuList } from '@/components/ui/menu-list';
@@ -85,5 +85,43 @@ describe('MenuList', () => {
       .getAllByRole('menuitem')
       .filter((each) => each.getAttribute('tabindex') === '0');
     expect(inTabOrder).toEqual([item('Sprint')]);
+  });
+
+  test("an item's shortcut chooses it from anywhere in the menu, and shows beside it", async () => {
+    const { items, selected } = menu({
+      settings: { shortcut: 'KeyS' },
+      ultra: { shortcut: 'KeyU' },
+    });
+    render(<MenuList label="Main menu" items={items} autoFocus />);
+    expect(item('Settings')).toHaveAttribute('aria-keyshortcuts', 'S');
+    expect(within(item('Settings')).getByText('S', { selector: 'kbd' })).toBeInTheDocument();
+    await userEvent.keyboard('s');
+    expect(selected).toHaveBeenCalledExactlyOnceWith('settings');
+  });
+
+  test('a shortcut goes by the physical key, so any keyboard layout works', () => {
+    const { items, selected } = menu({ settings: { shortcut: 'KeyS' } });
+    render(<MenuList label="Main menu" items={items} autoFocus />);
+    // S on a Hebrew layout types ד.
+    fireEvent.keyDown(item('Online'), { key: 'ד', code: 'KeyS' });
+    expect(selected).toHaveBeenCalledExactlyOnceWith('settings');
+  });
+
+  test('a shortcut with Ctrl, Alt or Meta, or repeated, chooses nothing', () => {
+    const { items, selected } = menu({ settings: { shortcut: 'KeyR' } });
+    render(<MenuList label="Main menu" items={items} autoFocus />);
+    // Ctrl+R reloads the page, as ever.
+    fireEvent.keyDown(item('Online'), { key: 'r', code: 'KeyR', ctrlKey: true });
+    fireEvent.keyDown(item('Online'), { key: 'r', code: 'KeyR', altKey: true });
+    fireEvent.keyDown(item('Online'), { key: 'r', code: 'KeyR', metaKey: true });
+    fireEvent.keyDown(item('Online'), { key: 'r', code: 'KeyR', repeat: true });
+    expect(selected).not.toHaveBeenCalled();
+  });
+
+  test("a disabled item's shortcut chooses nothing", async () => {
+    const { items, selected } = menu({ settings: { shortcut: 'KeyS', disabled: true } });
+    render(<MenuList label="Main menu" items={items} autoFocus />);
+    await userEvent.keyboard('s');
+    expect(selected).not.toHaveBeenCalled();
   });
 });
