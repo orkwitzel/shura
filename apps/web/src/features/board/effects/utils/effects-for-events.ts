@@ -1,4 +1,4 @@
-import { type Effects, lockCallouts } from '@shura/client-core';
+import { type Effects, framesToMs, isBackToBack } from '@shura/client-core';
 import {
   type BoardCell,
   type Cell,
@@ -109,8 +109,6 @@ const NUDGE = 3;
 /** The effects *Reduced* leaves out: everything that moves the board or streaks across it. */
 const MOVING: ReadonlySet<Effect['type']> = new Set(['shake', 'nudge', 'trail']);
 
-const FRAME_MS = 1000 / 60;
-
 /** The cells a lock's burst comes from: the cleared rows', or a T-spin's piece if it cleared none. */
 function burstCells(lock: LockEvent): EffectCell[] {
   if (lock.clearedRows.length === 0) {
@@ -150,23 +148,22 @@ function cellsAfterClearing({ piece, clearedRows }: LockEvent): Cell[] {
  * - a lock brightens the locked cells, a level-up pulses the border and a top-out fades the stack.
  *
  * *Reduced* leaves out the shake, the nudge and the trails, and *Off* everything. A back-to-back
- * needs the status before each lock: `backToBackBefore` is the one before the first of `events`
- * (the previous lock's, false before a game's first). It only describes the effects: they never
- * touch the game.
+ * needs the status before each lock: `backToBackBefore` gives it (a client-core
+ * `BackToBackTracker`'s `next`), and is called once for each lock, in order, whatever the setting,
+ * so the status stays right while effects are off. It only describes the effects: they never touch
+ * the game.
  */
 export function effectsForEvents(
   events: readonly EngineEvent[],
   setting: Effects,
-  backToBackBefore: boolean,
+  backToBackBefore: (lock: LockEvent) => boolean,
 ): Effect[] {
-  if (setting === 'off') return [];
   const effects: Effect[] = [];
   const first = events[0]?.frame ?? 0;
-  let backToBack = backToBackBefore;
   /** The rows of the hard drop whose lock comes next. */
   let dropped: number | null = null;
   for (const event of events) {
-    const delay = (event.frame - first) * FRAME_MS;
+    const delay = framesToMs(event.frame - first);
     if (event.type === 'hardDrop') {
       dropped = event.rows;
       effects.push({ type: 'nudge', distance: NUDGE, delay });
@@ -176,10 +173,7 @@ export function effectsForEvents(
         effects.push({ type: 'trail', kind, cells, rows: dropped, delay });
       }
       dropped = null;
-      const chained = lockCallouts(event, backToBack).some(
-        (callout) => callout.kind === 'backToBack',
-      );
-      backToBack = event.backToBack;
+      const chained = isBackToBack(event, backToBackBefore(event));
       const glowing = cellsAfterClearing(event);
       if (glowing.length > 0) effects.push({ type: 'glow', kind, cells: glowing, delay });
       if (event.clearedRows.length > 0) {
@@ -195,10 +189,6 @@ export function effectsForEvents(
       effects.push({ type: 'fade', delay });
     }
   }
+  if (setting === 'off') return [];
   return setting === 'full' ? effects : effects.filter((effect) => !MOVING.has(effect.type));
-}
-
-/** The back-to-back status after `events`, given the one before them. */
-export function backToBackAfter(events: readonly EngineEvent[], before: boolean): boolean {
-  return events.findLast((event) => event.type === 'lock')?.backToBack ?? before;
 }

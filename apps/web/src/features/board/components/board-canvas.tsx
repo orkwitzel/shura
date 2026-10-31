@@ -6,6 +6,7 @@ import {
   type SoloSessionState,
   THEMES,
   type ThemeId,
+  trackBackToBack,
 } from '@shura/client-core';
 import { useSettings } from '@shura/client-core/react';
 import {
@@ -20,7 +21,7 @@ import { useEffects } from '@/hooks/use-effects';
 import { createPixiApp, destroyPixiApp, type PixiSize, resizePixiApp } from '@/lib/pixi/pixi-app';
 import { createEffectsPainter } from '../effects/pixi/effects-painter';
 import type { EffectView } from '../effects/utils/effect-frame';
-import { backToBackAfter, effectsForEvents } from '../effects/utils/effects-for-events';
+import { effectsForEvents } from '../effects/utils/effects-for-events';
 import { useViewport } from '../hooks/use-viewport';
 import { createBoardPainter } from '../pixi/board-painter';
 import { type BoardFit, fitBoard } from '../utils/cell-size';
@@ -133,25 +134,22 @@ export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasPro
       };
       app.ticker.add(draw);
 
-      // The effects of each wake's engine events. A back-to-back needs the status before each lock:
-      // the previous lock's, off again for each new game.
-      let backToBack = false;
+      // The effects of each wake's engine events. A back-to-back needs the status before each lock.
+      const backToBack = trackBackToBack(session);
       const stopHearing = session.onEvents((events) => {
         effectsPainter.add(
-          effectsForEvents(events, look.current.effects, backToBack),
+          effectsForEvents(events, look.current.effects, backToBack.next),
           performance.now(),
         );
-        backToBack = backToBackAfter(events, backToBack);
       });
-      // A game at frame 0 has locked nothing: a restart (or the first countdown) starts afresh.
+      // A game at frame 0 has locked nothing: a restart (or the first countdown) drops the effects.
       const stopWatching = session.subscribe(({ engine }) => {
-        if (engine.frame !== 0) return;
-        backToBack = false;
-        effectsPainter.clear();
+        if (engine.frame === 0) effectsPainter.clear();
       });
       stop = () => {
         stopHearing();
         stopWatching();
+        backToBack.stop();
         app.ticker.remove(draw);
         destroyPixiApp(app);
       };
