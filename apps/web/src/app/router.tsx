@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
-import { Redirect, Route, Switch } from 'wouter';
-import { ROUTES } from '@/config/routes';
+import { Redirect, Route, Switch, useLocation } from 'wouter';
+import { isOnlinePath, ROUTES } from '@/config/routes';
+import { OnlineRoutes } from './online-routes';
 import { MainMenuPage } from './routes/main-menu-page';
 import { SettingsPage } from './routes/settings-page';
 
@@ -8,12 +9,15 @@ import { SettingsPage } from './routes/settings-page';
 const SoloPage = lazy(async () => ({ default: (await import('./routes/solo-page')).SoloPage }));
 
 /**
- * The routes (design §13.2): the main menu, the settings and a single-player game. Any other path
- * redirects to the main menu, replacing itself in the history. The main menu opens on the item it
- * was last left from (a mode, or Settings), as the CLI's does.
+ * The routes (design §13.2): the main menu, the settings, a single-player game, and online play
+ * (`/online` and `/r/:code`, which share one online session for as long as the player stays in
+ * them). Any other path redirects to the main menu, replacing itself in the history. The main menu
+ * opens on the item it was last left from (Play online, a mode, or Settings), as the CLI's does.
  */
 export function AppRouter() {
   const [chosen, setChosen] = useState<string>();
+  const [location] = useLocation();
+  if (isOnlinePath(location)) return <OnlineRoutes />;
   return (
     <Switch>
       <Route path={ROUTES.mainMenu}>

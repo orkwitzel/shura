@@ -1,0 +1,36 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  white-space: nowrap;
+  color: var(--quality);
+  background: var(--color-deep);
+  border: 2px solid var(--quality);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.good {
+  --quality: var(--color-piece-s);
+}
+
+.fair {
+  --quality: var(--color-piece-o);
+}
+
+.poor {
+  --quality: var(--color-piece-z);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: var(--quality);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.label {
+  color: var(--color-muted);
+}

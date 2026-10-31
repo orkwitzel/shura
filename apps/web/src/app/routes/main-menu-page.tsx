@@ -17,9 +17,9 @@ export interface MainMenuPageProps {
 }
 
 /**
- * The main menu (design §13.2): Play online (disabled until M4), the single-player modes, each with
- * its personal best, and Settings. There is no Quit. The cursor starts on `initial`. Below it, why the stored settings or records
- * couldn't be used, if they couldn't.
+ * The main menu (design §13.2): Play online, the single-player modes, each with its personal best,
+ * and Settings. There is no Quit. The cursor starts on `initial`, or on Sprint. Below it, why the
+ * stored settings or records couldn't be used, if they couldn't.
  */
 export function MainMenuPage({ initial, onChoose }: MainMenuPageProps = {}) {
   const [, navigate] = useLocation();
@@ -31,9 +31,10 @@ export function MainMenuPage({ initial, onChoose }: MainMenuPageProps = {}) {
     {
       id: 'online',
       label: 'Play online',
-      detail: 'coming soon',
-      disabled: true,
-      onSelect: () => {},
+      onSelect: () => {
+        onChoose?.('online');
+        navigate(ROUTES.online);
+      },
     },
     ...SOLO_MODES.map(
       (mode, index): MenuItem => ({
@@ -62,7 +63,7 @@ export function MainMenuPage({ initial, onChoose }: MainMenuPageProps = {}) {
       <Panel>
         <Logo />
         <p className={styles.tagline}>שורה · row by row</p>
-        <MenuList label="Main menu" items={items} initial={initial} autoFocus />
+        <MenuList label="Main menu" items={items} initial={initial ?? SOLO_MODES[0]} autoFocus />
         <p className={styles.hint}>
           <kbd>↑</kbd>
           <kbd>↓</kbd> choose <kbd>Enter</kbd> select

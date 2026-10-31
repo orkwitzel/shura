@@ -2,6 +2,7 @@ import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { AppRouter } from '@/app/router';
+import { fakeOnline } from '../support/fake-online-session';
 import { personalBest } from '../support/records';
 import { renderWithStores } from '../support/render-with-stores';
 
@@ -9,11 +10,10 @@ const menu = () => screen.getByRole('menu', { name: 'Main menu' });
 const item = (name: string) => within(menu()).getByRole('menuitem', { name });
 
 describe('the main menu, at /', () => {
-  test('shows the logo, Play online (coming soon), the three modes and Settings, and no Quit', () => {
+  test('shows the logo, Play online, the three modes and Settings, and no Quit', () => {
     renderWithStores(<AppRouter />);
     expect(screen.getByRole('heading', { name: 'Shura' })).toBeInTheDocument();
-    expect(item('Play online')).toBeDisabled();
-    expect(item('Play online')).toHaveAccessibleDescription('coming soon');
+    expect(item('Play online')).toBeEnabled();
     expect(within(menu()).getAllByRole('menuitem')).toHaveLength(5);
     expect(item('Sprint')).toBeEnabled();
     expect(item('Marathon')).toBeEnabled();
@@ -43,9 +43,18 @@ describe('the main menu, at /', () => {
     expect(item('Ultra')).toHaveAccessibleDescription('21,449');
   });
 
-  test('starts on Sprint, past the disabled Play online', () => {
+  test('starts on Sprint, the first mode', () => {
     renderWithStores(<AppRouter />);
     expect(item('Sprint')).toHaveFocus();
+  });
+
+  test('↑ and Enter open Play online', async () => {
+    const app = renderWithStores(<AppRouter />, {
+      stored: { settings: { version: 1, nickname: 'Or' } },
+      online: fakeOnline().open,
+    });
+    await userEvent.keyboard('{ArrowUp}{Enter}');
+    expect(app.location()).toBe('/online');
   });
 
   test('the arrows and Enter open Settings', async () => {

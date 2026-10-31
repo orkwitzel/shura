@@ -27,6 +27,7 @@ import { DEFAULT_BINDINGS } from '@/config/default-bindings';
 import { useEffects } from '@/hooks/use-effects';
 import { keyLabel } from '@/lib/keyboard/key-labels';
 import { ctrlWarning } from '../utils/ctrl-warning';
+import { NicknameSetting } from './nickname-setting';
 import styles from './settings-form.module.css';
 import { SkinPreview } from './skin-preview';
 
@@ -133,7 +134,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /**
  * The settings (design §13.2): handling, each action's keys with the swap rule, the ghost, the
- * theme (applied at once), the skin, the effects and the volume. Every change goes to the settings
+ * theme (applied at once), the skin, the effects, the volume and the nickname online. Every change goes to the settings
  * store and is saved at once. Esc or Back leaves. It reads the stores from `ClientCoreProvider`, so
  * it stands on its own: the settings page shows it, and the solo page shows it over the paused
  * game.
@@ -294,6 +295,12 @@ export function SettingsForm({ onClose }: SettingsFormProps) {
               value={stepIndex(VOLUME_STEPS, settings.volume)}
               valueText={settings.volume === 0 ? 'off' : String(settings.volume)}
               onChange={(index) => change({ volume: VOLUME_STEPS[index] })}
+            />
+          </Section>
+          <Section title="Online">
+            <NicknameSetting
+              nickname={settings.nickname}
+              onChange={(nickname) => change({ nickname })}
             />
           </Section>
         </div>

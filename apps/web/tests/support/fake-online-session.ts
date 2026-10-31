@@ -14,7 +14,7 @@ type Player = ServerMessageOf<'roomState'>['players'][number];
 type Spectator = ServerMessageOf<'roomState'>['spectators'][number];
 
 /** The session methods a fake records, each a `vi.fn()`. */
-type Methods = Omit<OnlineSession, 'getState' | 'getInitialState' | 'subscribe'>;
+type Methods = Omit<OnlineSession, 'getState' | 'getInitialState' | 'subscribe' | 'sessionToken'>;
 
 /**
  * A stand-in for client-core's `OnlineSession`: the same store, which the test sets by hand, and

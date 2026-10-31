@@ -78,7 +78,6 @@ export function QuickMatchWait({ status, since, onCancel, onSearchAgain }: Quick
         ))}
       </div>
       <p className={styles.lead}>Looking for an opponent…</p>
-      {/* biome-ignore lint/a11y/useSemanticElements: a running count, not a moment in time */}
       <p role="timer" aria-label="Time waited" className={styles.time}>
         {waited(elapsed)}
       </p>
