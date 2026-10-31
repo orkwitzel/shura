@@ -20,6 +20,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "sonner": "2.0.8",
+    "worker-timers": "8.0.34",
     "wouter": "3.13.0",
     "zustand": "catalog:"
   },
