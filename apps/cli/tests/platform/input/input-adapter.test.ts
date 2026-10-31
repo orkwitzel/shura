@@ -8,28 +8,18 @@ import {
   type InputChoice,
   type InputSignal,
 } from '../../../src/platform/input/input-adapter';
+import { replay, timed } from '../../support/replay';
+import { LEFT, LEFT_RELEASE, LEFT_REPEAT, SPACE_KITTY } from '../../support/sequences';
 import { keySignal } from '../../support/signals';
-import { parseTimedBytes } from '../../support/terminal-bytes';
 
 const { MoveLeft } = ActionType;
-
-const CSI = '\x1b[';
-/** An unmodified arrow press: the same bytes with the Kitty protocol as without it. */
-const LEFT = `${CSI}D`;
-/** Kitty protocol: arrow repeat and release, Space press. */
-const LEFT_REPEAT = `${CSI}1;1:2D`;
-const LEFT_RELEASE = `${CSI}1;1:3D`;
-const SPACE_KITTY = `${CSI}32u`;
 
 /** An adapter for `choice` and a way to feed it timed terminal bytes. */
 function adapter(choice: InputChoice) {
   const input = createInputAdapter(choice, DEFAULT_BINDINGS);
   return {
     input,
-    async feed(...chunks: [number, string][]): Promise<InputSignal[]> {
-      const raws = await parseTimedBytes(chunks.map(([time, bytes]) => ({ time, bytes })));
-      return raws.flatMap((raw) => input.feed(raw));
-    },
+    feed: (...chunks: [number, string][]): Promise<InputSignal[]> => replay(input, timed(chunks)),
   };
 }
 

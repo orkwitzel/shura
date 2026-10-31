@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { actionsByKey, DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
-import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import {
   createInputAdapter,
   type InputChoice,
   KITTY_PROOF_WAIT,
 } from '../../../src/platform/input/input-adapter';
 import { type Capture, loadCaptures } from '../../support/captures';
-import { parseTimedBytes } from '../../support/terminal-bytes';
+import { replay as replayChunks } from '../../support/replay';
 
 /**
  * Every recorded capture in tests/support/captures, replayed through the adapters and checked
@@ -19,10 +18,8 @@ const captures = loadCaptures();
 /** What `choice` makes of the capture, polled long after its last key. */
 async function replay(capture: Capture, choice: InputChoice) {
   const adapter = createInputAdapter(choice, DEFAULT_BINDINGS);
-  const signals: InputSignal[] = [];
-  for (const raw of await parseTimedBytes(capture.chunks)) signals.push(...adapter.feed(raw));
   const last = capture.chunks.at(-1)?.time ?? 0;
-  signals.push(...adapter.poll(last + 2 * KITTY_PROOF_WAIT));
+  const signals = await replayChunks(adapter, capture.chunks, last + 2 * KITTY_PROOF_WAIT);
   const action = actionsByKey(DEFAULT_BINDINGS).get(capture.header.key);
   const events = signals.flatMap((signal) =>
     signal.kind === 'key' && signal.event.action === action ? [signal.event] : [],

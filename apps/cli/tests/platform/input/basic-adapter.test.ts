@@ -2,29 +2,18 @@ import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { createBasicAdapter } from '../../../src/platform/input/basic-adapter';
 import { DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
-import type { InputSignal } from '../../../src/platform/input/input-adapter';
+import { replay, timed } from '../../support/replay';
+import { DOWN, LEFT, LEFT_RELEASE, LEFT_REPEAT, RIGHT } from '../../support/sequences';
 import { keySignal } from '../../support/signals';
-import { parseTimedBytes } from '../../support/terminal-bytes';
 
 const { MoveLeft, MoveRight, SoftDrop, HardDrop, RotateCW } = ActionType;
-
-/** Legacy sequences, as a terminal without the Kitty protocol sends them. */
-const CSI = '\x1b[';
-const LEFT = `${CSI}D`;
-const RIGHT = `${CSI}C`;
-const DOWN = `${CSI}B`;
 
 /**
  * The signals the basic adapter makes of `chunks` (`[time, bytes]`, one terminal read each), then
  * of polling at `until`, when every key has long been let go.
  */
-async function signals(chunks: readonly [number, string][], until = 10_000) {
-  const inputs = await parseTimedBytes(chunks.map(([time, bytes]) => ({ time, bytes })));
-  const adapter = createBasicAdapter(DEFAULT_BINDINGS);
-  const out: InputSignal[] = [];
-  for (const input of inputs) out.push(...adapter.feed(input));
-  out.push(...adapter.poll(until));
-  return out;
+function signals(chunks: readonly [number, string][], until = 10_000) {
+  return replay(createBasicAdapter(DEFAULT_BINDINGS), timed(chunks), until);
 }
 
 describe('basic adapter', () => {
@@ -196,8 +185,8 @@ describe('basic adapter', () => {
     expect(
       await signals([
         [0, LEFT],
-        [500, `${CSI}1;1:2D`],
-        [530, `${CSI}1;1:3D`],
+        [500, LEFT_REPEAT],
+        [530, LEFT_RELEASE],
       ]),
     ).toEqual([
       keySignal(MoveLeft, 'press', 0),
