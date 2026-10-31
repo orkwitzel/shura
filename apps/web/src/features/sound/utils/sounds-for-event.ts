@@ -49,10 +49,13 @@ const OTHERS: Partial<Record<EngineEvent['type'], Sound>> = {
   finish: 'finish',
 };
 
-/** Each combo step plays the combo sound a semitone higher, up to an octave at combo 12. */
+/**
+ * Each combo step plays the combo sound a semitone higher, from an octave below the sample at combo
+ * 1 to a semitone below it at combo 12. The sample's own pitch is too shrill to climb from.
+ */
 const HIGHEST_COMBO_STEP = 12;
 
-const comboRate = (combo: number) => 2 ** (Math.min(combo, HIGHEST_COMBO_STEP) / 12);
+const comboRate = (combo: number) => 2 ** ((Math.min(combo, HIGHEST_COMBO_STEP) - 13) / 12);
 
 /** The sounds an engine event plays, in order (design §13.2, Sound). */
 export function soundsForEvent(event: EngineEvent): SoundCue[] {

@@ -23,7 +23,7 @@ The files were converted from the pack's 44.1 kHz 16-bit mono `.wav` to 96 kb/s 
 | `tetris.mp3` | a 4-line clear | `General Sounds/Positive Sounds/sfx_sounds_powerup3.wav` |
 | `t-spin.mp3` | a T-spin | `General Sounds/High Pitched Sounds/sfx_sounds_high4.wav` |
 | `perfect-clear.mp3` | a perfect clear | `General Sounds/Fanfares/sfx_sounds_fanfare1.wav` |
-| `combo.mp3` | each combo step, higher each time | `General Sounds/Simple Bleeps/sfx_sounds_Blip3.wav` |
+| `combo.mp3` | each combo step, a semitone higher each time, from an octave below | `General Sounds/Simple Bleeps/sfx_sounds_Blip3.wav` |
 | `garbage.mp3` | garbage landing | `General Sounds/Simple Damage Sounds/sfx_damage_hit3.wav` |
 | `level-up.mp3` | a level-up | `General Sounds/Positive Sounds/sfx_sounds_powerup15.wav` |
 | `top-out.mp3` | a top-out | `General Sounds/Negative Sounds/sfx_sounds_negative2.wav` |
