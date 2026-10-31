@@ -24,12 +24,12 @@ All work happens on a branch. **Nothing is committed directly to `main`.** A rul
 | | Allowed values |
 |---|---|
 | type | `feat` `fix` `refactor` `perf` `test` `docs` `chore` `ci` `build` |
-| scope | `engine` `protocol` `client-core` `valkey` `gateway` `game` `web` `cli` `repo` `deploy` |
+| scope | `engine` `protocol` `client-core` `valkey` `gateway` `game` `web` `cli` `bot` `repo` `deploy` |
 | description | lowercase words separated by `-` |
 
 Examples: `feat/engine-srs-kicks`, `fix/gateway-reconnect-race`, `docs/repo-adr-index`.
 
-CI checks the name against `^(feat|fix|refactor|perf|test|docs|chore|ci|build)/(engine|protocol|client-core|valkey|gateway|game|web|cli|repo|deploy)-[a-z0-9]+(-[a-z0-9]+)*$`. Bot branches (`changeset-release/main`, `dependabot/*`) are exempt.
+CI checks the name against `^(feat|fix|refactor|perf|test|docs|chore|ci|build)/(engine|protocol|client-core|valkey|gateway|game|web|cli|bot|repo|deploy)-[a-z0-9]+(-[a-z0-9]+)*$`. Bot branches (`changeset-release/main`, `dependabot/*`) are exempt.
 
 ## Pull requests
 

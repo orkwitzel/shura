@@ -48,7 +48,7 @@ _Online multiplayer falling-block battles, in your browser or your terminal._
 | Sprint   | 1       | offline | Clear 40 lines as fast as possible            | Playable |
 | Ultra    | 1       | offline | Score as much as possible in 2 minutes        | Playable |
 | 1v1      | 2       | online  | Top out your opponent                         | Planned  |
-| FFA      | 3–8     | online  | Be the last player standing                   | Planned  |
+| FFA      | 2–8     | online  | Be the last player standing                   | Planned  |
 
 Single-player modes run entirely on your machine and never contact a server.
 
