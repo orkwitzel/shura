@@ -11,6 +11,8 @@
     "dev": "docker compose up -d --wait valkey && turbo run dev",
     "dev:game2": "PORT=8082 pnpm --filter @shura/game dev",
     "cli": "pnpm --filter shura dev",
+    "dev:bot": "pnpm --filter @shura/bot serve",
+    "bot": "pnpm --silent --filter @shura/bot bot",
     "check": "biome check && turbo run typecheck test",
     "build": "turbo run build",
     "test": "turbo run test",

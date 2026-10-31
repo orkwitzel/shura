@@ -149,6 +149,7 @@ Besides Node.js 26 and pnpm, `pnpm dev` needs Docker for the local Valkey.
 ```sh
 pnpm dev      # Valkey + gateway + game server + web client on http://localhost:5173
 pnpm cli      # terminal client (run it in its own terminal)
+pnpm dev:bot  # the bot tool on :8090, then `pnpm bot join <CODE>` (testing only)
 pnpm check    # lint, typecheck and tests, the same as CI
 ```
 
@@ -160,6 +161,7 @@ apps/
   cli/          Ink terminal client, published to npm as `shura`
   gateway/      public WebSocket and HTTP API, forwards to game pods
   game/         hosts rooms and verifies every match
+  bot/          testing tool only: headless bots that play like people (never deployed)
 packages/
   engine/       deterministic game rules
   protocol/     message schemas and version constants

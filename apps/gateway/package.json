@@ -20,6 +20,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shura/bot": "workspace:*",
     "@shura/client-core": "workspace:*",
     "@shura/game": "workspace:*",
     "@shura/tsconfig": "workspace:*",
