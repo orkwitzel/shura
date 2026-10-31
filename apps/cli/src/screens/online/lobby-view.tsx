@@ -23,7 +23,7 @@ export interface LobbyViewProps {
 /** How many of the room's events (joins, leaves, host changes) it shows. */
 const EVENTS_SHOWN = 3;
 
-const WIDTH = 72;
+const WIDTH = 78;
 
 /** A room's mode as shown. */
 export const MODE_NAMES = { '1v1': '1v1', ffa: 'FFA' } as const;
