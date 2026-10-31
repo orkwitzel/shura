@@ -1,10 +1,12 @@
+import type { Effect } from '@/features/board/effects/utils/effects-for-events';
 import type { BoardLayout } from '@/features/board/utils/layout-board';
 import type { PixiSize } from '@/lib/pixi/pixi-app';
 
 /**
- * Stand-ins for `@/lib/pixi/pixi-app` and the board painter, since happy-dom has no WebGL. The
- * setup file puts them in place for every test: an app records its sizes, its ticker callbacks and
- * the layouts painted onto it, and `tickPixi` runs a tick.
+ * Stand-ins for `@/lib/pixi/pixi-app`, the board painter and the effects painter, since happy-dom
+ * has no WebGL. The setup file puts them in place for every test: an app records its sizes, its
+ * ticker callbacks, the layouts painted onto it and the effects started on it, and `tickPixi` runs a
+ * tick.
  */
 export interface FakePixiApp {
   readonly canvas: HTMLCanvasElement;
@@ -17,6 +19,10 @@ export interface FakePixiApp {
   };
   /** The layouts painted onto it, in order. */
   readonly painted: BoardLayout[];
+  /** The effects started on it since they were last cleared, in order. */
+  readonly effects: Effect[];
+  /** How many times its effects were cleared. */
+  effectsCleared: number;
   destroyed: boolean;
 }
 
@@ -62,6 +68,8 @@ export const pixiAppModule = {
         remove: (callback) => callbacks.delete(callback),
       },
       painted: [],
+      effects: [],
+      effectsCleared: 0,
       destroyed: false,
     };
     pixiApps.push(app);
@@ -83,5 +91,18 @@ export const pixiAppModule = {
 export const boardPainterModule = {
   createBoardPainter(app: FakePixiApp) {
     return { paint: (layout: BoardLayout) => app.painted.push(layout) };
+  },
+};
+
+export const effectsPainterModule = {
+  createEffectsPainter(app: FakePixiApp) {
+    return {
+      add: (effects: readonly Effect[]) => app.effects.push(...effects),
+      clear: () => {
+        app.effects.length = 0;
+        app.effectsCleared++;
+      },
+      paint: () => {},
+    };
   },
 };

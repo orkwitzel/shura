@@ -1,5 +1,14 @@
 import type { SessionEventListener, SoloSession } from '@shura/client-core';
-import { type EngineEvent, type LockEvent, TSpin } from '@shura/engine';
+import {
+  BOARD_WIDTH,
+  type BoardCell,
+  type Cell,
+  type ClearedRow,
+  type EngineEvent,
+  type LockEvent,
+  type PieceKind,
+  TSpin,
+} from '@shura/engine';
 
 export interface LockOptions {
   lines?: 0 | 1 | 2 | 3 | 4;
@@ -10,6 +19,18 @@ export interface LockOptions {
   /** The back-to-back status after the lock. */
   backToBack?: boolean;
   frame?: number;
+  /** The piece that locked: by default a T with no cells. */
+  piece?: { kind: PieceKind; cells: Cell[] };
+  /** The rows cleared: by default `lines` rows from the bottom, full of I cells. */
+  clearedRows?: ClearedRow[];
+}
+
+/** A cleared row: `cells` (one kind for the whole row by default) at board row `row`. */
+export function clearedRow(
+  row: number,
+  cells: BoardCell[] = Array(BOARD_WIDTH).fill('I'),
+): ClearedRow {
+  return { row, cells };
 }
 
 /** A lock event with what it cleared: by default a lock that clears nothing. */
@@ -20,6 +41,8 @@ export function lockEvent({
   combo = lines > 0 ? 0 : -1,
   backToBack = false,
   frame = 100,
+  piece = { kind: 'T', cells: [] },
+  clearedRows = Array.from({ length: lines }, (_, row) => clearedRow(row)),
 }: LockOptions = {}): LockEvent {
   return {
     type: 'lock',
@@ -27,9 +50,14 @@ export function lockEvent({
     clear: { lines, tSpin, perfectClear },
     combo,
     backToBack,
-    piece: { kind: 'T', cells: [] },
-    clearedRows: [],
+    piece,
+    clearedRows,
   };
+}
+
+/** A hard drop of `rows` rows: its lock comes next, in the same frame. */
+export function hardDropEvent(rows: number, frame = 100): EngineEvent {
+  return { type: 'hardDrop', frame, rows };
 }
 
 /**

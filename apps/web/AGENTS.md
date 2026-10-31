@@ -61,7 +61,7 @@ features/board/
 ├── utils/layout-board.ts, cell-size.ts
 ├── pixi/board-painter.ts
 └── effects/
-    ├── utils/effects-for-events.ts
+    ├── utils/effects-for-events.ts, effect-frame.ts
     └── pixi/effects-painter.ts
 ```
 

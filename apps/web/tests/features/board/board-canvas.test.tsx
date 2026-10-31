@@ -2,8 +2,10 @@ import { createSoloSession, SKINS } from '@shura/client-core';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
+import { fakeEngineEvents, lockEvent } from '../../support/engine-events';
 import { fakeClock } from '../../support/fake-clock';
 import { holdPixiInit, pixiApps, releasePixiInit, tickPixi } from '../../support/fake-pixi';
+import { setMedia } from '../../support/match-media';
 import { renderWithStores } from '../../support/render-with-stores';
 
 beforeEach(() => {
@@ -15,12 +17,18 @@ afterEach(() => {
   window.devicePixelRatio = 1;
 });
 
-function setup() {
+function setup({ fakeEvents = false } = {}) {
   const clock = fakeClock(1_000);
   const session = createSoloSession({ mode: 'sprint', clock, seed: 7 });
+  const events = fakeEvents ? fakeEngineEvents(session) : null;
   const view = renderWithStores(<BoardCanvas session={session} />);
-  return { clock, session, view };
+  return { clock, session, events, view };
 }
+
+const REDUCE = '(prefers-reduced-motion: reduce)';
+
+/** The kinds of effect started on the app, in order. */
+const effectTypes = () => pixiApps[0]?.effects.map((effect) => effect.type) ?? [];
 
 /** Lets the app's asynchronous start-up finish. */
 const started = () => act(async () => {});
@@ -132,5 +140,66 @@ describe('BoardCanvas', () => {
     expect(app?.destroyed).toBe(true);
     expect(app?.ticker.callbacks.size).toBe(0);
     expect(app?.canvas.isConnected).toBe(false);
+  });
+
+  describe('effects', () => {
+    test('a clear of 2 lines bursts, flashes and shakes the board, with effects Full', async () => {
+      const { events, view } = setup({ fakeEvents: true });
+      await started();
+      act(() => view.stores.settings.update({ effects: 'full' }));
+      act(() => events?.emit(lockEvent({ lines: 2 })));
+      expect(effectTypes()).toEqual(expect.arrayContaining(['burst', 'flash', 'shake']));
+    });
+
+    test('effects Off starts none', async () => {
+      const { events, view } = setup({ fakeEvents: true });
+      await started();
+      act(() => view.stores.settings.update({ effects: 'off' }));
+      act(() => events?.emit(lockEvent({ lines: 2 })));
+      expect(effectTypes()).toEqual([]);
+    });
+
+    test('while the setting is unset, effects follow prefers-reduced-motion', async () => {
+      setMedia(REDUCE, true);
+      const { events } = setup({ fakeEvents: true });
+      await started();
+      act(() => events?.emit(lockEvent({ lines: 2, frame: 100 })));
+      // Reduced: the burst and the flash, but no shake.
+      expect(effectTypes()).toEqual(['flash', 'burst']);
+      act(() => setMedia(REDUCE, false));
+      act(() => events?.emit(lockEvent({ lines: 2, frame: 200 })));
+      expect(effectTypes()).toContain('shake');
+    });
+
+    test('a back-to-back is worked out across wakes', async () => {
+      const { events } = setup({ fakeEvents: true });
+      await started();
+      const burst = () => {
+        const last = pixiApps[0]?.effects.findLast((effect) => effect.type === 'burst');
+        return last?.type === 'burst' ? last.particles : 0;
+      };
+      act(() => events?.emit(lockEvent({ lines: 4, backToBack: true, frame: 100 })));
+      const first = burst();
+      act(() => events?.emit(lockEvent({ lines: 4, backToBack: true, frame: 200 })));
+      expect(burst()).toBeGreaterThan(first);
+    });
+
+    test('a restart clears the effects', async () => {
+      const { clock, events, session } = setup({ fakeEvents: true });
+      await started();
+      act(() => clock.advance(2_000));
+      act(() => events?.emit({ type: 'topOut', frame: 100 }));
+      expect(effectTypes()).toEqual(['fade']);
+      act(() => session.restart());
+      expect(effectTypes()).toEqual([]);
+    });
+
+    test('effects stop being heard once unmounted', async () => {
+      const { events, view } = setup({ fakeEvents: true });
+      await started();
+      view.unmount();
+      events?.emit(lockEvent({ lines: 2 }));
+      expect(effectTypes()).toEqual([]);
+    });
   });
 });
