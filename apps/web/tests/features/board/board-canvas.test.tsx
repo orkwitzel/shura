@@ -1,4 +1,4 @@
-import { createSoloSession } from '@shura/client-core';
+import { createSoloSession, SKINS } from '@shura/client-core';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
@@ -69,6 +69,27 @@ describe('BoardCanvas', () => {
     act(() => view.stores.settings.update({ ghost: false }));
     tickPixi();
     expect(ghosts()).toBe(0);
+  });
+
+  test('repaints in the new skin as soon as it is picked', async () => {
+    const { view } = setup();
+    await started();
+    const app = pixiApps[0];
+    tickPixi();
+    const drawings = () =>
+      new Set(
+        app?.painted
+          .at(-1)
+          ?.shapes.flatMap((shape) =>
+            shape.type === 'cell' && shape.part === 'active' ? [shape.drawing] : [],
+          ),
+      );
+    expect(drawings()).toEqual(new Set([SKINS.pixel.canvas]));
+    for (const skin of ['outline', 'flat'] as const) {
+      act(() => view.stores.settings.update({ skin }));
+      tickPixi();
+      expect(drawings()).toEqual(new Set([SKINS[skin].canvas]));
+    }
   });
 
   test('works the cell size out again when the window is resized', async () => {
