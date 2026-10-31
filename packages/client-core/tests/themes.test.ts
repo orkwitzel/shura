@@ -2,24 +2,26 @@ import { describe, expect, test } from 'vitest';
 import { type CanvasDrawing, SKINS, THEMES } from '../src/index';
 
 /**
- * Paints a skin's canvas drawing onto an 8×8 grid of art pixels, each named by the shade it ends
- * up in: `E` the edge (darkened 55 %), `C` the piece colour, `L` lightened 40 %, `D` darkened 22 %,
- * `W` white, `.` nothing.
+ * Paints a skin's canvas drawing onto an 8×8 grid of art pixels, each named by the last shade
+ * painted on it: `E` the edge (darkened 55 %), `C` the piece colour, `L` lightened 40 %, `H`
+ * lightened 50 %, `D` darkened 22 %, `W` white, `f` the piece colour at 22 % alpha, `.` nothing.
  */
 function paint(drawing: CanvasDrawing): string[] {
   const names = new Map([
-    [-0.55, 'E'],
-    [0, 'C'],
-    [0.4, 'L'],
-    [-0.22, 'D'],
-    [1, 'W'],
+    ['-0.55@1', 'E'],
+    ['0@1', 'C'],
+    ['0.4@1', 'L'],
+    ['0.5@1', 'H'],
+    ['-0.22@1', 'D'],
+    ['1@1', 'W'],
+    ['0@0.22', 'f'],
   ]);
   const grid = Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => '.'));
-  for (const { x, y, width, height, shade } of drawing) {
+  for (const { x, y, width, height, shade, alpha = 1 } of drawing) {
     for (let row = y; row < y + height; row++) {
       for (let col = x; col < x + width; col++) {
         const line = grid[row];
-        if (line) line[col] = names.get(shade) ?? '?';
+        if (line) line[col] = names.get(`${shade}@${alpha}`) ?? '?';
       }
     }
   }
@@ -43,6 +45,50 @@ describe('skins on canvas', () => {
 
   test('Pixel is opaque', () => {
     for (const { alpha } of SKINS.pixel.canvas) expect(alpha ?? 1).toBe(1);
+  });
+
+  test('Flat: a dark edge round a cell of the piece colour', () => {
+    // The drawing as issue #49 words it.
+    expect(paint(SKINS.flat.canvas)).toEqual([
+      'EEEEEEEE',
+      'ECCCCCCE',
+      'ECCCCCCE',
+      'ECCCCCCE',
+      'ECCCCCCE',
+      'ECCCCCCE',
+      'ECCCCCCE',
+      'EEEEEEEE',
+    ]);
+  });
+
+  test('Flat is opaque', () => {
+    for (const { alpha } of SKINS.flat.canvas) expect(alpha ?? 1).toBe(1);
+  });
+
+  test('Outline: a dark edge, a ring of the piece colour on a faint fill, and one shine pixel', () => {
+    // The drawing as issue #49 words it. The faint fill is painted over the edge.
+    expect(paint(SKINS.outline.canvas)).toEqual([
+      'EEEEEEEE',
+      'ECCCCCCE',
+      'ECHfffCE',
+      'ECffffCE',
+      'ECffffCE',
+      'ECffffCE',
+      'ECCCCCCE',
+      'EEEEEEEE',
+    ]);
+  });
+
+  test('every skin has a canvas drawing that stays on its 8×8 grid', () => {
+    for (const skin of Object.values(SKINS)) {
+      expect(skin.canvas.length).toBeGreaterThan(0);
+      for (const { x, y, width, height } of skin.canvas) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(x + width).toBeLessThanOrEqual(8);
+        expect(y + height).toBeLessThanOrEqual(8);
+      }
+    }
   });
 });
 
