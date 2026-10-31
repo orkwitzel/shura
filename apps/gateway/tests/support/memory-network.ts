@@ -68,13 +68,17 @@ export interface ClientLine {
   cut(): void;
   /** Lets connects through again. */
   restore(): void;
+  /** How many times the client has tried to connect. */
+  readonly dials: number;
 }
 
 export function clientLine(gateway: Gateway): ClientLine {
   let up = true;
   let current: Peer | null = null;
+  let dials = 0;
   return {
     connect(_url, handlers) {
+      dials++;
       if (!up) {
         queueMicrotask(handlers.close);
         return { send() {}, close() {} };
@@ -93,6 +97,9 @@ export function clientLine(gateway: Gateway): ClientLine {
     },
     restore() {
       up = true;
+    },
+    get dials() {
+      return dials;
     },
   };
 }

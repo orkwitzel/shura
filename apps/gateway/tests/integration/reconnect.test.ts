@@ -39,6 +39,22 @@ async function playToEnd(
   throw new Error('the match never ended');
 }
 
+test('a dropped connection is retried at once, then after 250 ms, 500 ms, 1 s, then every 2 s', async () => {
+  const world = await onlineWorld();
+  const ada = world.client('Ada');
+  await world.time.settle();
+  const line = world.line(ada);
+  line.cut();
+  await world.time.settle();
+  expect(ada.getState().connection).toEqual({ status: 'reconnecting' });
+  const dials: number[] = [line.dials];
+  for (const wait of [249, 1, 499, 1, 999, 1, 1999, 1, 2000]) {
+    await world.time.advance(wait);
+    dials.push(line.dials);
+  }
+  expect(dials).toEqual([2, 2, 3, 3, 4, 4, 5, 5, 6, 7]);
+});
+
 test('a client whose socket drops for 1 s mid-match reconnects, plays on and is verified exactly', async () => {
   const world = await onlineWorld();
   const ada = world.client('Ada');

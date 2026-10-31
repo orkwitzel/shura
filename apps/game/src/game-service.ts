@@ -5,7 +5,6 @@ import {
   type GameToGateway,
   type GatewayToGame,
   gatewayToGameSchema,
-  type ServerMessage,
 } from '@shura/protocol';
 import type { Stores } from '@shura/valkey';
 import type { ServerClock } from './clock';
