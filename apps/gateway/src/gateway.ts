@@ -14,9 +14,11 @@ import {
 } from '@shura/protocol';
 import type { Stores } from '@shura/valkey';
 import type { ServerClock } from './clock';
+import { type ConnectionLimits, DEFAULT_LIMITS, type GatewayLimits, Limits } from './limits';
 import type { Logger } from './logger';
 import type { DialGame, Peer } from './peer';
 import { placeRoom, randomRoomCode } from './placement';
+import { QuickMatching } from './quick-match';
 import { RoomLinks, type RoomMember } from './room-links';
 
 /** How many random codes a new room tries before giving up. 920k codes make a clash rare. */
@@ -24,10 +26,15 @@ const CODE_TRIES = 10;
 
 export interface GatewayOptions {
   readonly clock: ServerClock;
-  readonly stores: Pick<Stores, 'registry' | 'sessions' | 'podHealth'>;
+  readonly stores: Pick<
+    Stores,
+    'registry' | 'sessions' | 'podHealth' | 'matchQueue' | 'rateLimiter'
+  >;
   /** Opens the internal link to a game pod. */
   readonly dial: DialGame;
   readonly logger: Logger;
+  /** The abuse limits (design §11), each defaulting to the design's value. */
+  readonly limits?: Partial<GatewayLimits>;
 }
 
 /** The gateway (design §9.1): players' WebSockets, and their rooms' traffic forwarded to pods. */
@@ -37,11 +44,21 @@ export interface Gateway {
 }
 
 export function createGateway(options: GatewayOptions): Gateway {
-  const links = new RoomLinks(options.dial, options.logger);
+  const limits = { ...DEFAULT_LIMITS, ...options.limits };
+  const links = new RoomLinks(options.dial, options.logger, {
+    maxSpectators: limits.maxSpectators,
+  });
+  const guard = new Limits({
+    limits,
+    rateLimiter: options.stores.rateLimiter,
+    registry: options.stores.registry,
+    clock: options.clock,
+    logger: options.logger,
+  });
   return {
     accept(socket, ip) {
-      // #66 checks the per-IP connection limits here, before the connection does anything.
-      new Connection(socket, ip, options, links);
+      // The per-IP connection limits come first: until they pass, the connection hears nothing.
+      new Connection(guard.admit(socket, ip), ip, options, links, guard.connection(ip));
     },
   };
 }
@@ -61,25 +78,45 @@ interface Session {
  *
  * Seams for later tickets:
  * - #64: `hello` with a `sessionToken` restores the session (and its room) instead of a new one;
- * - #65: `quickMatch` and `cancelQuickMatch`, and cancelling the queue entry on close;
- * - #66: the message-rate bucket and the invalid-message count in `#receive`, and the room limits
- *   in `#createRoom` and `#joinRoom`.
+ *
+ * Its abuse limits (design §11) are in `#receive`: the message-rate bucket, the invalid-message
+ * count, and the room limits around `#createRoom` and `#joinRoom`.
  */
 class Connection implements RoomMember {
   readonly #socket: Peer;
   readonly #options: GatewayOptions;
   readonly #links: RoomLinks;
   readonly #logger: Logger;
+  readonly #limits: ConnectionLimits;
   #session: Session | null = null;
   #roomCode: string | null = null;
   #queue: Promise<void> = Promise.resolve();
   #closed = false;
+  readonly #quickMatching: QuickMatching;
 
-  constructor(socket: Peer, ip: string, options: GatewayOptions, links: RoomLinks) {
+  constructor(
+    socket: Peer,
+    ip: string,
+    options: GatewayOptions,
+    links: RoomLinks,
+    limits: ConnectionLimits,
+  ) {
     this.#socket = socket;
+    this.#limits = limits;
     this.#options = options;
     this.#links = links;
     this.#logger = options.logger.child({ ip });
+    this.#quickMatching = new QuickMatching(options.stores, this.#logger, {
+      sessionId: () => this.sessionId,
+      busy: () => this.#closed || this.#roomCode !== null,
+      send: (message) => this.#send(message),
+      inTurn: (task) => {
+        this.#queue = this.#queue.then(task).catch(this.#failed);
+      },
+      enter: async (code, room, create) => {
+        if (this.#session) await this.#enter(this.#session, code, room, create);
+      },
+    });
     socket.listen({
       message: (text) => {
         this.#queue = this.#queue.then(() => this.#receive(text)).catch(this.#failed);
@@ -96,6 +133,10 @@ class Connection implements RoomMember {
 
   deliver(message: ServerMessage): void {
     this.#send(message);
+    // The quick-match room broke up: the game pod already took this session out of it.
+    if (message.type === 'opponentLeft') {
+      this.#queue = this.#queue.then(() => this.#leftRoom()).catch(this.#failed);
+    }
   }
 
   lost(roomCode: string): void {
@@ -110,21 +151,39 @@ class Connection implements RoomMember {
 
   async #receive(text: string): Promise<void> {
     if (this.#closed) return;
+    const rate = this.#limits.message();
+    if (rate === 'refused') return this.#send(this.#limits.tooFast);
+    if (rate === 'dropped') return;
     const message = parse(text);
-    if (!message) return this.#send(error('invalid_message', "That message isn't valid."));
+    if (!message) {
+      this.#send(error('invalid_message', "That message isn't valid."));
+      if (this.#limits.invalid()) {
+        this.#logger.info({ sessionId: this.#session?.id }, 'too many invalid messages');
+        this.#socket.close();
+      }
+      return;
+    }
     if (message.type === 'hello') return this.#hello(message);
     const session = this.#session;
     if (!session) return this.#send(error('invalid_message', 'Say hello first.'));
     switch (message.type) {
       case 'ping':
         return this.#send({ type: 'pong', id: message.id, serverTime: this.#options.clock.now() });
-      case 'createRoom':
-        return this.#createRoom(session, message.mode);
-      case 'joinRoom':
-        return this.#joinRoom(session, message.code);
+      case 'createRoom': {
+        const refusal = await this.#limits.createRoom(session.id, this.#roomCode);
+        return refusal ? this.#send(refusal) : this.#createRoom(session, message.mode);
+      }
+      case 'joinRoom': {
+        const refusal = await this.#limits.joinRoom();
+        if (refusal) return this.#send(refusal);
+        await this.#joinRoom(session, message.code);
+        if (!this.#roomCode) await this.#limits.joinFailed();
+        return;
+      }
       case 'quickMatch':
+        return this.#quickMatching.request();
       case 'cancelQuickMatch':
-        return this.#send(error('wrong_phase', "Quick match isn't available yet."));
+        return this.#quickMatching.cancel();
       default:
         return this.#forward(session, message);
     }
@@ -213,6 +272,8 @@ class Connection implements RoomMember {
     room: { podAddress: string; epoch: number },
     create?: Parameters<RoomLinks['enter']>[4],
   ): Promise<void> {
+    // Into a room by any way, the session stops waiting for a quick match.
+    await this.#quickMatching.leave();
     this.#roomCode = code;
     this.#links.enter(code, room, this, { nickname: session.nickname, kind: session.kind }, create);
     await this.#options.stores.sessions.update(session.token, { roomCode: code });
@@ -235,6 +296,16 @@ class Connection implements RoomMember {
     await this.#options.stores.sessions.update(session.token, { roomCode: null });
   }
 
+  /** Out of the quick-match room the pod broke up: off its link, and out of the session. */
+  async #leftRoom(): Promise<void> {
+    const code = this.#roomCode;
+    const session = this.#session;
+    if (!code || !session) return;
+    this.#roomCode = null;
+    this.#links.exit(code, session.id, { detach: false });
+    await this.#options.stores.sessions.update(session.token, { roomCode: null });
+  }
+
   async #close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
@@ -242,6 +313,7 @@ class Connection implements RoomMember {
     if (session && this.#roomCode) {
       this.#links.exit(this.#roomCode, session.id, { detach: true });
     }
+    await this.#quickMatching.leave();
     this.#logger.info({ sessionId: session?.id }, 'connection closed');
   }
 

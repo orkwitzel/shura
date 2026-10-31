@@ -69,6 +69,9 @@ export function createValkeyRateLimiter(
     async acquire(key, limit, ttlMs) {
       return (await acquire(client, [keys.rateCount(key)], [limit, ttlMs])) === 1;
     },
+    async refresh(key, ttlMs) {
+      await client.pexpire(keys.rateCount(key), ttlMs);
+    },
     async release(key) {
       await release(client, [keys.rateCount(key)]);
     },

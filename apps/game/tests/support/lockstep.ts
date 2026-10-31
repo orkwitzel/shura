@@ -18,7 +18,9 @@ import type {
 import { createMemoryStores, type MatchLog } from '@shura/valkey';
 import { pino } from 'pino';
 import { Match } from '../../src/match';
-import { RECORDED_SEED } from './recorded-1v1';
+import { fakeClock } from './fake-clock';
+import { RECORDED_PIECE_ACTIONS, RECORDED_SEED } from './recorded-1v1';
+import { START_AT, STARTED, timeOf } from './test-match';
 
 /** Lets every queued microtask, and every one they queue, run. */
 export const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
@@ -101,7 +103,7 @@ class SimClient {
 
 /**
  * A server `Match` whose players' clients play in lockstep, one frame at a time, player by
- * player in index order, each sending a one-frame batch. The garbage the server queues while a
+ * player in index order, each sending a one-frame batch the moment its frame is the expected one. The garbage the server queues while a
  * frame is played reaches its target's client at the next frame, as the engine's test harness
  * delivers it, so the recorded 1v1 plays out exactly as recorded.
  */
@@ -118,11 +120,14 @@ export function lockstepMatch({
   const clients = players.map((player, index) => new SimClient(player, mode, seed, index));
   const declaredOut = new Set<string>();
   let frame = 0;
+  const clock = fakeClock(STARTED);
   const match: Match = new Match({
     matchId: 'match-1',
     mode,
     seed,
     players: players.map(({ id }) => ({ id, nickname: id })),
+    clock,
+    startAt: START_AT,
     epoch: 1,
     log,
     logger: pino({ level: 'silent' }),
@@ -174,6 +179,7 @@ export function lockstepMatch({
     async play(last: number): Promise<void> {
       while (frame < last && !match.ended) {
         frame++;
+        clock.advanceTo(timeOf(frame));
         const from = routed.length;
         for (const client of clients) {
           if (client.over || declaredOut.has(client.player.id)) continue;
@@ -192,4 +198,9 @@ export function lockstepMatch({
       await settle();
     },
   };
+}
+
+/** The recorded 1v1's two players, whose clients receive every attack as sent. */
+export function recordedPlayers(): SimPlayer[] {
+  return RECORDED_PIECE_ACTIONS.map((actions, index) => ({ id: `p${index}`, actions }));
 }

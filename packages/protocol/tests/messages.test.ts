@@ -112,6 +112,7 @@ const client: Record<string, Examples> = {
     invalid: [{ type: 'joinRoom' }, { type: 'joinRoom', code: 42 }],
   },
   leaveRoom: { valid: [{ type: 'leaveRoom' }], invalid: [] },
+  leaveMatch: { valid: [{ type: 'leaveMatch' }], invalid: [] },
   ready: {
     valid: [
       { type: 'ready', ready: true },

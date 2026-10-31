@@ -25,6 +25,7 @@
       "joinRoom": {
         "code": "string"
       },
+      "leaveMatch": {},
       "leaveRoom": {},
       "ping": {
         "id": "number:safeint"
@@ -144,7 +145,8 @@
         "roomCode": "string",
         "epoch": "number:safeint",
         "mode": "enum(1v1|ffa)",
-        "hostId": "string?"
+        "hostId": "string?",
+        "maxSpectators": "number?"
       },
       "detach": {
         "roomCode": "string",
