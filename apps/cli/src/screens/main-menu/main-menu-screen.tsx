@@ -2,7 +2,9 @@ import { type Direction, personalBestSummary, type SoloMode } from '@shura/clien
 import { useRecords } from '@shura/client-core/react';
 import { Box, Text, useInput } from 'ink';
 import { useState } from 'react';
-import { SOLO_MODES } from '../../app/args';
+
+/** The single-player modes, in the order the menu lists them, which `shura solo` plays too. */
+export const SOLO_MODES = ['sprint', 'marathon', 'ultra'] as const satisfies readonly SoloMode[];
 
 /**
  * Where the player comes back to the menu from: the settings, or a game of a mode (design §13.3).

@@ -21,11 +21,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@commander-js/extra-typings": "15.0.0",
     "@shura/client-core": "workspace:*",
     "@shura/engine": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "commander": "15.0.0",
     "esbuild": "catalog:",
     "ink": "8.0.0",
     "ink-testing-library": "4.0.0",

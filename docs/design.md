@@ -514,19 +514,36 @@ The look is juicy arcade pixel: pixel fonts, pixel-art cells, thick cream border
 
 **Distribution:** the npm package `shura`, a single bundled file with no runtime dependencies, requiring Node ≥ 26. Run with `npx shura` or `npm i -g shura`. There's no standalone binary for now (§16).
 
-**Commands:**
+**Commands** (`shura --help`; `shura solo --help` describes each mode):
 
 ```
-shura                         interactive menu (Play online, Single player, Settings, Quit)
-shura quick                   join the 1v1 quick-match queue
-shura create [--mode 1v1|ffa] create a room (1v1 by default); prints code and link
-shura join <CODE>             join a room
-shura solo sprint|marathon|ultra
-shura --version | --help
-global flags: --server <url>  --name <nickname>  --input precise|basic  --no-color
+Usage: shura [command] [options]
+
+Without a command, shura opens the menu: Play online, Single player, Settings,
+Quit.
+
+Options:
+  --server <url>     the server for online play
+  --name <nickname>  your nickname for online play
+  --input <adapter>  how keys are read, instead of choosing from the first key:
+                     precise for terminals with the Kitty keyboard protocol,
+                     basic for any other (choices: "precise", "basic")
+  --no-color         draw cells as characters instead of colour (or set
+                     NO_COLOR)
+  -v, --version      print the version
+  -h, --help         show this help
+
+Commands:
+  solo <mode>        play a single-player game: sprint, marathon or ultra
+  quick              join the 1v1 quick-match queue
+  create [options]   create a room (1v1 unless --mode ffa) and print its code
+                     and link
+  join <CODE>        join a room by its code
+
+Online play isn't available yet: quick, create and join exit with 1.
 ```
 
-Every flag goes with every command, before or after it. `create` makes a 1v1 room unless `--mode ffa` says otherwise (`--mode` goes with `create` only), and `join` takes a room code (§10.3) in either case. `shura` and `shura solo` need an interactive terminal and say so otherwise. A mistake in the arguments prints what was wrong and the help, and exits with code 2. Until online play exists (M4), the menu shows *Play online* disabled with "coming soon", `quick`, `create` and `join` parse their arguments but print "online play isn't available yet" and exit with code 1, and `--server` and `--name` parse but have no effect. The help lists every command and flag except `--debug-input` (§7.3), which is for capturing input and goes with `shura` and `shura solo`.
+Every global flag goes with every command, before or after it. `create` makes a 1v1 room unless `--mode ffa` says otherwise (`--mode` goes with `create` only, after it), and `join` takes a room code (§10.3) in either case. `shura` and `shura solo` need an interactive terminal and say so otherwise. A mistake in the arguments prints what was wrong and the help (that command's own, for a mistake in a command), and exits with code 2. Until online play exists (M4), the menu shows *Play online* disabled with "coming soon", `quick`, `create` and `join` parse their arguments but print "online play isn't available yet" and exit with code 1, and `--server` and `--name` parse but have no effect. The help lists every command and flag except `--debug-input` (§7.3), which is for capturing input and goes with `shura` and `shura solo`.
 
 **Main menu:** what `shura` opens on. Its entries are *Play online* (dim, with "coming soon"; the cursor passes over it), *Single player*, *Settings* and *Quit*, with the cursor on *Single player*. *Single player* opens a list of Sprint, Marathon and Ultra, each with its personal best beside it (§13.1): Sprint's time, Ultra's score, and Marathon's score with the level and lines it reached (`171,349 (level 15, 150 lines)`), or "no record yet". ↑/↓ move the cursor (stopping at the ends), Enter chooses, and Esc goes back from the list. Only key presses choose, so the release of the Enter that started a game or left the results does nothing, and Esc on the main page does nothing either: *Quit* and Ctrl+C quit. The short notices about the stored files (below) show under the menu too. Quit to menu and going back from the results return to the main menu, where it was left: the list, on the mode just played, so the same mode is one Enter away (a new session, from a fresh seed). Leaving the settings returns to the main page, on *Settings*. A game started by `shura solo <mode>` works the same way: it opens straight on that game, and quitting to the menu or going back from its results opens the main menu on that mode's entry, as if it had been chosen there; only *Quit* and Ctrl+C leave the CLI. While the terminal is too small the menu's keys do nothing, as the game's and the settings' don't.
 
