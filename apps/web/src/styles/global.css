@@ -1,0 +1,48 @@
+/* The reset and the page's base look (design §13.2, Styling). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-background);
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  line-height: 1.4;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: var(--border-width-small) solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  line-height: 1.5;
+  color: var(--color-shadow);
+  background: var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+}

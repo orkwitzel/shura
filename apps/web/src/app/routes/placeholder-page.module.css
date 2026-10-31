@@ -1,0 +1,18 @@
+/* Shared by the placeholder pages (settings, solo) until their tickets replace them. */
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 700;
+  text-shadow:
+    3px 3px 0 var(--color-piece-z),
+    6px 6px 0 var(--color-shadow);
+}
+
+.soon {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}

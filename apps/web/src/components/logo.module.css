@@ -1,0 +1,42 @@
+.logo {
+  margin: 0;
+  display: flex;
+  font-family: var(--font-display);
+  font-size: var(--text-logo);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.letter {
+  display: inline-block;
+  text-shadow: 5px 5px 0 var(--color-shadow);
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.letter:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.letter:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.letter:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+.letter:nth-child(5) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .letter {
+    animation: none;
+  }
+}

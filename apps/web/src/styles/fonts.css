@@ -1,0 +1,8 @@
+/*
+ * The pixel fonts, self-hosted from @fontsource packages (design §13.2): Vite bundles the font
+ * files with the app, so no request goes to a font CDN. Pixelify Sans for display text, in the two
+ * weights the UI uses; Silkscreen for labels and keys.
+ */
+@import "@fontsource/pixelify-sans/400.css";
+@import "@fontsource/pixelify-sans/700.css";
+@import "@fontsource/silkscreen/400.css";
