@@ -24,6 +24,7 @@
     "@commander-js/extra-typings": "15.0.0",
     "@shura/client-core": "workspace:*",
     "@shura/engine": "workspace:*",
+    "@shura/protocol": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

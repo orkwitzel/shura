@@ -1,4 +1,4 @@
-import type { Clock, SoloMode } from '@shura/client-core';
+import type { Clock, Connect, SoloMode, TimerClock } from '@shura/client-core';
 import { ClientCoreProvider } from '@shura/client-core/react';
 import { Box, useApp } from 'ink';
 import { useState } from 'react';
@@ -6,6 +6,7 @@ import type { InputOptions } from '../platform/input/use-terminal-input';
 import type { ColorMode } from '../platform/terminal/color-mode';
 import { EnlargeMessage, useTerminalSize } from '../platform/terminal/terminal-size';
 import { MainMenuScreen, type MenuReturn } from '../screens/main-menu/main-menu-screen';
+import { OnlineScreen, type RoomStart } from '../screens/online/online-screen';
 import { SettingsScreen } from '../screens/settings/settings-screen';
 import { SoloScreen } from '../screens/solo/solo-screen';
 import type { CliStores } from './stores';
@@ -19,13 +20,29 @@ export interface AppProps extends CliStores {
   readonly colors: ColorMode;
   /** How keys are read (`--input`, `--debug-input`). */
   readonly input?: InputOptions;
+  /** `shura create` or `shura join`: the app opens on that room. */
+  readonly online?: OnlineOptions;
+  /** Quit with an exit code and a message to print once the terminal is back (a version mismatch). */
+  readonly onExit?: (code: number, message: string) => void;
+}
+
+/** What online play needs: where to connect, as whom, and the room to open on. */
+export interface OnlineOptions {
+  readonly start: RoomStart;
+  readonly server: string;
+  readonly nickname: string;
+  readonly clientVersion: string;
+  readonly connect: Connect;
+  /** The clock, with the timers an online session's pings need. */
+  readonly clock: TimerClock;
 }
 
 /** The screen the app shows. The menu opens where the player left it, if they did. */
 type Screen =
   | { kind: 'menu'; from?: MenuReturn }
   | { kind: 'settings' }
-  | { kind: 'solo'; mode: SoloMode };
+  | { kind: 'solo'; mode: SoloMode }
+  | { kind: 'online'; start: RoomStart };
 
 /**
  * The CLI's root: the main menu, the settings screen or a game, centred, or the enlarge message
@@ -38,13 +55,21 @@ export function App({
   seed,
   colors,
   input = { choice: 'auto' },
+  online,
+  onExit,
   settings,
   records,
   notices,
 }: AppProps) {
   const size = useTerminalSize();
   const { exit } = useApp();
-  const [screen, setScreen] = useState<Screen>(mode ? { kind: 'solo', mode } : { kind: 'menu' });
+  const [screen, setScreen] = useState<Screen>(
+    online
+      ? { kind: 'online', start: online.start }
+      : mode
+        ? { kind: 'solo', mode }
+        : { kind: 'menu' },
+  );
   // Back to the menu, which opens where it was left: on Settings, or on the mode played.
   const toMenu = () =>
     setScreen({ kind: 'menu', from: screen.kind === 'solo' ? screen.mode : 'settings' });
@@ -69,6 +94,20 @@ export function App({
           )}
           {screen.kind === 'settings' && (
             <SettingsScreen onClose={toMenu} active={size.bigEnough} clock={clock} />
+          )}
+          {screen.kind === 'online' && online && (
+            <OnlineScreen
+              {...online}
+              start={screen.start}
+              colors={colors}
+              input={{ ...input, choice }}
+              visible={size.bigEnough}
+              onLeave={() => setScreen({ kind: 'menu' })}
+              onExit={(code, message) => {
+                onExit?.(code, message);
+                exit();
+              }}
+            />
           )}
           {screen.kind === 'solo' && (
             <SoloScreen
