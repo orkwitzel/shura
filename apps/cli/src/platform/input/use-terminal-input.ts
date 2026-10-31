@@ -3,14 +3,15 @@ import { useInput } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRawKeyBytes } from '../terminal/use-raw-key-bytes';
 import { actionsEntries, type CaptureEntry, type CaptureFile, type KeyEntry } from './capture';
-import { createInputAdapter, type InputChoice } from './detect';
 import {
   type AdapterName,
   autoShiftOf,
+  createInputAdapter,
   type InputAdapter,
+  type InputChoice,
   type InputSignal,
-  type TerminalInput,
-} from './terminal-input';
+} from './input-adapter';
+import type { TerminalInput } from './terminal-input';
 
 /** How keys are read: the adapter choice and the hidden `--debug-input` (design §7.3). */
 export interface InputOptions {

@@ -1,6 +1,7 @@
 import type { Bindings } from '@shura/client-core';
 import { boundSignals } from './bindings';
-import { type InputAdapter, keyName } from './terminal-input';
+import type { InputAdapter } from './input-adapter';
+import { keyName } from './terminal-input';
 
 /**
  * The precise adapter for `bindings` (design §7.3): the Kitty keyboard protocol reports real press,

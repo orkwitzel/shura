@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { actionsByKey, DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
+import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import {
   createInputAdapter,
   type InputChoice,
   KITTY_PROOF_WAIT,
-} from '../../../src/platform/input/detect';
-import type { InputSignal } from '../../../src/platform/input/terminal-input';
+} from '../../../src/platform/input/input-adapter';
 import { type Capture, loadCaptures } from '../../support/captures';
 import { parseTimedBytes } from '../../support/terminal-bytes';
 

@@ -1,7 +1,8 @@
 import type { Bindings } from '@shura/client-core';
 import { boundSignals } from './bindings';
+import type { InputAdapter, InputSignal } from './input-adapter';
 import { createKeyRepeatReader, type KeyChange, type KeyRepeatOptions } from './key-repeat';
-import type { InputAdapter, InputSignal, KeyName } from './terminal-input';
+import type { KeyName } from './terminal-input';
 
 /** The basic adapter, which can also say which keys it takes to be held. */
 export interface BasicAdapter extends InputAdapter {

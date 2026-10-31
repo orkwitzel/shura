@@ -1,6 +1,7 @@
 import { type Bindings, type KeyEvent, PIECE_ACTIONS } from '@shura/client-core';
 import { ActionType, type PieceActionType } from '@shura/engine';
-import type { InputSignal, KeyName } from './terminal-input';
+import type { InputSignal } from './input-adapter';
+import type { KeyName } from './terminal-input';
 
 /**
  * The CLI's default bindings (design §7.4). Terminals can't report Ctrl or Shift on their own, so

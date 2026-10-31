@@ -2,7 +2,7 @@ import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { createBasicAdapter } from '../../../src/platform/input/basic-adapter';
 import { DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
-import type { InputSignal } from '../../../src/platform/input/terminal-input';
+import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import { keySignal } from '../../support/signals';
 import { parseTimedBytes } from '../../support/terminal-bytes';
 

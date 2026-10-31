@@ -1,7 +1,6 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
 import type { PieceAction, PieceActionType } from '@shura/engine';
-import type { InputChoice } from './detect';
-import type { AdapterName, InputSignal } from './terminal-input';
+import type { AdapterName, InputChoice, InputSignal } from './input-adapter';
 
 /**
  * The first line of a `--debug-input` capture (design §7.3). The CLI fills in the terminal and the

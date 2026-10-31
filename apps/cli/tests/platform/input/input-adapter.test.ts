@@ -1,12 +1,13 @@
 import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
-import { createInputAdapter, type InputChoice } from '../../../src/platform/input/detect';
 import {
   autoShiftOf,
+  createInputAdapter,
   type InputAdapter,
+  type InputChoice,
   type InputSignal,
-} from '../../../src/platform/input/terminal-input';
+} from '../../../src/platform/input/input-adapter';
 import { keySignal } from '../../support/signals';
 import { parseTimedBytes } from '../../support/terminal-bytes';
 

@@ -9,7 +9,7 @@ import {
   createCaptureFile,
   showBytes,
 } from '../../../src/platform/input/capture';
-import type { InputSignal } from '../../../src/platform/input/terminal-input';
+import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import { readCapture } from '../../support/captures';
 
 describe('input capture file', () => {

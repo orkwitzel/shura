@@ -7,7 +7,7 @@ import {
 } from '@commander-js/extra-typings';
 import { SOLO_MODES, type SoloMode } from '@shura/client-core';
 import pkg from '../../package.json' with { type: 'json' };
-import type { InputChoice } from '../platform/input/detect';
+import type { InputChoice } from '../platform/input/input-adapter';
 
 /** The adapters `--input` can fix; without it the CLI chooses (design §7.3). */
 const FIXED_INPUTS = ['precise', 'basic'] as const satisfies readonly InputChoice[];
