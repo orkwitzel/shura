@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseCommand } from '../src/args';
+import { HELP, parseCommand } from '../src/args';
 
 test('--version and -v print the version', () => {
   expect(parseCommand(['--version'])).toEqual({ kind: 'version' });
@@ -24,6 +24,8 @@ describe('solo', () => {
       kind: 'solo',
       mode: 'sprint',
       noColor: false,
+      input: 'auto',
+      debugInput: false,
     });
   });
 
@@ -32,6 +34,8 @@ describe('solo', () => {
       kind: 'solo',
       mode: 'sprint',
       noColor: true,
+      input: 'auto',
+      debugInput: false,
     });
     expect(parseCommand(['solo', 'sprint', '--no-color'])).toMatchObject({ noColor: true });
   });
@@ -40,5 +44,23 @@ describe('solo', () => {
     expect(parseCommand(['solo']).kind).toBe('error');
     expect(parseCommand(['solo', 'tetris']).kind).toBe('error');
     expect(parseCommand(['solo', 'sprint', 'extra']).kind).toBe('error');
+  });
+
+  test('--input precise|basic fixes the input adapter (design §7.3)', () => {
+    expect(parseCommand(['solo', 'sprint', '--input', 'basic'])).toMatchObject({ input: 'basic' });
+    expect(parseCommand(['--input=precise', 'solo', 'sprint'])).toMatchObject({
+      input: 'precise',
+    });
+  });
+
+  test('--input takes only precise or basic', () => {
+    expect(parseCommand(['solo', 'sprint', '--input', 'kitty']).kind).toBe('error');
+    expect(parseCommand(['solo', 'sprint', '--input', 'auto']).kind).toBe('error');
+  });
+
+  test('the hidden --debug-input shows the input panel', () => {
+    expect(parseCommand(['solo', 'sprint', '--debug-input'])).toMatchObject({ debugInput: true });
+    expect(HELP).not.toContain('--debug-input');
+    expect(HELP).toContain('--input precise|basic');
   });
 });

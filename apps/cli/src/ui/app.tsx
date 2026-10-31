@@ -3,6 +3,7 @@ import { Box } from 'ink';
 import type { ColorMode } from '../render/palette';
 import { SoloScreen } from './solo-screen';
 import { EnlargeMessage, useTerminalSize } from './terminal-size';
+import type { InputOptions } from './use-terminal-input';
 
 export interface AppProps {
   /** The mode `shura solo` was asked for. */
@@ -10,13 +11,15 @@ export interface AppProps {
   readonly clock: Clock;
   readonly seed?: number;
   readonly colors: ColorMode;
+  /** How keys are read (`--input`, `--debug-input`). */
+  readonly input?: InputOptions;
 }
 
 /**
  * The CLI's root: the screen being shown, centred, or the enlarge message on top while the
  * terminal is too small. The screen stays mounted under the message, so a game isn't lost.
  */
-export function App({ mode, clock, seed, colors }: AppProps) {
+export function App({ mode, clock, seed, colors, input }: AppProps) {
   const size = useTerminalSize();
   return (
     <Box flexDirection="column" width={size.columns}>
@@ -27,6 +30,7 @@ export function App({ mode, clock, seed, colors }: AppProps) {
           clock={clock}
           {...(seed !== undefined && { seed })}
           colors={colors}
+          {...(input && { input })}
         />
       </Box>
     </Box>

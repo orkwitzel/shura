@@ -1,6 +1,6 @@
 import { type Key, useInput } from 'ink';
 import { render } from 'ink-testing-library';
-import type { RawKey } from '../../src/input/terminal-input';
+import type { RawKey, TerminalInput } from '../../src/input/terminal-input';
 
 function Recorder({ onKey }: { onKey: (raw: RawKey) => void }) {
   useInput((input, key) => onKey({ input, key }));
@@ -18,6 +18,27 @@ export async function parseTerminalBytes(chunks: readonly string[]): Promise<Raw
   await tick();
   for (const chunk of chunks) {
     app.stdin.write(chunk);
+    await tick();
+  }
+  app.unmount();
+  return keys;
+}
+
+/** Bytes a terminal delivered in one read, and when (ms). */
+export interface TimedBytes {
+  readonly time: number;
+  readonly bytes: string;
+}
+
+/** As `parseTerminalBytes`, with each key stamped with the time of the chunk it came in. */
+export async function parseTimedBytes(chunks: readonly TimedBytes[]): Promise<TerminalInput[]> {
+  const keys: TerminalInput[] = [];
+  let time = 0;
+  const app = render(<Recorder onKey={(raw) => keys.push({ ...raw, time })} />);
+  await tick();
+  for (const chunk of chunks) {
+    time = chunk.time;
+    app.stdin.write(chunk.bytes);
     await tick();
   }
   app.unmount();

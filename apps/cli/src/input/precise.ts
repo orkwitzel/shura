@@ -19,8 +19,17 @@ export function preciseInput(
   return null;
 }
 
-/** The precise adapter for `bindings`. */
+/** The precise adapter for `bindings`. Every release is a real one, so it never needs polling. */
 export function createPreciseAdapter(bindings: Bindings): InputAdapter {
   const byKey = actionsByKey(bindings);
-  return { name: 'precise', feed: (raw) => preciseInput(raw, byKey) };
+  return {
+    name: 'precise',
+    autoShift: 'handling',
+    feed: (raw) => {
+      const signal = preciseInput(raw, byKey);
+      return signal ? [signal] : [];
+    },
+    poll: () => [],
+    deadline: null,
+  };
 }

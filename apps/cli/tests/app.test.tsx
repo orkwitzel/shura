@@ -36,12 +36,12 @@ async function sprint() {
 }
 
 describe('shura solo sprint', () => {
-  it('starts with the board, the queue and the precise status line', async () => {
+  it('starts with the board, the queue and the status line, choosing an input adapter', async () => {
     const { app } = await sprint();
     const frame = app.lastFrame() ?? '';
     expect(visibleRows(frame)).toHaveLength(20);
     expect(frame).toContain('NEXT');
-    expect(frame).toContain('input: precise');
+    expect(frame).toContain('input: auto');
   });
 
   it('moves the piece with a Kitty-protocol press and release', async () => {

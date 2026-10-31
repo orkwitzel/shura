@@ -1,7 +1,10 @@
+import { resolve } from 'node:path';
 import type { SoloMode } from '@shura/client-core';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
 import { terminalClock } from './clock';
+import { captureHeader, createCaptureFile } from './input/capture';
+import type { InputChoice } from './input/detect';
 import { detectColorMode } from './render/color-mode';
 import { App } from './ui/app';
 
@@ -25,11 +28,16 @@ export type TerminalStreams = Pick<
 /**
  * Takes over the terminal for `app`: the alternate screen, a hidden cursor, raw input and the Kitty
  * keyboard protocol when the terminal answers for it, drawn at about 30 fps (design §13.3).
- * Ctrl+C quits at once from anywhere; unmounting gives all of it back.
+ * Ctrl+C quits at once from anywhere; unmounting gives all of it back. With `input: 'basic'` the
+ * protocol stays off, so a Kitty terminal sends what a terminal without it would (design §7.3).
  */
-export function startTerminalApp(app: ReactElement, streams: TerminalStreams = {}): Instance {
+export function startTerminalApp(
+  app: ReactElement,
+  streams: TerminalStreams = {},
+  input: InputChoice = 'auto',
+): Instance {
   return render(app, {
-    kittyKeyboard: { mode: 'auto', flags: KITTY_FLAGS },
+    kittyKeyboard: { mode: input === 'basic' ? 'disabled' : 'auto', flags: KITTY_FLAGS },
     alternateScreen: true,
     exitOnCtrlC: true,
     maxFps: 30,
@@ -37,17 +45,42 @@ export function startTerminalApp(app: ReactElement, streams: TerminalStreams = {
   });
 }
 
+export interface SoloOptions {
+  readonly mode: SoloMode;
+  readonly noColor: boolean;
+  readonly input: InputChoice;
+  readonly debugInput: boolean;
+}
+
+/** Where `--debug-input` writes its capture: a new file in the current directory. */
+export function captureFileName(now: Date): string {
+  return `shura-input-${now.toISOString().replace(/[:.]/g, '-')}.jsonl`;
+}
+
 /**
  * `shura solo <mode>`: a game in the terminal until Ctrl+C. Returns the exit code. Keys come from
- * the terminal, so it needs an interactive one.
+ * the terminal, so it needs an interactive one. `--debug-input` adds the input panel and writes
+ * every key to a capture file (design §7.3), whose path it prints on the way out.
  */
-export async function runSolo(options: { mode: SoloMode; noColor: boolean }): Promise<number> {
+export async function runSolo(options: SoloOptions): Promise<number> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     console.error('shura solo needs an interactive terminal.');
     return 1;
   }
   const colors = detectColorMode(options.noColor, process.env);
-  const app = startTerminalApp(<App mode={options.mode} clock={terminalClock()} colors={colors} />);
+  const capture = options.debugInput
+    ? createCaptureFile(
+        resolve(captureFileName(new Date())),
+        captureHeader(options.input, process.env),
+      )
+    : undefined;
+  const input = { choice: options.input, debug: options.debugInput, ...(capture && { capture }) };
+  const app = startTerminalApp(
+    <App mode={options.mode} clock={terminalClock()} colors={colors} input={input} />,
+    {},
+    options.input,
+  );
   await app.waitUntilExit();
+  if (capture) console.log(`Input capture written to ${capture.path}`);
   return 0;
 }

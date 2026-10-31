@@ -1,0 +1,10 @@
+{"capture":"shura-input","version":1,"terminal":"synthetic: legacy terminal, 500 ms repeat delay, ~30 repeats/s (GNOME defaults)","protocol":"legacy","gesture":"hold","key":"left","input":"auto"}
+{"time":0,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":501,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":534,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":566,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":601,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":633,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":668,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":699,"bytes":"\u001b[D","adapter":"auto","signals":[]}
+{"time":734,"bytes":"\u001b[D","adapter":"auto","signals":[]}
