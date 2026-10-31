@@ -514,6 +514,8 @@ The look is juicy arcade pixel: pixel fonts, pixel-art cells, thick cream border
 
 **Distribution:** the npm package `shura`, a single bundled file with no runtime dependencies, requiring Node ≥ 26. Run with `npx shura` or `npm i -g shura`. There's no standalone binary for now (§16).
 
+**Code layout:** the folders of `apps/cli` and the rules for what goes where are in [`apps/cli/AGENTS.md`](../apps/cli/AGENTS.md).
+
 **Commands** (`shura --help`; `shura solo --help` describes each mode):
 
 ```
