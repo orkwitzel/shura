@@ -1,11 +1,11 @@
 import { type Clock, createSoloSession, type SoloMode } from '@shura/client-core';
+import { useSession } from '@shura/client-core/react';
 import { useInput } from 'ink';
 import { useEffect, useState } from 'react';
 import { type Bindings, DEFAULT_BINDINGS } from '../input/bindings';
 import { createPreciseAdapter } from '../input/precise';
 import type { ColorMode } from '../render/palette';
 import { GameView } from './game-view';
-import { useSession } from './use-session';
 
 export interface SoloScreenProps {
   readonly mode: SoloMode;

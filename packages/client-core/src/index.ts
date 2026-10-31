@@ -11,6 +11,8 @@ export {
 } from './input-engine';
 export {
   createSoloSession,
+  type SessionEvent,
+  type SessionEventListener,
   type SoloMode,
   type SoloPhase,
   type SoloSession,

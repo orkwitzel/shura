@@ -4,7 +4,8 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts"
   },
   "scripts": {
     "typecheck": "tsc",
@@ -13,9 +14,20 @@
   "dependencies": {
     "@shura/engine": "workspace:*"
   },
+  "peerDependencies": {
+    "react": "catalog:",
+    "zustand": "catalog:"
+  },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "happy-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zustand": "catalog:"
   }
 }

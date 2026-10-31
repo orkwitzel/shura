@@ -1,37 +1,10 @@
+import type { StoreApi } from 'zustand/vanilla';
+
 /**
- * A subscribable store (design §13.1), the shape React's `useSyncExternalStore` takes. `getState`
- * returns the same object until the state changes, then a new one, and every subscriber is
- * called after each change.
+ * A read-only Zustand store (design §13.1, ADR 0012): what UIs read, through the hooks in
+ * `@shura/client-core/react` or Zustand's `useStore`. `getState` returns the same object until the
+ * state changes, then a new one, and every subscriber is called after each change. The module that
+ * owns the state writes it through the full store it made with `createStore` from
+ * `zustand/vanilla`.
  */
-export interface Store<State> {
-  getState(): State;
-  /** Calls `listener` after each change. Returns a function that unsubscribes it. */
-  subscribe(listener: () => void): () => void;
-}
-
-/** A store's state and its subscribers, for the module that owns the state. */
-export class StoreState<State> implements Store<State> {
-  #state: State;
-  readonly #listeners = new Set<() => void>();
-
-  constructor(state: State) {
-    this.#state = state;
-  }
-
-  getState = (): State => this.#state;
-
-  subscribe = (listener: () => void): (() => void) => {
-    // A wrapper, so subscribing the same function twice calls it twice and unsubscribes once.
-    const call = () => listener();
-    this.#listeners.add(call);
-    return () => {
-      this.#listeners.delete(call);
-    };
-  };
-
-  /** Replaces the state and notifies every subscriber. */
-  set(state: State): void {
-    this.#state = state;
-    for (const listener of [...this.#listeners]) listener();
-  }
-}
+export type Store<State> = Pick<StoreApi<State>, 'getState' | 'getInitialState' | 'subscribe'>;

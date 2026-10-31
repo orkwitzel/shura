@@ -288,6 +288,22 @@ describe('the store', () => {
   });
 });
 
+describe('engine events', () => {
+  // A stub until the engine reports events (design §5.2): listeners can register and unregister,
+  // and nothing calls them yet.
+  it('takes listeners, which hear nothing until the engine reports events', () => {
+    const { clock, session } = sprint();
+    const heard: unknown[] = [];
+    const unsubscribe = session.onEvents((events) => heard.push(...events));
+    clock.run(COUNTDOWN_MS + 100);
+    session.act(ActionType.HardDrop, clock.now());
+    clock.run(100);
+    expect(session.getState().engine.piecesPlaced).toBe(1);
+    expect(heard).toEqual([]);
+    expect(unsubscribe()).toBeUndefined();
+  });
+});
+
 describe('the countdown', () => {
   it('counts down the 90 frames before Go without stepping the engine', () => {
     const { clock, session } = sprint();
