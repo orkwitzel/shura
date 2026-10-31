@@ -1,7 +1,7 @@
 import type { PieceActionType } from '@shura/engine';
 import { Box, Text } from 'ink';
 import { type CaptureEntry, showBytes } from '../../platform/input/capture';
-import type { AdapterName, InputSignal } from '../../platform/input/terminal-input';
+import type { AdapterName, InputSignal } from '../../platform/input/input-adapter';
 
 /** The panel's width: what's left beside the game in 80 columns. The capture file has it all. */
 export const DEBUG_PANEL_WIDTH = 32;

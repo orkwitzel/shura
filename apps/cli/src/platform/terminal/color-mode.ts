@@ -1,4 +1,8 @@
-import type { ColorMode } from '../../board/look';
+/**
+ * How the terminal draws colour: 24-bit, the 16 ANSI colours, or none (`--no-color` / `NO_COLOR`),
+ * which draws cells as glyphs instead, whatever the skin.
+ */
+export type ColorMode = 'truecolor' | 'ansi16' | 'none';
 
 /**
  * How to draw colour (design §13.3): glyphs with `--no-color` or a non-empty `NO_COLOR`

@@ -11,7 +11,8 @@ import {
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { boardRows } from '../../../src/board/board';
-import { type ColorMode, type Look, lookOf } from '../../../src/board/look';
+import { type Look, lookOf } from '../../../src/board/look';
+import type { ColorMode } from '../../../src/platform/terminal/color-mode';
 import { GameView, type GameViewProps } from '../../../src/screens/solo/game-view';
 import { visibleRows, wallRows } from '../../support/ink';
 

@@ -1,13 +1,42 @@
-import type { Bindings } from '@shura/client-core';
+import type { AutoShift, Bindings, KeyEvent } from '@shura/client-core';
 import { createBasicAdapter } from './basic-adapter';
 import { createPreciseAdapter } from './precise-adapter';
-import {
-  type InputAdapter,
-  type InputSignal,
-  keyName,
-  type RawKey,
-  type TerminalInput,
-} from './terminal-input';
+import { keyName, type RawKey, type TerminalInput } from './terminal-input';
+
+/**
+ * What an adapter makes of a terminal key: a key event for the input engine, or the menu binding
+ * (Esc, P), which isn't a game control and goes to the UI instead (design §7.4).
+ */
+export type InputSignal =
+  | { readonly kind: 'key'; readonly event: KeyEvent }
+  | { readonly kind: 'menu' };
+
+/** The adapters, as the status line names them. `auto` is still choosing (design §7.3). */
+export type AdapterName = 'precise' | 'basic' | 'auto';
+
+/**
+ * How the session's input engine should auto-shift for the key events an adapter makes (design
+ * §7.3): by DAS and ARR for the precise adapter's real repeats, and by the key repeat for the basic
+ * adapter, which an `auto` adapter works as until it has chosen.
+ */
+export function autoShiftOf(name: AdapterName): AutoShift {
+  return name === 'precise' ? 'handling' : 'keyRepeat';
+}
+
+/**
+ * Turns terminal keys into key events for one session (design §7.3). The precise adapter is
+ * stateless; the basic adapter infers releases from the key-repeat stream, so it also needs polling.
+ */
+export interface InputAdapter {
+  /** Shown in the status line (`input: precise`). Changes once an `auto` adapter has chosen. */
+  readonly name: AdapterName;
+  /** The signals a terminal key makes, in order: releases that fell due before it come first. */
+  feed(raw: TerminalInput): InputSignal[];
+  /** The releases inferred by `time` (none from the precise adapter). */
+  poll(time: number): InputSignal[];
+  /** When the next inferred release (or choice) falls due, or `null`: when to `poll` next. */
+  readonly deadline: number | null;
+}
 
 /** The adapter `--input` asks for, or `auto` to choose from the first key events (design §7.3). */
 export type InputChoice = 'auto' | 'precise' | 'basic';
@@ -70,9 +99,6 @@ function createAutoAdapter(bindings: Bindings): InputAdapter {
     get name() {
       return chosen?.name ?? 'auto';
     },
-    get autoShift() {
-      return current().autoShift;
-    },
     get deadline() {
       const deadline = current().deadline;
       if (chosen !== null || unproven === null) return deadline;
@@ -86,13 +112,12 @@ function createAutoAdapter(bindings: Bindings): InputAdapter {
     feed(raw: TerminalInput): InputSignal[] {
       settle(raw.time);
       if (chosen) return chosen.feed(raw);
+      const due = basic.poll(raw.time);
       const protocol = keyProtocol(raw);
       if (protocol === 'kitty') {
-        const due = basic.poll(raw.time);
         chosen = createPreciseAdapter(bindings);
         return [...due, ...chosen.feed(raw)];
       }
-      const due = basic.poll(raw.time);
       // The Kitty protocol sends a release between two presses of a key: none is a legacy terminal.
       const name = keyName(raw);
       if (protocol === 'legacy' || (name !== null && basic.holds(name))) chosen = basic;

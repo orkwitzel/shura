@@ -1,7 +1,8 @@
 import { type Direction, personalBestSummary, SOLO_MODES, type SoloMode } from '@shura/client-core';
 import { useRecords } from '@shura/client-core/react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import { useState } from 'react';
+import { useScreenKeys } from '../../platform/input/use-screen-keys';
 
 /**
  * Where the player comes back to the menu from: the settings, or a game of a mode (design §13.3).
@@ -105,10 +106,8 @@ export function MainMenuScreen({
   const move = (direction: Direction) =>
     setCursors((at) => ({ ...at, [page]: nextEntry(entries, at[page], direction) }));
 
-  // Keys that come while it can't be seen are dropped here, rather than by unsubscribing: with no
-  // `useInput` active, Ink stops reading the terminal and would hand them over later.
-  useInput((_input, key) => {
-    if (!active || key.eventType === 'release') return;
+  useScreenKeys({ active }, ({ key }) => {
+    if (key.eventType === 'release') return;
     const press = key.eventType !== 'repeat';
     if (key.upArrow) move(-1);
     else if (key.downArrow) move(1);

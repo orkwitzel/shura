@@ -1,6 +1,7 @@
 import type { Bindings } from '@shura/client-core';
 import { boundSignals } from './bindings';
-import { type InputAdapter, keyName } from './terminal-input';
+import type { InputAdapter } from './input-adapter';
+import { eventTypeOf, keyName } from './terminal-input';
 
 /**
  * The precise adapter for `bindings` (design §7.3): the Kitty keyboard protocol reports real press,
@@ -12,10 +13,9 @@ export function createPreciseAdapter(bindings: Bindings): InputAdapter {
   const signal = boundSignals(bindings);
   return {
     name: 'precise',
-    autoShift: 'handling',
     feed: (raw) => {
       const name = keyName(raw);
-      const made = name === null ? null : signal(name, raw.key.eventType ?? 'press', raw.time);
+      const made = name === null ? null : signal(name, eventTypeOf(raw.key), raw.time);
       return made ? [made] : [];
     },
     poll: () => [],

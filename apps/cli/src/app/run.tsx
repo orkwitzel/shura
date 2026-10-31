@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import { terminalClock } from '../platform/clock';
 import { fileStorage, storagePaths } from '../platform/file-storage';
 import { captureHeader, createCaptureFile } from '../platform/input/capture';
-import type { InputChoice } from '../platform/input/detect';
+import type { InputChoice } from '../platform/input/input-adapter';
 import { detectColorMode } from '../platform/terminal/color-mode';
 import { App } from './app';
 import type { PlayOptions } from './commands';
@@ -79,7 +79,7 @@ export async function runApp(options: PlayOptions): Promise<number> {
         captureHeader(options.input, process.env),
       )
     : undefined;
-  const input = { choice: options.input, debug: options.debugInput, ...(capture && { capture }) };
+  const input = { choice: options.input, ...(capture && { debug: { capture } }) };
   const app = startTerminalApp(
     <App
       {...(options.mode && { mode: options.mode })}

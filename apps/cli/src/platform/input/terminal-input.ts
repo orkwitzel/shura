@@ -1,4 +1,4 @@
-import type { AutoShift, KeyEvent } from '@shura/client-core';
+import type { KeyEvent } from '@shura/client-core';
 import type { Key } from 'ink';
 
 /** One key as Ink's `useInput` reports it: the text it typed and what Ink parsed it as. */
@@ -11,14 +11,6 @@ export interface RawKey {
 export interface TerminalInput extends RawKey {
   readonly time: number;
 }
-
-/**
- * What an adapter makes of a terminal key: a key event for the input engine, or the menu binding
- * (Esc, P), which isn't a game control and goes to the UI instead (design §7.4).
- */
-export type InputSignal =
-  | { readonly kind: 'key'; readonly event: KeyEvent }
-  | { readonly kind: 'menu' };
 
 /** The name the CLI's bindings know a key by: an arrow, `space`, `escape`, `enter` or a letter. */
 export type KeyName = string;
@@ -41,22 +33,10 @@ export function keyName({ input, key }: RawKey): KeyName | null {
   return null;
 }
 
-/** The adapters, as the status line names them. `auto` is still choosing (design §7.3). */
-export type AdapterName = 'precise' | 'basic' | 'auto';
-
 /**
- * Turns terminal keys into key events for one session (design §7.3). The precise adapter is
- * stateless; the basic adapter infers releases from the key-repeat stream, so it also needs polling.
+ * What a key did: its event type, or a press for a key without one, as a terminal without the Kitty
+ * protocol sends every key, and the protocol an unmodified press (design §7.3).
  */
-export interface InputAdapter {
-  /** Shown in the status line (`input: precise`). Changes once an `auto` adapter has chosen. */
-  readonly name: AdapterName;
-  /** How the session's input engine should auto-shift for the key events this adapter makes. */
-  readonly autoShift: AutoShift;
-  /** The signals a terminal key makes, in order: releases that fell due before it come first. */
-  feed(raw: TerminalInput): InputSignal[];
-  /** The releases inferred by `time` (none from the precise adapter). */
-  poll(time: number): InputSignal[];
-  /** When the next inferred release (or choice) falls due, or `null`: when to `poll` next. */
-  readonly deadline: number | null;
+export function eventTypeOf(key: Key): KeyEvent['kind'] {
+  return key.eventType ?? 'press';
 }

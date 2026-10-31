@@ -15,11 +15,10 @@ import {
 } from '@shura/client-core';
 import { useSettings, useSettingsStore } from '@shura/client-core/react';
 import type { PieceActionType } from '@shura/engine';
-import { Box, type Key, Text, useInput } from 'ink';
+import { Box, type Key, Text } from 'ink';
 import { useState } from 'react';
 import { bindableKey, keyLabel } from '../../platform/input/bindable';
-import { createKeyRepeatReader } from '../../platform/input/key-repeat';
-import { keyName } from '../../platform/input/terminal-input';
+import { useScreenKeys } from '../../platform/input/use-screen-keys';
 
 export interface SettingsScreenProps {
   /** Leave the screen (Esc). The changes are already saved. */
@@ -189,9 +188,6 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
   const [slot, setSlot] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [message, setMessage] = useState('');
-  // Tells presses from the key repeat where the terminal doesn't (design §7.3), so the OS repeat of
-  // the Enter that opened the rebind prompt isn't bound.
-  const [repeats] = useState(() => createKeyRepeatReader());
   const row = ROWS[cursor];
 
   const change = (next: SettingsChange, said = '') => {
@@ -221,16 +217,10 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
     change({ bindings: rebound.bindings }, rebindMessage(rebound));
   };
 
-  // Keys that come while it can't be seen are dropped here, rather than by unsubscribing: with no
-  // `useInput` active, Ink stops reading the terminal and would hand them over once it could be.
-  useInput((input, key) => {
-    if (!active || !row) return;
-    const changes = repeats.feed({ input, key, time: clock.now() });
-    // A key with no name can't repeat in the reader's eyes: its event type says what it was.
-    const press =
-      keyName({ input, key }) === null
-        ? (key.eventType ?? 'press') === 'press'
-        : changes.at(-1)?.kind === 'press';
+  // A press, told from the key repeat, so the OS repeat of the Enter that opened the rebind prompt
+  // isn't bound.
+  useScreenKeys({ active, clock }, ({ input, key }, press) => {
+    if (!row) return;
     if (capturing && row.kind === 'binding') {
       if (press) capture(input, key, row.action);
       return;

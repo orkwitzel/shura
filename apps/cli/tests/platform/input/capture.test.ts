@@ -3,8 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { captureHeader, createCaptureFile, showBytes } from '../../../src/platform/input/capture';
-import type { InputSignal } from '../../../src/platform/input/terminal-input';
+import {
+  actionsEntries,
+  captureHeader,
+  createCaptureFile,
+  showBytes,
+} from '../../../src/platform/input/capture';
+import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import { readCapture } from '../../support/captures';
 
 describe('input capture file', () => {
@@ -44,5 +49,30 @@ describe('showBytes', () => {
     expect(showBytes('x')).toBe('x');
     expect(showBytes(' ')).toBe('␣');
     expect(showBytes('\x7f')).toBe('^?');
+  });
+});
+
+describe('actionsEntries', () => {
+  const { MoveRight, SoftDrop, HardDrop } = ActionType;
+
+  it('groups the actions told of at once into an entry per frame, in order', () => {
+    expect(
+      actionsEntries(
+        [
+          { frame: 12, type: MoveRight },
+          { frame: 12, type: MoveRight },
+          { frame: 13, type: SoftDrop },
+          { frame: 13, type: HardDrop },
+        ],
+        250,
+      ),
+    ).toEqual([
+      { time: 250, frame: 12, actions: [MoveRight, MoveRight] },
+      { time: 250, frame: 13, actions: [SoftDrop, HardDrop] },
+    ]);
+  });
+
+  it('makes no entry of no actions', () => {
+    expect(actionsEntries([], 250)).toEqual([]);
   });
 });

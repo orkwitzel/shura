@@ -1,7 +1,6 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
-import type { PieceActionType } from '@shura/engine';
-import type { InputChoice } from './detect';
-import type { AdapterName, InputSignal } from './terminal-input';
+import type { PieceAction, PieceActionType } from '@shura/engine';
+import type { AdapterName, InputChoice, InputSignal } from './input-adapter';
 
 /**
  * The first line of a `--debug-input` capture (design §7.3). The CLI fills in the terminal and the
@@ -40,6 +39,21 @@ export interface ActionsEntry {
   readonly time: number;
   readonly frame: number;
   readonly actions: readonly PieceActionType[];
+}
+
+/**
+ * The actions the session told of at `time`, an entry per frame: what the input engine made of the
+ * keys, its auto-shift and soft drop too (design §7.3).
+ */
+export function actionsEntries(actions: readonly PieceAction[], time: number): ActionsEntry[] {
+  const frames: ActionsEntry[] = [];
+  for (const { frame, type } of actions) {
+    const last = frames.at(-1);
+    if (last?.frame === frame)
+      frames[frames.length - 1] = { ...last, actions: [...last.actions, type] };
+    else frames.push({ time, frame, actions: [type] });
+  }
+  return frames;
 }
 
 /** One line after the header, and one row of the debug panel. */

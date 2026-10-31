@@ -23,3 +23,21 @@ export function overlayRows(rows: readonly string[], lines: readonly string[]): 
   }
   return result;
 }
+
+/**
+ * The in-game menu as lines to draw over the board: a title, then each entry's label with its keys
+ * at the right, as wide as the board less a column each side, with a blank line around them.
+ */
+export function menuLines(
+  title: string,
+  entries: readonly { readonly hint: string; readonly label: string }[],
+): string[] {
+  const width = INSIDE - 2;
+  return [
+    '',
+    title,
+    '',
+    ...entries.map(({ label, hint }) => `${label.padEnd(width - hint.length)}${hint}`),
+    '',
+  ];
+}

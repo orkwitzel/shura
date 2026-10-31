@@ -1,8 +1,8 @@
 import { ActionType } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BINDINGS } from '../../../src/platform/input/bindings';
+import type { InputSignal } from '../../../src/platform/input/input-adapter';
 import { createPreciseAdapter } from '../../../src/platform/input/precise-adapter';
-import type { InputSignal } from '../../../src/platform/input/terminal-input';
 import { parseTerminalBytes } from '../../support/terminal-bytes';
 
 const { MoveLeft, MoveRight, SoftDrop, HardDrop, RotateCW, RotateCCW, Rotate180, Hold } =

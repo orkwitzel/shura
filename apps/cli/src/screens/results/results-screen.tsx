@@ -1,6 +1,5 @@
 import { formatFrames, formatScore, type SoloSessionState, soloResult } from '@shura/client-core';
 import { Box, Text } from 'ink';
-import type { MenuCommand } from '../../board/game-menu';
 
 /** A label and its value, as the results screen shows them. */
 export interface ResultField {
@@ -55,10 +54,16 @@ function Field({ field, bold = false }: { field: ResultField; bold?: boolean }) 
   );
 }
 
+/** A key the results screen lists: the key as shown (`R`), and what it does. */
+export interface ResultsKey {
+  readonly hint: string;
+  readonly label: string;
+}
+
 export interface ResultsScreenProps {
   readonly state: SoloSessionState;
   /** The keys the screen takes, listed at the bottom: play again, and back. */
-  readonly keys: readonly Pick<MenuCommand, 'hint' | 'label'>[];
+  readonly keys: readonly ResultsKey[];
   /** The personal best line ("new personal best", or how far off it the run was), if any. */
   readonly personalBest?: string;
 }
