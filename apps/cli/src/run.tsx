@@ -1,9 +1,9 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import type { SoloMode } from '@shura/client-core';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
 import { terminalClock } from './clock';
+import type { PlayOptions } from './commands';
 import { fileStorage, storagePaths } from './config/file-storage';
 import { openStores } from './config/stores';
 import { captureHeader, createCaptureFile } from './input/capture';
@@ -39,6 +39,11 @@ export function startTerminalApp(
   streams: TerminalStreams = {},
   input: InputChoice = 'auto',
 ): Instance {
+  // Ink asks whether the terminal speaks the Kitty protocol before its input hook turns on raw
+  // mode, so the terminal's answer would be echoed onto the screen. Raw mode first stops that;
+  // Ink turns it off again on the way out.
+  const stdin = streams.stdin ?? process.stdin;
+  if ('setRawMode' in stdin && stdin.isTTY) stdin.setRawMode(true);
   return render(app, {
     kittyKeyboard: { mode: input === 'basic' ? 'disabled' : 'auto', flags: KITTY_FLAGS },
     alternateScreen: true,
@@ -48,27 +53,21 @@ export function startTerminalApp(
   });
 }
 
-export interface SoloOptions {
-  readonly mode: SoloMode;
-  readonly noColor: boolean;
-  readonly input: InputChoice;
-  readonly debugInput: boolean;
-}
-
 /** Where `--debug-input` writes its capture: a new file in the current directory. */
 export function captureFileName(now: Date): string {
   return `shura-input-${now.toISOString().replace(/[:.]/g, '-')}.jsonl`;
 }
 
 /**
- * `shura solo <mode>`: a game in the terminal until Ctrl+C, with the saved settings and records
- * (design §13.3). Returns the exit code. Keys come from the terminal, so it needs an interactive
- * one. `--debug-input` adds the input panel and writes every key to a capture file (design §7.3),
- * whose path it prints on the way out.
+ * `shura` and `shura solo <mode>`: the app in the terminal, on the main menu or straight on a game,
+ * with the saved settings and records (design §13.3), until Quit or Ctrl+C. Returns the exit code.
+ * Keys come from the terminal, so it needs an interactive one. `--debug-input` adds the input panel
+ * to every game and writes every key to a capture file (design §7.3), whose path it prints on the
+ * way out.
  */
-export async function runSolo(options: SoloOptions): Promise<number> {
+export async function runApp(options: PlayOptions): Promise<number> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    console.error('shura solo needs an interactive terminal.');
+    console.error('shura needs an interactive terminal (try shura --help).');
     return 1;
   }
   const colors = detectColorMode(options.noColor, process.env);
@@ -82,7 +81,13 @@ export async function runSolo(options: SoloOptions): Promise<number> {
     : undefined;
   const input = { choice: options.input, debug: options.debugInput, ...(capture && { capture }) };
   const app = startTerminalApp(
-    <App mode={options.mode} clock={terminalClock()} colors={colors} input={input} {...stores} />,
+    <App
+      {...(options.mode && { mode: options.mode })}
+      clock={terminalClock()}
+      colors={colors}
+      input={input}
+      {...stores}
+    />,
     {},
     options.input,
   );

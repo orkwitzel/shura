@@ -125,12 +125,13 @@ describe('the in-game menu', () => {
     expect(game.clock.pending).toBe(1);
   });
 
-  it('quits with Q (to the main menu, once there is one)', async () => {
+  it('quits to the main menu with Q, stopping the game', async () => {
     const game = await start();
     await game.run(COUNTDOWN_MS + 1_000);
     await game.type(KEYS.escape);
     await game.type(KEYS.letter('q'));
-    expect(game.frame()).toBe('');
+    expect(game.frame()).toContain('SINGLE PLAYER');
+    expect(visibleRows(game.frame())).toEqual([]);
     expect(game.clock.pending).toBe(0);
   });
 
@@ -223,11 +224,11 @@ describe('the results', () => {
   it.each([
     ['Enter', KEYS.enter],
     ['Esc', KEYS.escape],
-  ])('go back with %s', async (_, key) => {
+  ])('go back to the main menu with %s', async (_, key) => {
     const game = await start();
     await topOut(game);
     await game.type(key);
-    // There is no main menu yet, so going back quits: the app exits and its output is cleared.
-    expect(game.frame()).toBe('');
+    expect(game.frame()).toContain('SINGLE PLAYER');
+    expect(game.frame()).not.toContain('GAME OVER');
   });
 });

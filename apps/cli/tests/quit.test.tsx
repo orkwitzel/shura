@@ -78,6 +78,37 @@ async function gameInTerminal() {
   return { stdout, stdin, clock, instance };
 }
 
+describe('taking over the terminal', () => {
+  it('turns on raw mode before asking for the Kitty protocol, so the answer is never echoed', async () => {
+    const stdout = new TerminalOut();
+    const stdin = new TerminalIn();
+    let rawWhenAsked: boolean | undefined;
+    const write = stdout.write;
+    stdout.write = (chunk, callback) => {
+      if (chunk.includes(KITTY_QUERY)) rawWhenAsked ??= stdin.rawMode;
+      return write(chunk, callback);
+    };
+    const instance = startTerminalApp(
+      <App clock={fakeClock(1_000)} colors="none" {...memoryStores()} />,
+      {
+        // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+        stdout: stdout as any,
+        // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+        stdin: stdin as any,
+        // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
+        stderr: new TerminalOut() as any,
+        interactive: true,
+        patchConsole: false,
+      },
+    );
+    await settle();
+    expect(rawWhenAsked).toBe(true);
+    stdin.type('\x03');
+    await instance.waitUntilExit();
+    expect(stdin.rawMode).toBe(false);
+  });
+});
+
 describe('Ctrl+C', () => {
   it.each([
     ['as the Kitty protocol reports it', '\x1b[99;5u'],
