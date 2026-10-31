@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import type { SoloMode } from '@shura/client-core';
 import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
-import { openStores } from '../src/config/stores';
+import { exitMessages, openStores } from '../src/config/stores';
 import type { ColorMode } from '../src/render/palette';
 import { App } from '../src/ui/app';
 import { fakeClock } from './support/fake-clock';
@@ -106,6 +106,24 @@ describe('config.json', () => {
     expect(game.stores.notices[0]?.message).toContain('handling.das');
     expect(game.stores.settings.getState().handling.das).toBe(167);
     expect(game.app.lastFrame()).toContain('config.json');
+  });
+});
+
+describe('the messages on the way out', () => {
+  it('are the stored files’ notices in full, then why the settings last failed to save', () => {
+    const temp = tempStorage({ config: { version: 1, handling: { das: 1_000 } } });
+    cleanups.push(temp.cleanup);
+    const stores = openStores({
+      ...temp.storage,
+      write: () => {
+        throw new Error('disk full');
+      },
+    });
+    expect(exitMessages(stores)).toEqual([stores.notices[0]?.message]);
+    stores.settings.update({ ghost: false });
+    const problem = stores.settings.save();
+    expect(problem).toContain('disk full');
+    expect(exitMessages(stores)).toEqual([stores.notices[0]?.message, problem]);
   });
 });
 

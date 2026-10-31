@@ -134,6 +134,17 @@ describe('saving the settings', () => {
     expect(settings.save()).toMatch(/settings\.json.*disk full/);
     expect(settings.getState().volume).toBe(70);
   });
+
+  test('that fails is remembered until a save succeeds, to tell the player on the way out', () => {
+    const { storage, settings } = load();
+    expect(settings.saveProblem).toBeNull();
+    storage.failWrites = true;
+    const problem = settings.save();
+    expect(settings.saveProblem).toBe(problem);
+    storage.failWrites = false;
+    settings.save();
+    expect(settings.saveProblem).toBeNull();
+  });
 });
 
 describe('changing the settings', () => {

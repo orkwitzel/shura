@@ -37,3 +37,13 @@ export function openStores(storage: Storage): CliStores {
   }
   return { settings, records, notices };
 }
+
+/**
+ * What to print once the app has left the alternate screen (design §13.3): each notice in full,
+ * then why the settings last failed to save, if they did, since the screen that said so is gone.
+ */
+export function exitMessages({ notices, settings }: CliStores): string[] {
+  const messages = notices.map(({ message }) => message);
+  if (settings.saveProblem) messages.push(settings.saveProblem);
+  return messages;
+}

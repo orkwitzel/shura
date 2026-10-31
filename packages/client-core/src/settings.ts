@@ -157,6 +157,11 @@ export interface SettingsStore extends Store<Settings> {
   update(change: SettingsChange): void;
   /** Writes the settings to storage. Returns why it couldn't, or `null`. */
   save(): string | null;
+  /**
+   * Why the last save failed, or `null` if it worked (or nothing was saved yet): the CLI tells the
+   * player again on the way out.
+   */
+  readonly saveProblem: string | null;
 }
 
 /** The settings from `storage`, or the defaults with a message if they can't be used. */
@@ -166,6 +171,7 @@ export function createSettingsStore(options: SettingsStoreOptions): SettingsStor
 
 class SettingsStoreImpl implements SettingsStore {
   readonly problem: string | null = null;
+  saveProblem: string | null = null;
   readonly #storage: Storage;
   readonly #format: VersionedFormat<Settings>;
   readonly #store: StoreApi<Settings>;
@@ -205,10 +211,11 @@ class SettingsStoreImpl implements SettingsStore {
   save = (): string | null => {
     try {
       this.#storage.write('settings', `${JSON.stringify(this.getState(), null, 2)}\n`);
-      return null;
+      this.saveProblem = null;
     } catch (error) {
-      return `Couldn't save ${this.#storage.describe('settings')}: ${(error as Error).message}`;
+      this.saveProblem = `Couldn't save ${this.#storage.describe('settings')}: ${(error as Error).message}`;
     }
+    return this.saveProblem;
   };
 
   #unusable(why: string): string {

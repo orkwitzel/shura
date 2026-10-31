@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import { terminalClock } from './clock';
 import type { PlayOptions } from './commands';
 import { fileStorage, storagePaths } from './config/file-storage';
-import { openStores } from './config/stores';
+import { exitMessages, openStores } from './config/stores';
 import { captureHeader, createCaptureFile } from './input/capture';
 import type { InputChoice } from './input/detect';
 import { detectColorMode } from './render/color-mode';
@@ -94,6 +94,6 @@ export async function runApp(options: PlayOptions): Promise<number> {
   await app.waitUntilExit();
   if (capture) console.log(`Input capture written to ${capture.path}`);
   // The game drew on the alternate screen, so the full messages go where they stay readable.
-  for (const { message } of stores.notices) console.error(message);
+  for (const message of exitMessages(stores)) console.error(message);
   return 0;
 }
