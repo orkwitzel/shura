@@ -62,7 +62,7 @@ export {
   type SoloSessionOptions,
   type SoloSessionState,
 } from './solo-session';
-export type { Storage, StoredKind } from './storage';
+export { errorMessage, type Storage, type StoredKind } from './storage';
 export type { AppStores, Store } from './store';
 export {
   type Ansi16,
@@ -74,4 +74,11 @@ export {
   type ThemeColor,
   type ThemeId,
 } from './themes';
-export { type Migration, type Parsed, parseVersioned, type VersionedFormat } from './versioned';
+export {
+  type Loaded,
+  loadStored,
+  type Migration,
+  type Parsed,
+  parseVersioned,
+  type VersionedFormat,
+} from './versioned';

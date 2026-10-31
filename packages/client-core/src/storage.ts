@@ -22,3 +22,8 @@ export interface Storage {
   /** Where `kind` is kept, as a person would look for it: a file name or a key. */
   describe(kind: StoredKind): string;
 }
+
+/** What a thrown error says, for a message: its own message, or the thrown value as text. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

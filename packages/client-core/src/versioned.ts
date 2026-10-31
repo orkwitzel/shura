@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { errorMessage, type Storage, type StoredKind } from './storage';
 
 /** Turns data saved at one version into the shape of the next. */
 export type Migration = (older: Record<string, unknown>) => Record<string, unknown>;
@@ -48,4 +49,30 @@ export function parseVersioned<T>(text: string, format: VersionedFormat<T>): Par
     ({ path, message }) => `${path.map(String).join('.') || 'the file'}: ${message}`,
   );
   return { problem: problems.join('; ') };
+}
+
+/**
+ * Stored data loaded: its value, what's wrong with it (`invalid`), or why it couldn't be read
+ * (`unreadable`). `null` when nothing is stored yet. Each store decides what a problem means.
+ */
+export type Loaded<T> =
+  | { readonly value: T }
+  | { readonly invalid: string }
+  | { readonly unreadable: string }
+  | null;
+
+/** Reads `kind` from `storage` and parses it against `format` (see `parseVersioned`). */
+export function loadStored<T>(
+  storage: Storage,
+  kind: StoredKind,
+  format: VersionedFormat<T>,
+): Loaded<T> {
+  try {
+    const text = storage.read(kind);
+    if (text === null) return null;
+    const parsed = parseVersioned(text, format);
+    return 'value' in parsed ? parsed : { invalid: parsed.problem };
+  } catch (error) {
+    return { unreadable: errorMessage(error) };
+  }
 }

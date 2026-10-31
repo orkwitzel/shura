@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
-import { parseVersioned, type VersionedFormat } from '../src/index';
+import { errorMessage, loadStored, parseVersioned, type VersionedFormat } from '../src/index';
+import { memoryStorage } from './support/memory-storage';
 
 /**
  * A format at version 3 that has changed twice: version 1 had `speed`, version 2 renamed it
@@ -45,5 +46,34 @@ describe('reading a stored format', () => {
     ['a version with no migration', '{"version":0}', 'version 0 is unknown'],
   ])('says what is wrong with %s', (_, text, problem) => {
     expect(parseVersioned(text, FORMAT)).toEqual({ problem });
+  });
+});
+
+describe('loading a stored format', () => {
+  test('is null when nothing is stored yet', () => {
+    expect(loadStored(memoryStorage(), 'settings', FORMAT)).toBeNull();
+  });
+
+  test('gives the value, or what is wrong with it', () => {
+    const storage = memoryStorage({ settings: { version: 1, speed: 10 }, records: '{' });
+    expect(loadStored(storage, 'settings', FORMAT)).toEqual({ value: { version: 3, das: 167 } });
+    expect(loadStored(storage, 'records', FORMAT)).toEqual({ invalid: 'it is not valid JSON' });
+  });
+
+  test('says why it could not be read', () => {
+    const storage = {
+      ...memoryStorage(),
+      read: () => {
+        throw new Error('permission denied');
+      },
+    };
+    expect(loadStored(storage, 'settings', FORMAT)).toEqual({ unreadable: 'permission denied' });
+  });
+});
+
+describe('errorMessage', () => {
+  test('is an error’s message, or what was thrown as text', () => {
+    expect(errorMessage(new Error('disk full'))).toBe('disk full');
+    expect(errorMessage('disk full')).toBe('disk full');
   });
 });

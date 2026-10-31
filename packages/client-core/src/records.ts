@@ -10,9 +10,9 @@ import { PIECE_ACTIONS } from './actions';
 import { SOLO_PRESETS, type SoloMode } from './modes';
 import { hasEnded, type SoloResult, soloResult } from './solo-result';
 import type { SoloSessionState } from './solo-session';
-import type { Storage } from './storage';
+import { errorMessage, type Storage } from './storage';
 import type { Store } from './store';
-import { type Migration, parseVersioned, type VersionedFormat } from './versioned';
+import { loadStored, type Migration, type VersionedFormat } from './versioned';
 
 /** The records format's version. Raise it, with a migration, when the format changes. */
 export const RECORDS_VERSION = 1;
@@ -149,17 +149,13 @@ class RecordsStoreImpl implements RecordsStore {
   constructor({ storage, now = () => new Date() }: RecordsStoreOptions) {
     this.#storage = storage;
     this.#now = now;
+    const loaded = loadStored(storage, 'records', RECORDS_FORMAT);
     let records = EMPTY;
-    try {
-      const text = storage.read('records');
-      if (text !== null) {
-        const parsed = parseVersioned(text, RECORDS_FORMAT);
-        if ('value' in parsed) records = parsed.value;
-        else this.problem = this.#setAside(parsed.problem);
-      }
-    } catch (error) {
+    if (loaded && 'value' in loaded) records = loaded.value;
+    else if (loaded && 'invalid' in loaded) this.problem = this.#setAside(loaded.invalid);
+    else if (loaded) {
       this.#writable = false;
-      this.problem = `Couldn't read ${storage.describe('records')}: ${(error as Error).message}. Personal bests won't be kept this time.`;
+      this.problem = `Couldn't read ${storage.describe('records')}: ${loaded.unreadable}. Personal bests won't be kept this time.`;
     }
     this.#store = createStore<Records>()(() => records);
   }
@@ -191,7 +187,7 @@ class RecordsStoreImpl implements RecordsStore {
       try {
         this.#storage.write('records', `${JSON.stringify(records)}\n`);
       } catch (error) {
-        saveProblem = `Couldn't save ${this.#storage.describe('records')}: ${(error as Error).message}`;
+        saveProblem = `Couldn't save ${this.#storage.describe('records')}: ${errorMessage(error)}`;
       }
     return { kind: 'new', run, previous: best, saveProblem };
   };
@@ -203,7 +199,7 @@ class RecordsStoreImpl implements RecordsStore {
       return `${name} can't be used (${why}), so it was moved to ${aside} and a fresh one started.`;
     } catch (error) {
       this.#writable = false;
-      return `${name} can't be used (${why}) or moved aside (${(error as Error).message}). Personal bests won't be kept this time.`;
+      return `${name} can't be used (${why}) or moved aside (${errorMessage(error)}). Personal bests won't be kept this time.`;
     }
   }
 }

@@ -4,10 +4,10 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PIECE_ACTIONS } from './actions';
 import { type Bindings, sharedKeys } from './bindings';
 import { DEFAULT_HANDLING_SETTINGS, HANDLING_RANGES, type HandlingSettings } from './handling';
-import type { Storage } from './storage';
+import { errorMessage, type Storage } from './storage';
 import type { Store } from './store';
 import { SKINS, type SkinId, THEMES, type ThemeId } from './themes';
-import { type Migration, parseVersioned, type VersionedFormat } from './versioned';
+import { loadStored, type Migration, type VersionedFormat } from './versioned';
 
 /** The settings format's version. Raise it, with a migration, when the format changes. */
 export const SETTINGS_VERSION = 1;
@@ -142,17 +142,11 @@ class SettingsStoreImpl implements SettingsStore {
       schema: settingsSchema(defaults),
       migrations: SETTINGS_MIGRATIONS,
     };
+    const loaded = loadStored(storage, 'settings', this.#format);
     let settings = defaults;
-    try {
-      const text = storage.read('settings');
-      if (text !== null) {
-        const parsed = parseVersioned(text, this.#format);
-        if ('value' in parsed) settings = parsed.value;
-        else this.problem = this.#unusable(parsed.problem);
-      }
-    } catch (error) {
-      this.problem = this.#unusable((error as Error).message);
-    }
+    if (loaded && 'value' in loaded) settings = loaded.value;
+    else if (loaded)
+      this.problem = this.#unusable('invalid' in loaded ? loaded.invalid : loaded.unreadable);
     this.#store = createStore<Settings>()(() => settings);
   }
 
@@ -171,7 +165,7 @@ class SettingsStoreImpl implements SettingsStore {
       this.#storage.write('settings', `${JSON.stringify(this.getState(), null, 2)}\n`);
       this.saveProblem = null;
     } catch (error) {
-      this.saveProblem = `Couldn't save ${this.#storage.describe('settings')}: ${(error as Error).message}`;
+      this.saveProblem = `Couldn't save ${this.#storage.describe('settings')}: ${errorMessage(error)}`;
     }
     return this.saveProblem;
   };
