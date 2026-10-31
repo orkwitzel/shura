@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { COUNTDOWN_MS, KEYS, shuraApp } from '../../support/solo-app';
-import { memoryStores } from '../../support/stores';
+import { COUNTDOWN_MS, KEYS, shuraApp } from '../support/solo-app';
+import { memoryStores } from '../support/stores';
 
 /** A personal best as records.json keeps it (design §13.1). */
 function best(stats: {

@@ -1,15 +1,9 @@
-import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
-import { App } from '../../src/app/app';
 import type { CaptureEntry } from '../../src/platform/input/capture';
 import type { InputOptions } from '../../src/platform/input/use-terminal-input';
-import { fakeClock } from '../support/fake-clock';
-import { resize, settle, visibleRows } from '../support/ink';
-import { KEYS, shuraApp } from '../support/solo-app';
+import { visibleRows } from '../support/ink';
+import { COUNTDOWN_MS, KEYS, shuraApp } from '../support/solo-app';
 import { memoryStores } from '../support/stores';
-
-/** The countdown before Go: 1.5 s. */
-const COUNTDOWN_MS = 1_500;
 
 /** Legacy bytes, as a terminal without the Kitty protocol sends them. */
 const RIGHT = '\x1b[C';
@@ -28,12 +22,10 @@ const O_AT_SPAWN = ' . . . .[][] . . . .';
 const O_ONE_RIGHT = ' . . . . .[][] . . .';
 const O_THREE_RIGHT = ' . . . . . . .[][] .';
 
-let app: ReturnType<typeof render> | undefined;
-let cleanup: (() => void) | undefined;
+let app: Awaited<ReturnType<typeof shuraApp>> | undefined;
 afterEach(() => {
-  app?.unmount();
-  cleanup?.();
-  cleanup = undefined;
+  app?.app.unmount();
+  app = undefined;
 });
 
 /**
@@ -41,32 +33,12 @@ afterEach(() => {
  * config.json given, if any.
  */
 async function sprint(input?: InputOptions, config?: unknown) {
-  const clock = fakeClock(1_000);
-  app = render(
-    <App
-      mode="sprint"
-      clock={clock}
-      seed={7}
-      colors="none"
-      {...memoryStores(config === undefined ? {} : { config })}
-      {...(input && { input })}
-    />,
-  );
-  resize(app, 100, 24);
-  await settle();
-  const rendered = app;
+  const stores = memoryStores(config === undefined ? {} : { config });
+  app = await shuraApp({ mode: 'sprint', stores, columns: 100, ...(input && { input }) });
   const game = {
-    frame: () => rendered.lastFrame() ?? '',
+    ...app,
     /** The piece's top row, wherever gravity has taken it. */
-    top: () => visibleRows(rendered.lastFrame()).find((row) => row.includes('[]')),
-    async type(bytes: string) {
-      rendered.stdin.write(bytes);
-      await settle();
-    },
-    async run(ms: number) {
-      clock.run(ms);
-      await settle();
-    },
+    top: () => visibleRows(game.frame()).find((row) => row.includes('[]')),
   };
   await game.run(COUNTDOWN_MS + 20);
   return game;
@@ -101,7 +73,7 @@ describe('input adapter choice (design §7.3)', () => {
 
   it('remembers the adapter it chose for the next game from the menu', async () => {
     const game = await shuraApp({ mode: 'sprint' });
-    cleanup = () => game.app.unmount();
+    app = game;
     await game.run(COUNTDOWN_MS);
     await game.type('c'); // Hold, sent as plain text: a legacy terminal.
     expect(game.frame()).toContain('input: basic');

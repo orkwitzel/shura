@@ -31,13 +31,21 @@ export interface ShuraAppOptions {
   readonly input?: InputOptions;
   /** The stores, memory ones with nothing saved by default. */
   readonly stores?: CliStores;
+  /** The terminal's width: 80 columns by default. */
+  readonly columns?: number;
 }
 
 /**
- * The CLI's app with seed 7 for every game (O first, in columns 4–5) on a fake clock, at 80×24,
- * with the `auto` adapter unless `input` says otherwise. Unmount it at the end of the test.
+ * The CLI's app with seed 7 for every game (O first, in columns 4–5) on a fake clock, at 80×24
+ * unless `columns` says otherwise, with the `auto` adapter unless `input` says otherwise. Unmount
+ * it at the end of the test.
  */
-export async function shuraApp({ mode, input, stores = memoryStores() }: ShuraAppOptions = {}) {
+export async function shuraApp({
+  mode,
+  input,
+  stores = memoryStores(),
+  columns = 80,
+}: ShuraAppOptions = {}) {
   const clock = fakeClock(1_000);
   const app = render(
     <App
@@ -49,7 +57,7 @@ export async function shuraApp({ mode, input, stores = memoryStores() }: ShuraAp
       {...stores}
     />,
   );
-  resize(app, 80, 24);
+  resize(app, columns, 24);
   await settle();
   return {
     clock,
