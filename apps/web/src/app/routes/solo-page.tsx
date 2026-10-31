@@ -25,7 +25,7 @@ const isSoloMode = (mode: string | undefined): mode is SoloMode =>
 function SoloGame({ mode }: { mode: SoloMode }) {
   const [, navigate] = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { session, personalBest, start } = useSoloSession(mode, { keys: !settingsOpen });
+  const { session, personalBest, start } = useSoloSession(mode, { acceptKeys: !settingsOpen });
   useSound(session);
   const toMainMenu = () => navigate(ROUTES.mainMenu);
   const closeSettings = () => setSettingsOpen(false);
