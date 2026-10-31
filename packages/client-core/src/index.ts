@@ -1,6 +1,11 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
 export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './actions';
-export { type BackToBackTracker, isBackToBack, trackBackToBack } from './back-to-back';
+export {
+  type BackToBackTracker,
+  type GameEvents,
+  isBackToBack,
+  trackBackToBack,
+} from './back-to-back';
 export {
   type Bindings,
   type RebindChange,
@@ -49,6 +54,7 @@ export type {
 export {
   type ConnectionFailure,
   createOnlineSession,
+  type GarbageRouting,
   type OnlineConnection,
   type OnlineRoom,
   type OnlineSession,
@@ -56,6 +62,7 @@ export {
   type OnlineSessionState,
   PING_EVERY_MS,
   type QuickMatchStatus,
+  type RoutingListener,
 } from './online-session';
 export {
   type Connect,
@@ -65,6 +72,7 @@ export {
   webSocketConnect,
 } from './online-socket';
 export { personalBestLine, personalBestSummary } from './personal-best';
+export { OUT_WORDS, placeOf } from './places';
 export {
   createRecordsStore,
   type GameRun,

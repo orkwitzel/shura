@@ -4,7 +4,9 @@ import {
   type OnlineMatchState,
   type OnlinePlayerGame,
   type OnlineSession,
+  OUT_WORDS,
   PIECE_ACTIONS,
+  placeOf,
 } from '@shura/client-core';
 import { useSettings } from '@shura/client-core/react';
 import { VISIBLE_ROWS } from '@shura/engine';
@@ -27,7 +29,7 @@ import { useScreenKeys } from '../../platform/input/use-screen-keys';
 import { type InputOptions, useTerminalInput } from '../../platform/input/use-terminal-input';
 import { MODE_NAMES } from './lobby-view';
 import { PingText } from './ping-text';
-import { OUT_WORDS, ordinal, placeOf } from './places';
+import { ordinal } from './places';
 
 export interface MatchViewProps {
   readonly session: OnlineSession;

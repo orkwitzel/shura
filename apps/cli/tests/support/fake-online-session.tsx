@@ -56,6 +56,7 @@ export function fakeOnlineSession(state: Partial<OnlineSessionState> = {}): Fake
     setInput: vi.fn(),
     onEvents: vi.fn(() => () => {}),
     onActions: vi.fn(() => () => {}),
+    onRoutings: vi.fn(() => () => {}),
     close: vi.fn(),
   };
 }

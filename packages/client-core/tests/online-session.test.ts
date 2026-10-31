@@ -62,3 +62,41 @@ describe('leaving a room', () => {
     expect(session.getState().room?.code).toBe('K7QX');
   });
 });
+
+describe('garbage routings (design §8.5: the attack streak)', () => {
+  const countdown = {
+    type: 'countdown',
+    startAt: 3_000,
+    seed: 7,
+    matchId: 'm',
+    players: [
+      { id: 'me', index: 0 },
+      { id: 'them', index: 1 },
+      { id: 'cy', index: 2 },
+    ],
+  };
+  const routing = { id: 1, from: 'them', to: 'cy', lines: 2, holeSeed: 9 };
+
+  test('passes every routing of the match on, whoever it was aimed at', () => {
+    const { session, say } = connected();
+    say(roomState('K7QX'));
+    say(countdown);
+    const heard: object[] = [];
+    session.onRoutings((heardRouting) => heard.push(heardRouting));
+    say({ type: 'garbageQueued', ...routing });
+    say({ type: 'garbageQueued', ...routing, id: 2, from: 'cy', to: 'me' });
+    expect(heard).toEqual([routing, { ...routing, id: 2, from: 'cy', to: 'me' }]);
+  });
+
+  test('passes on none outside a match, and none once the listener is removed', () => {
+    const { session, say } = connected();
+    say(roomState('K7QX'));
+    const heard: object[] = [];
+    const stop = session.onRoutings((heardRouting) => heard.push(heardRouting));
+    say({ type: 'garbageQueued', ...routing });
+    say(countdown);
+    stop();
+    say({ type: 'garbageQueued', ...routing });
+    expect(heard).toEqual([]);
+  });
+});

@@ -1,6 +1,5 @@
 import { type LockEvent, TSpin } from '@shura/engine';
-import { isBackToBack, trackBackToBack } from './back-to-back';
-import type { SoloSession } from './solo-session';
+import { type GameEvents, isBackToBack, trackBackToBack } from './back-to-back';
 
 /** What a callout tells: the clear, a back-to-back, the combo or a perfect clear. */
 export type CalloutKind = 'clear' | 'backToBack' | 'combo' | 'perfectClear';
@@ -46,13 +45,13 @@ export function lockCallouts(lock: LockEvent, backToBackBefore: boolean): Callou
 export type CalloutListener = (callouts: readonly Callout[], lock: LockEvent) => void;
 
 /**
- * Passes the callouts of each of `session`'s locks that earns any to `listener`, in frame order,
- * from the session's engine events, with the back-to-back status before each lock from
+ * Passes the callouts of each of `game`'s locks that earns any to `listener`, in frame order,
+ * from its engine events, with the back-to-back status before each lock from
  * `trackBackToBack`. Returns a function that stops it.
  */
-export function onCallouts(session: SoloSession, listener: CalloutListener): () => void {
-  const backToBack = trackBackToBack(session);
-  const stopHearing = session.onEvents((events) => {
+export function onCallouts(game: GameEvents, listener: CalloutListener): () => void {
+  const backToBack = trackBackToBack(game);
+  const stopHearing = game.onEvents((events) => {
     for (const event of events) {
       if (event.type !== 'lock') continue;
       const callouts = lockCallouts(event, backToBack.next(event));

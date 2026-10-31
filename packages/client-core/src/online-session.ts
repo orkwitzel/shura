@@ -60,6 +60,15 @@ export type OnlineConnection =
  */
 export type QuickMatchStatus = 'idle' | 'queued' | 'opponentLeft';
 
+/**
+ * A garbage routing (design §8.5): the server sent an attack of `lines` from `from` to `to`. Only
+ * its target's game takes it in; every client draws it (the attack streak, design §13.2).
+ */
+export type GarbageRouting = Omit<ServerMessageOf<'garbageQueued'>, 'type'>;
+
+/** Hears each garbage routing of the current match. */
+export type RoutingListener = (routing: GarbageRouting) => void;
+
 /** A room as the server last described it (`roomState`). */
 export type OnlineRoom = Pick<
   ServerMessageOf<'roomState'>,
@@ -149,6 +158,11 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   onEvents(listener: SessionEventListener): () => void;
   /** Adds a listener for the actions your game applies. Returns its removal. */
   onActions(listener: AppliedActionsListener): () => void;
+  /**
+   * Adds a listener for the current match's garbage routings, whoever they're aimed at (the attack
+   * streak, design §13.2). Returns its removal.
+   */
+  onRoutings(listener: RoutingListener): () => void;
   /** Leaves your room, then closes the connection, as the player leaves online play. */
   close(): void;
 }
@@ -193,6 +207,7 @@ class Session implements OnlineSession {
   #left: string | null = null;
   readonly #eventListeners = new Set<SessionEventListener>();
   readonly #actionListeners = new Set<AppliedActionsListener>();
+  readonly #routingListeners = new Set<RoutingListener>();
 
   constructor(options: OnlineSessionOptions) {
     this.#options = options;
@@ -251,6 +266,14 @@ class Session implements OnlineSession {
     this.#actionListeners.add(call);
     return () => {
       this.#actionListeners.delete(call);
+    };
+  };
+
+  onRoutings = (listener: RoutingListener): (() => void) => {
+    const call: RoutingListener = (routing) => listener(routing);
+    this.#routingListeners.add(call);
+    return () => {
+      this.#routingListeners.delete(call);
     };
   };
 
@@ -370,9 +393,13 @@ class Session implements OnlineSession {
       case 'relay':
         this.#match?.relay(message);
         return;
-      case 'garbageQueued':
-        this.#match?.receiveGarbage(message);
+      case 'garbageQueued': {
+        if (!this.#match) return;
+        this.#match.receiveGarbage(message);
+        const { type: _, ...routing } = message;
+        for (const listener of this.#routingListeners) listener(routing);
         return;
+      }
       case 'playerOut':
         this.#match?.playerOut(message);
         return;
