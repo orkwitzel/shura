@@ -1,4 +1,4 @@
-import type { Bindings, Clock, SoloSession } from '@shura/client-core';
+import { type Bindings, type Clock, PIECE_ACTIONS, type SoloSession } from '@shura/client-core';
 import { useInput } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRawKeyBytes } from '../terminal/use-raw-key-bytes';
@@ -134,7 +134,7 @@ export function useTerminalInput({
   /** Releases every game control, so none is left held. */
   const releaseAll = () => {
     const time = clock.now();
-    for (const action of Object.keys(bindings) as (keyof Bindings)[]) {
+    for (const action of PIECE_ACTIONS) {
       session.key({ action, kind: 'release', time });
     }
   };
