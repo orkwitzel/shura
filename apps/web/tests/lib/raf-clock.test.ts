@@ -9,11 +9,28 @@ afterEach(() => {
 });
 
 describe('the requestAnimationFrame clock', () => {
-  test('tells the time with performance.now()', () => {
+  test('tells the time with performance.now() while running', () => {
     const clock = createRafClock();
+    clock.start();
     const before = clock.now();
     vi.advanceTimersByTime(100);
     expect(clock.now() - before).toBe(100);
+  });
+
+  test('its time stands still until started, and while stopped', () => {
+    const clock = createRafClock();
+    const made = clock.now();
+    vi.advanceTimersByTime(1_000);
+    expect(clock.now()).toBe(made);
+    clock.start();
+    vi.advanceTimersByTime(100);
+    expect(clock.now()).toBe(made + 100);
+    clock.stop();
+    vi.advanceTimersByTime(1_000);
+    expect(clock.now()).toBe(made + 100);
+    clock.start();
+    vi.advanceTimersByTime(50);
+    expect(clock.now()).toBe(made + 150);
   });
 
   test('wakes a callback once, at the next animation frame, while running', () => {

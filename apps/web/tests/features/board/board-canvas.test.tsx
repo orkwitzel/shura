@@ -1,6 +1,6 @@
 import { createSoloSession } from '@shura/client-core';
 import { act, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { BoardCanvas } from '@/features/board/components/board-canvas';
 import { fakeClock } from '../../support/fake-clock';
 import { holdPixiInit, pixiApps, releasePixiInit, tickPixi } from '../../support/fake-pixi';
@@ -15,10 +15,10 @@ afterEach(() => {
   window.devicePixelRatio = 1;
 });
 
-function setup() {
+function setup(onShown?: () => void) {
   const clock = fakeClock(1_000);
   const session = createSoloSession({ mode: 'sprint', clock, seed: 7 });
-  const view = renderWithStores(<BoardCanvas session={session} />);
+  const view = renderWithStores(<BoardCanvas session={session} {...(onShown && { onShown })} />);
   return { clock, session, view };
 }
 
@@ -83,6 +83,21 @@ describe('BoardCanvas', () => {
     // 720 / 22.5 = 32 px cells.
     expect(app?.sizes.at(-1)).toEqual({ width: 736, height: 720, resolution: 1 });
     expect(app?.painted.at(-1)?.height).toBe(720);
+  });
+
+  test('says once when the first painted board has been on screen for a tick', async () => {
+    holdPixiInit();
+    const onShown = vi.fn();
+    setup(onShown);
+    await act(async () => releasePixiInit());
+    expect(onShown).not.toHaveBeenCalled();
+    // The first tick paints; the next one comes after that frame was drawn.
+    tickPixi();
+    expect(onShown).not.toHaveBeenCalled();
+    tickPixi();
+    expect(onShown).toHaveBeenCalledOnce();
+    tickPixi();
+    expect(onShown).toHaveBeenCalledOnce();
   });
 
   test('labels the hold and the preview', async () => {
