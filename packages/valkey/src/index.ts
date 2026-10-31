@@ -1,3 +1,11 @@
-// Registry, MatchQueue, SessionStore, PodHealth and MatchLog, with Valkey and in-memory
-// versions (docs/design.md §9.5). Built in M4.
-export {};
+// The shared state `gateway` and `game` use, each interface with an in-memory and a Valkey
+// version (docs/design.md §9.5, §9.6, §11).
+export { type ValkeyKeys, valkeyKeys } from './keys';
+export type { Registry, RoomMode, RoomPhase, RoomRecord, RoomUpdate } from './registry';
+export {
+  createMemoryStores,
+  createValkeyStores,
+  type StoreOptions,
+  type Stores,
+  type ValkeyStoreOptions,
+} from './stores';
