@@ -49,6 +49,8 @@ function useWaited(clock: TimerClock): { ms: number; restart: () => void } {
  */
 export function WaitingView({ session, clock, active, onBack }: WaitingViewProps) {
   const { room, quickMatch, sessionId, error } = useStore(session);
+  // Only an error from here on is about the queue: one from before is the menu's.
+  const [before] = useState(error);
   const { ms, restart } = useWaited(clock);
   const opponent = room?.players.find(({ id }) => id !== sessionId);
   const left = !room && quickMatch === 'opponentLeft';
@@ -90,7 +92,7 @@ export function WaitingView({ session, clock, active, onBack }: WaitingViewProps
           </>
         )}
       </Box>
-      {error && <Text color="yellow">{error.message}</Text>}
+      {error && error !== before && <Text color="yellow">{error.message}</Text>}
       <Text dimColor>
         {room ? 'Esc leave' : left ? 'Enter queue again  Esc back' : 'Esc cancel'}
       </Text>

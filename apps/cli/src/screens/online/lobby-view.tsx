@@ -77,6 +77,8 @@ function useRoomEvents(room: OnlineRoom, sessionId: string | null): readonly str
  */
 export function LobbyView({ session, server, clock, active, onLeave }: LobbyViewProps) {
   const { room, sessionId, ping, error, nickname } = useStore(session);
+  // Only an error from here on is about this room: one from before is the menu's.
+  const [before] = useState(error);
   const settings = useSettingsStore();
   const [renaming, setRenaming] = useState(false);
   const shown = room ?? EMPTY_ROOM;
@@ -210,7 +212,7 @@ export function LobbyView({ session, server, clock, active, onLeave }: LobbyView
             {event}
           </Text>
         ))}
-        {error && <Text color="yellow">{error.message}</Text>}
+        {error && error !== before && <Text color="yellow">{error.message}</Text>}
       </Box>
       <Box marginTop={1}>
         <Text dimColor>{keys.join('  ')}</Text>

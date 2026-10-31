@@ -8,7 +8,8 @@ The Ink terminal client. Its behaviour is in `docs/design.md` §13.3. This file 
 src/
 ├── main.ts     runs the Commander program
 ├── app/        the root: the commands, which screen shows, the providers, starting Ink, the stores
-├── screens/    one folder per screen: main-menu/, solo/, results/, settings/
+├── screens/    one folder per screen: main-menu/, solo/, results/, settings/, online/
+├── components/ React components two screens share (the nickname prompt)
 ├── board/      board text drawing (rows of coloured characters), not React
 └── platform/   anything that touches the terminal itself: input/, terminal/, the clock, file storage
 ```

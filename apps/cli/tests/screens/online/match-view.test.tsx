@@ -162,6 +162,18 @@ describe('out boards', () => {
   });
 });
 
+describe('the countdown', () => {
+  it('counts the 3 s down a second a step over your board', async () => {
+    const counting = (countdown: number) =>
+      matchOf([game('me', 0), game('bo', 1)], { phase: 'countdown', countdown });
+    const { frame, session } = await matchView({ match: counting(180) });
+    expect(frame()).toMatch(/│\s+3\s+│/);
+    session.set({ match: counting(100) });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(frame()).toMatch(/│\s+2\s+│/);
+  });
+});
+
 describe('the online menu', () => {
   it('opens on Esc over your board, without stopping the game, and Q leaves the match', async () => {
     const match = matchOf([game('me', 0), game('bo', 1)]);

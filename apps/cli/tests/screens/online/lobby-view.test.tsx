@@ -68,6 +68,15 @@ describe('what it shows', () => {
     expect(lineWith(frame(), 'WATCHING')).toContain('Cy, Di');
   });
 
+  it("the server's errors from here on, not one from before", async () => {
+    const before = { code: 'room_not_found', message: 'No room with that code.' } as const;
+    const { frame, session } = await lobby(lobbyRoom(), { error: before });
+    expect(frame()).not.toContain('No room with that code.');
+    session.set({ error: { code: 'wrong_phase', message: 'Not now.' } });
+    await settle();
+    expect(frame()).toContain('Not now.');
+  });
+
   it('the ping', async () => {
     const { frame } = await lobby(lobbyRoom(), { ping: 38.4 });
     expect(frame()).toContain('38 ms');
