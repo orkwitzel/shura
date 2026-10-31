@@ -86,6 +86,9 @@ export function useSoloSession(
     const onKey = (key: KeyboardEvent) => {
       const down = key.type === 'keydown';
       if (down && MENU_KEYS.includes(key.code) && !key.repeat && !key.defaultPrevented) {
+        // Taken, or the browser reads an Esc as a request to close the menu this opens: it would
+        // resume at once.
+        key.preventDefault();
         session.pause();
         return;
       }

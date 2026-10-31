@@ -148,6 +148,16 @@ describe('the in-game menu', () => {
     expect(stat('Time')).toHaveTextContent(time);
   });
 
+  test('the Esc that opens it is taken, so the browser does not close the menu it has just opened', async () => {
+    // A real browser treats an Esc keydown that nothing took as a request to close the open modal
+    // dialog, and by then the menu is open: it would resume at once. happy-dom has no such requests.
+    const { start } = await playSprint();
+    runTo(start + COUNTDOWN_MS + 1_000);
+    const notTaken = fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(notTaken).toBe(false);
+    expect(dialog('Paused')).toBeInTheDocument();
+  });
+
   test('Esc opens it during the countdown too', async () => {
     await playSprint();
     await userEvent.keyboard('{Escape}');
