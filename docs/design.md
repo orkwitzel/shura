@@ -519,7 +519,7 @@ The look is juicy arcade pixel: pixel fonts, pixel-art cells, thick cream border
 - **Settings and records** are stored in two `localStorage` keys (§13.1), `shura.settings` and `shura.records`, through client-core's `Storage`:
   - Invalid settings fall back to the defaults, with a notice under the main menu. The stored text stays as it was until the settings are next saved.
   - Invalid records are moved to a backup key, never dropped: `shura.records.bak`, or `shura.records.bak-2` and so on if an older backup is already there. A notice under the main menu says where they went, and a fresh set of records starts.
-- **Tests:** Vitest with React Testing Library and happy-dom for the primitives and screens, and unit tests for `layoutBoard`. The Pixi painter is kept thin and untested. End-to-end tests wait (§16): a manual checklist covers real-browser behaviour (focus, audio, device pixel ratios, Safari).
+- **Tests:** Vitest with React Testing Library and happy-dom for the primitives and screens, and unit tests for `layoutBoard`. Each mode's route is played to its results with the engine's recorded game (§5.3), its keys fired on the window through the default web bindings on fake animation frames, so the keyboard, the loop, the HUD, the results and the personal bests are tested together. The Pixi painter is kept thin and untested. End-to-end tests wait (§16): a manual checklist covers real-browser behaviour (focus, audio, device pixel ratios, Safari).
 - UI text is in English. Nicknames in any script, Hebrew included, display correctly.
 - In dev, Vite forwards `/api` and `/ws` to the gateway, so the browser sees one origin.
 
