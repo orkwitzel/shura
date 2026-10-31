@@ -19,12 +19,14 @@ export const HEARTBEAT_MS = 2000;
 
 export interface GameServiceOptions {
   readonly clock: ServerClock;
-  /** The shared state: the registry and the pod's heartbeat. */
-  readonly stores: Pick<Stores, 'registry' | 'podHealth'>;
+  /** The shared state: the registry, the pod's heartbeat and the match logs. */
+  readonly stores: Pick<Stores, 'registry' | 'podHealth' | 'matchLog'>;
   readonly podId: string;
   /** The `host:port` gateways reach this pod's internal WebSocket at (design §9.2). */
   readonly address: string;
   readonly logger: Logger;
+  /** The seed of each new match: a random one by default. Tests fix it to script a match. */
+  readonly newSeed?: () => number;
 }
 
 /** The game service (design §9.1): rooms in memory, reached by gateways over internal links. */
@@ -141,7 +143,7 @@ class Service implements GameService {
     const room = this.#rooms.get(message.roomCode);
     switch (message.type) {
       case 'createRoom':
-        if (!room) this.#create(message.roomCode, message.epoch, message.mode, message.hostId);
+        if (!room) this.#create(message);
         return;
       case 'attach':
         if (!room) {
@@ -161,16 +163,19 @@ class Service implements GameService {
     }
   }
 
-  #create(code: string, epoch: number, mode: Room['mode'], hostId: string | undefined): void {
+  #create(message: GatewayToGame & { type: 'createRoom' }): void {
+    const { roomCode: code, epoch, mode, hostId, maxSpectators } = message;
     const { clock, logger, stores } = this.#options;
     const room: Room = new Room({
       code,
       epoch,
       mode,
       ...(hostId !== undefined && { hostId }),
+      ...(maxSpectators !== undefined && { maxSpectators }),
       clock,
       logger: logger.child({ roomCode: code }),
-      newMatch: () => ({ matchId: randomUUID(), seed: freshSeed() }),
+      matchLog: stores.matchLog,
+      newMatch: () => ({ matchId: randomUUID(), seed: (this.#options.newSeed ?? freshSeed)() }),
       changed: (update) => {
         stores.registry.update(code, update).catch((error: unknown) => {
           logger.error({ err: error, roomCode: code }, 'registry update failed');

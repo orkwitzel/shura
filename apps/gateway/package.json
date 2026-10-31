@@ -4,7 +4,7 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "LIMITS_EXEMPT_IPS=127.0.0.1,::1 tsx watch src/main.ts",
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --external:bufferutil --banner:js='import { createRequire } from \"node:module\"; const require = createRequire(import.meta.url);' --outfile=dist/main.js",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc",
