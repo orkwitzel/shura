@@ -381,9 +381,11 @@ Every room assignment carries an **epoch** number, incremented whenever the room
 
 - The queue is a Valkey list shared by all gateways, oldest entry first.
 - On `quickMatch`, the gateway atomically pops a waiting partner with a Lua script. If none is waiting, it enqueues the player. The same script refuses a session that is already queued or still cooling down.
-- When a pair forms, the pairing gateway creates the room (§9.2), and a Valkey pub/sub message tells the waiting player's gateway to attach them.
-- Quick-match rooms have no host and start automatically. 1v1 only. They skip the lobby: after results both players get *Rematch*, which starts the next match once both have pressed it, or *Leave*. If one leaves, the other gets `opponentLeft` and goes back to the quick-match waiting screen, from where they can queue again.
-- Each session can have one queue entry. Leaving the queue starts a short requeue cooldown (3 s); being paired doesn't.
+- The gateway picks the room's pod (§9.2) before it touches the queue, so a partner is never popped with nowhere to play; with no pod it answers `unavailable`.
+- When a pair forms, the pairing gateway creates the room (§9.2) and attaches its own player, and a Valkey pub/sub message tells the waiting player's gateway to attach them. That message goes through pub/sub even when both players are on the same gateway. The waiting player's gateway sends `createRoom` again before its `attach`, which the pod ignores for a room it has, so the two gateways' links can arrive in either order.
+- Quick-match rooms have no host and start automatically, as soon as both seats are taken. 1v1 only. They skip the lobby (`ready` and `startMatch` get `wrong_phase`): after results both players get *Rematch* (`rematch`), which starts the next match once both have pressed it, or *Leave*. If one leaves, the other gets `opponentLeft` and goes back to the quick-match waiting screen, from where they can queue again. A player who leaves mid-match loses it (§10.1), and the other gets `matchEnd` first, then `opponentLeft`. Everyone left in the room, spectators included, is taken out of it with that `opponentLeft`, and anyone who arrives after gets it at once.
+- If the second player never arrives (their gateway went away between the pop and the notice), the room breaks up the same way after `QUICK_MATCH_ARRIVAL_MS` (10 s).
+- Each session can have one queue entry: a second `quickMatch` answers `quickMatchQueued` again and changes nothing. Leaving the queue (`cancelQuickMatch`, closing the connection, or entering a room another way) starts a short requeue cooldown (3 s); being paired doesn't. A `quickMatch` during the cooldown gets `rate_limited`, and one from inside a room gets `wrong_phase`.
 
 ### 9.5 Valkey usage
 
