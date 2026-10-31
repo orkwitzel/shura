@@ -6,6 +6,7 @@ import { BoardCanvas } from '@/features/board/components/board-canvas';
 import { Callouts } from '@/features/callouts/components/callouts';
 import { Hud } from '@/features/hud/components/hud';
 import { FinalHeadline } from '@/features/results/components/final-headline';
+import { useSound } from '@/features/sound/hooks/use-sound';
 import { useSoloSession } from '@/hooks/use-solo-session';
 import styles from './solo-page.module.css';
 
@@ -14,10 +15,11 @@ const isSoloMode = (mode: string | undefined): mode is SoloMode =>
 
 /**
  * One mode's games: the board, with the HUD and the callouts beside it and the end of the game over
- * it.
+ * it, and their sound.
  */
 function SoloGame({ mode }: { mode: SoloMode }) {
   const { session } = useSoloSession(mode);
+  useSound(session);
   return (
     <main>
       <h1 className={styles.title}>{MODE_NAMES[mode]}</h1>
