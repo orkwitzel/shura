@@ -110,6 +110,11 @@ export interface OnlineSessionOptions {
  * the match's own game, played with the same input engine as single-player.
  */
 export interface OnlineSession extends Store<OnlineSessionState> {
+  /**
+   * The session token the server issued (once welcomed), which the session reconnects with: the
+   * web keeps it in `sessionStorage` for a reload (design §10.2).
+   */
+  readonly sessionToken: string | null;
   /** Creates a room of `mode` and enters it as its host. Sent once connected. */
   createRoom(mode: RoomMode): void;
   /** Joins the room with `code` (as typed). Sent once connected. */

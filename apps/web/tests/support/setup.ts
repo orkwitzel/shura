@@ -24,6 +24,7 @@ if (typeof window !== 'undefined') {
   afterEach(() => {
     cleanup();
     localStorage.clear();
+    sessionStorage.clear();
     document.documentElement.removeAttribute('style');
     resetMatchMedia();
     resetFakePixi();

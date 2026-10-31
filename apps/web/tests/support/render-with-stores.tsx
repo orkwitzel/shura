@@ -10,6 +10,8 @@ import type { ReactElement } from 'react';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { DEFAULT_BINDINGS } from '@/config/default-bindings';
+import { OpenOnlineSessionContext } from '@/hooks/use-online-session';
+import type { OpenOnlineSession } from '@/lib/open-online-session';
 import { type MemoryStorage, memoryStorage } from './memory-storage';
 
 export interface RenderWithStoresOptions {
@@ -17,6 +19,8 @@ export interface RenderWithStoresOptions {
   readonly stored?: Partial<Record<StoredKind, unknown>>;
   /** The route to start on: `/` by default. */
   readonly path?: string;
+  /** Opens the online sessions, in place of the browser's: `fakeOnline().open`. */
+  readonly online?: OpenOnlineSession;
 }
 
 export interface RenderWithStoresResult extends RenderResult {
@@ -35,11 +39,11 @@ export interface RenderWithStoresResult extends RenderResult {
 /**
  * Renders `ui` as the app does: inside a `<ClientCoreProvider>` with fresh settings and records
  * stores over storage in memory (with the web's default bindings), and a wouter router over an
- * in-memory location.
+ * in-memory location. With `online`, online play opens its sessions with that.
  */
 export function renderWithStores(
   ui: ReactElement,
-  { stored = {}, path = '/' }: RenderWithStoresOptions = {},
+  { stored = {}, path = '/', online }: RenderWithStoresOptions = {},
 ): RenderWithStoresResult {
   const storage = memoryStorage(stored);
   const stores: AppStores = {
@@ -49,7 +53,9 @@ export function renderWithStores(
   const memory = memoryLocation({ path, record: true });
   const result = render(
     <ClientCoreProvider {...stores}>
-      <Router hook={memory.hook}>{ui}</Router>
+      <Router hook={memory.hook}>
+        {online ? <OpenOnlineSessionContext value={online}>{ui}</OpenOnlineSessionContext> : ui}
+      </Router>
     </ClientCoreProvider>,
   );
   return {
