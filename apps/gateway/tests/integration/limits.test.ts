@@ -210,6 +210,21 @@ describe('per session and per room (design §11)', () => {
     expect(bo.errors()).toEqual(['wrong_phase']);
   });
 
+  test('a session that left the quick-match queue waits out the cooldown, with rate_limited', async () => {
+    const { time, connected } = await world({ quickMatchCooldownMs: 500 });
+    const ada = await connected();
+    ada.send({ type: 'quickMatch' });
+    ada.send({ type: 'cancelQuickMatch' });
+    ada.send({ type: 'quickMatch' });
+    await time.settle();
+    expect(ada.errors()).toEqual(['rate_limited']);
+    await time.advance(500);
+    ada.send({ type: 'quickMatch' });
+    await time.settle();
+    expect(ada.errors()).toEqual(['rate_limited']);
+    expect(ada.received.at(-1)).toMatchObject({ type: 'quickMatchQueued' });
+  });
+
   test('MAX_SPECTATORS caps a room’s spectators, with room_full', async () => {
     const { time, connected, createRoom } = await world({ maxSpectators: 1 });
     const code = await createRoom(await connected(IP, 'Ada'));

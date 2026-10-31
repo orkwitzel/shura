@@ -28,7 +28,12 @@ export interface OnlineWorldOptions {
 export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<OnlineWorld> {
   // A whole number of 50 ms steps from 0, so each step of 50 ms is exactly 3 frames.
   const time = fakeTime(1_800_000_000_000);
-  const stores = createMemoryStores({ now: time.now });
+  const cooldown = options.limits?.quickMatchCooldownMs;
+  // The quick-match cooldown is the queue's, as in the gateway's main.ts.
+  const stores = createMemoryStores({
+    now: time.now,
+    ...(cooldown !== undefined && { requeueCooldownMs: cooldown }),
+  });
   const logger = pino({ level: 'silent' });
   const game = createGameService({
     clock: time,
