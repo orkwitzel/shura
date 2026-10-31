@@ -20,8 +20,10 @@ export function valkeyKeys(prefix = '') {
     podPattern: `${prefix}pod:*`,
     /** Stream: a match's log. Deleted at match end. */
     matchLog: (matchId: string) => `${prefix}log:${matchId}`,
-    /** Hash or counter: one rate-limit bucket or connection count. */
-    rateLimit: (key: string) => `${prefix}rl:${key}`,
+    /** Hash: one rate-limit token bucket. Expires once it would be full again. */
+    rateBucket: (key: string) => `${prefix}rl:bucket:${key}`,
+    /** Counter: one connection count. Expires unless counted again. */
+    rateCount: (key: string) => `${prefix}rl:count:${key}`,
     /** Pattern matching every key under the prefix. */
     all: `${prefix}*`,
   };

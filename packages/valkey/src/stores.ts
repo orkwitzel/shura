@@ -5,14 +5,17 @@ import type { MatchQueue } from './match-queue';
 import { createMemoryMatchLog } from './memory/match-log';
 import { createMemoryMatchQueue } from './memory/match-queue';
 import { createMemoryPodHealth } from './memory/pod-health';
+import { createMemoryRateLimiter } from './memory/rate-limiter';
 import { createMemoryRegistry } from './memory/registry';
 import { createMemorySessionStore } from './memory/session-store';
 import type { PodHealth } from './pod-health';
+import type { RateLimiter } from './rate-limiter';
 import type { Registry } from './registry';
 import type { SessionStore } from './session-store';
 import { createValkeyMatchLog } from './valkey/match-log';
 import { createValkeyMatchQueue } from './valkey/match-queue';
 import { createValkeyPodHealth } from './valkey/pod-health';
+import { createValkeyRateLimiter } from './valkey/rate-limiter';
 import { createValkeyRegistry } from './valkey/registry';
 import { createValkeySessionStore } from './valkey/session-store';
 
@@ -47,6 +50,7 @@ export interface Stores {
   readonly sessions: SessionStore;
   readonly podHealth: PodHealth;
   readonly matchLog: MatchLog;
+  readonly rateLimiter: RateLimiter;
   /** Closes the connections. The memory version has none. */
   close(): Promise<void>;
 }
@@ -60,6 +64,7 @@ export function createMemoryStores(options: StoreOptions = {}): Stores {
     sessions: createMemorySessionStore(now, sessionTtlMs),
     podHealth: createMemoryPodHealth(now, podTtlMs),
     matchLog: createMemoryMatchLog(),
+    rateLimiter: createMemoryRateLimiter(now),
     async close() {},
   };
 }
@@ -68,7 +73,7 @@ export function createMemoryStores(options: StoreOptions = {}): Stores {
 export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}): Stores {
   const client = new Valkey(url, { enableAutoPipelining: true });
   const keys = valkeyKeys(options.prefix);
-  const { sessionTtlMs, podTtlMs, requeueCooldownMs } = { ...DEFAULTS, ...options };
+  const { now, sessionTtlMs, podTtlMs, requeueCooldownMs } = { ...DEFAULTS, ...options };
   const matchQueue = createValkeyMatchQueue(client, keys, requeueCooldownMs);
   let closed = false;
   return {
@@ -77,6 +82,7 @@ export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}
     sessions: createValkeySessionStore(client, keys, sessionTtlMs),
     podHealth: createValkeyPodHealth(client, keys, podTtlMs),
     matchLog: createValkeyMatchLog(client, keys),
+    rateLimiter: createValkeyRateLimiter(client, keys, now),
     async close() {
       if (closed) return;
       closed = true;
