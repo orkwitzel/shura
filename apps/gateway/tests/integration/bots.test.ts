@@ -80,3 +80,64 @@ test('three bots and a scripted client play an FFA room to matchEnd, all verifie
   }
   for (const bot of bots) bot.stop();
 }, 120_000);
+
+test('a quick-match bot pairs with a scripted client, plays to matchEnd, rematches and requeues', async () => {
+  const world = await onlineWorld();
+  const { time } = world;
+  const session = world.client('Ada');
+  const bot = startBot({
+    session,
+    clock: time,
+    profile: BOT_PROFILES.casual,
+    seed: 7,
+    target: { quickMatch: true },
+  });
+  await time.settle();
+  // The bot queues on its own.
+  expect(session.getState().quickMatch).toBe('queued');
+
+  const human = world.client('Bo');
+  human.quickMatch();
+  await time.settle();
+  const code = human.getState().room?.code;
+  expect(session.getState().room?.code).toBe(code);
+  expect(session.getState().room?.hostId).toBeUndefined();
+
+  // The human hard-drops every half second and tops out; the bot plays on.
+  for (let step = 0; !human.getState().match?.result && step < 2000; step++) {
+    if (human.getState().match?.phase === 'playing' && step % 10 === 0) {
+      human.act(ActionType.HardDrop, time.now());
+    }
+    await time.advance(STEP_MS);
+  }
+  const result = human.getState().match?.result;
+  expect(result?.placements.map(({ playerId }) => playerId)).toEqual([
+    session.getState().sessionId,
+    human.getState().sessionId,
+  ]);
+  expect(session.getState().match?.result).toEqual(result);
+  expect(ownGame(session).engine.piecesPlaced).toBeGreaterThan(3);
+  const verified = world.game.verifiedGames(code ?? '');
+  const server = verified.find(({ playerId }) => playerId === session.getState().sessionId);
+  expect(server?.frame).toBe(ownGame(session).engine.frame);
+  expect(server?.hash).toBe(ownHash(session));
+
+  // The bot has asked to rematch: the human's ask starts the next match, and the bot plays it.
+  const first = human.getState().match?.matchId;
+  human.rematch();
+  await time.settle();
+  expect(session.getState().match?.matchId).not.toBe(first);
+  for (let step = 0; session.getState().match?.phase !== 'playing' && step < 200; step++) {
+    await time.advance(STEP_MS);
+  }
+  // About a piece a second: 10 s is plenty for a few.
+  for (let step = 0; step < 10_000 / STEP_MS; step++) await time.advance(STEP_MS);
+  expect(ownGame(session).engine.piecesPlaced).toBeGreaterThan(3);
+
+  // Its opponent leaves: it queues again.
+  human.leaveRoom();
+  await time.settle();
+  expect(session.getState().room).toBeNull();
+  expect(session.getState().quickMatch).toBe('queued');
+  bot.stop();
+}, 120_000);
