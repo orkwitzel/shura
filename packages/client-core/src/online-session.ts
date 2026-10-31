@@ -101,6 +101,11 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   /** Joins the room with `code` (as typed). Sent once connected. */
   joinRoom(code: string): void;
   leaveRoom(): void;
+  /**
+   * Leaves the match you're playing but not the room (the online menu's *Leave match*): you're out
+   * with `left`, and watch the rest (design §10.1).
+   */
+  leaveMatch(): void;
   setReady(ready: boolean): void;
   /** The host's Start (design §10.1). */
   startMatch(): void;
@@ -198,6 +203,8 @@ class Session implements OnlineSession {
     this.#endMatch();
     this.#set({ room: null, match: null });
   };
+
+  leaveMatch = (): void => this.#send({ type: 'leaveMatch' });
 
   key = (event: KeyEvent): void => this.#match?.key(event);
   act = (type: PieceActionType, time: number): void => this.#match?.act(type, time);

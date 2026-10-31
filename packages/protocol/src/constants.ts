@@ -7,13 +7,16 @@ import type { RoomMode } from './messages';
 /** How many frames ahead of the expected frame a batch may run (design §8.4): 6, 100 ms. */
 export const CLOCK_LEAD_TOLERANCE = 6;
 
-/** How many frames behind the expected frame a batch may run (design §8.4): 1 s. */
+/**
+ * How many frames behind the expected frame a batch may run before the player is in danger
+ * (design §8.4): 1 s.
+ */
 export const CLOCK_BEHIND_WINDOW = 60;
 
 /**
- * How long a player may stay further behind than `CLOCK_BEHIND_WINDOW` before they're lagged out
- * (design §8.4). It's also the window a player who disconnects mid-match has to come back in and
- * carry on (§10.2).
+ * How far behind the expected frame a player may fall before they're lagged out (design §8.4).
+ * It's also the window a player who disconnects mid-match has to come back in and carry on
+ * (§10.2).
  */
 export const LAG_OUT_MS = 3000;
 
