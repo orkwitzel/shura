@@ -75,6 +75,16 @@ describe('auto-detection', () => {
     expect(status(auto.input).name).toBe('basic');
   });
 
+  it('picks basic at a quick second tap of an arrow with no release between', async () => {
+    const auto = adapter('auto');
+    expect(await auto.feed([0, LEFT], [80, LEFT])).toEqual([
+      key(MoveLeft, 'press', 0),
+      key(MoveLeft, 'release', 80),
+      key(MoveLeft, 'press', 80),
+    ]);
+    expect(status(auto.input).name).toBe('basic');
+  });
+
   it('picks basic, and infers the release, when an arrow tap has had no release for a second', async () => {
     const auto = adapter('auto');
     await auto.feed([0, LEFT]);

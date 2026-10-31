@@ -1,7 +1,13 @@
-import { createBasicAdapter, FIRST_REPEAT_WAIT } from './basic';
+import { createBasicAdapter } from './basic';
 import type { Bindings } from './bindings';
 import { createPreciseAdapter } from './precise';
-import type { InputAdapter, InputSignal, RawKey, TerminalInput } from './terminal-input';
+import {
+  type InputAdapter,
+  type InputSignal,
+  keyName,
+  type RawKey,
+  type TerminalInput,
+} from './terminal-input';
 
 /** The adapter `--input` asks for, or `auto` to choose from the first key events (design §7.3). */
 export type InputChoice = 'auto' | 'precise' | 'basic';
@@ -42,8 +48,9 @@ export const KITTY_PROOF_WAIT = 1_000;
 /**
  * Chooses the adapter from the first key events (design §7.3): precise at the first key that only
  * the Kitty protocol sends, basic at the first legacy one (a key that types text sent as its plain
- * byte, or an arrow sent again while held, which is OS key repeat), or a second after an arrow with
- * no Kitty release or repeat, when the arrow's release is inferred too. Until then it works as the
+ * byte, or an arrow sent again with no release between, which is OS key repeat or a quick second
+ * tap), or a second after an arrow with no Kitty release or repeat, when the arrow's release is
+ * inferred too. Until then it works as the
  * basic adapter, which is safe either way: moves without DAS never slide a tapped piece to the wall.
  */
 function createAutoAdapter(bindings: Bindings): InputAdapter {
@@ -51,7 +58,7 @@ function createAutoAdapter(bindings: Bindings): InputAdapter {
   // While choosing, a key's release waits as long as the choice: a Kitty terminal's OS delay before
   // the first repeat can be longer than the usual wait (660 ms in X11), and the hold must survive it.
   const basic = createBasicAdapter(bindings, {
-    firstRepeatWait: () => (chosen ? FIRST_REPEAT_WAIT : KITTY_PROOF_WAIT),
+    minFirstRepeatWait: () => (chosen ? 0 : KITTY_PROOF_WAIT),
   });
   /** When the first key that proved nothing arrived, while still choosing. */
   let unproven: number | null = null;
@@ -87,14 +94,12 @@ function createAutoAdapter(bindings: Bindings): InputAdapter {
         chosen = createPreciseAdapter(bindings);
         return [...due, ...chosen.feed(raw)];
       }
-      if (protocol === 'legacy') chosen = basic;
-      const signals = basic.feed(raw);
-      const repeated = signals.some(
-        (signal) => signal.kind === 'key' && signal.event.kind === 'repeat',
-      );
-      if (repeated) chosen = basic;
-      else if (chosen === null) unproven ??= raw.time;
-      return signals;
+      const due = basic.poll(raw.time);
+      // The Kitty protocol sends a release between two presses of a key: none is a legacy terminal.
+      const name = keyName(raw);
+      if (protocol === 'legacy' || (name !== null && basic.holds(name))) chosen = basic;
+      else unproven ??= raw.time;
+      return [...due, ...basic.feed(raw)];
     },
   };
 }

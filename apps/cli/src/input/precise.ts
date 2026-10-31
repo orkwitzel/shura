@@ -1,33 +1,21 @@
-import { actionsByKey, type Bindings, MENU_KEYS } from './bindings';
-import { type InputAdapter, type InputSignal, keyName, type TerminalInput } from './terminal-input';
+import { type Bindings, boundSignals } from './bindings';
+import { type InputAdapter, keyName } from './terminal-input';
 
 /**
- * The key event or menu signal a terminal key makes with the Kitty keyboard protocol, which reports
- * real press, repeat and release events (design §7.3). A key without an event type is a press: the
- * protocol leaves the field out of an unmodified press, as with an arrow's `CSI D`.
+ * The precise adapter for `bindings` (design §7.3): the Kitty keyboard protocol reports real press,
+ * repeat and release events. A key without an event type is a press: the protocol leaves the field
+ * out of an unmodified press, as with an arrow's `CSI D`. Every release is a real one, so it never
+ * needs polling.
  */
-export function preciseInput(
-  raw: TerminalInput,
-  byKey: ReturnType<typeof actionsByKey>,
-): InputSignal | null {
-  const name = keyName(raw);
-  if (name === null) return null;
-  const kind = raw.key.eventType ?? 'press';
-  const action = byKey.get(name);
-  if (action) return { kind: 'key', event: { action, kind, time: raw.time } };
-  if (MENU_KEYS.includes(name) && kind === 'press') return { kind: 'menu' };
-  return null;
-}
-
-/** The precise adapter for `bindings`. Every release is a real one, so it never needs polling. */
 export function createPreciseAdapter(bindings: Bindings): InputAdapter {
-  const byKey = actionsByKey(bindings);
+  const signal = boundSignals(bindings);
   return {
     name: 'precise',
     autoShift: 'handling',
     feed: (raw) => {
-      const signal = preciseInput(raw, byKey);
-      return signal ? [signal] : [];
+      const name = keyName(raw);
+      const made = name === null ? null : signal(name, raw.key.eventType ?? 'press', raw.time);
+      return made ? [made] : [];
     },
     poll: () => [],
     deadline: null,
