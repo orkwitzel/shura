@@ -17,6 +17,7 @@ import type { ServerClock } from './clock';
 import type { Logger } from './logger';
 import type { DialGame, Peer } from './peer';
 import { placeRoom, randomRoomCode } from './placement';
+import { QuickMatching } from './quick-match';
 import { RoomLinks, type RoomMember } from './room-links';
 
 /** How many random codes a new room tries before giving up. 920k codes make a clash rare. */
@@ -24,7 +25,7 @@ const CODE_TRIES = 10;
 
 export interface GatewayOptions {
   readonly clock: ServerClock;
-  readonly stores: Pick<Stores, 'registry' | 'sessions' | 'podHealth'>;
+  readonly stores: Pick<Stores, 'registry' | 'sessions' | 'podHealth' | 'matchQueue'>;
   /** Opens the internal link to a game pod. */
   readonly dial: DialGame;
   readonly logger: Logger;
@@ -61,7 +62,6 @@ interface Session {
  *
  * Seams for later tickets:
  * - #64: `hello` with a `sessionToken` restores the session (and its room) instead of a new one;
- * - #65: `quickMatch` and `cancelQuickMatch`, and cancelling the queue entry on close;
  * - #66: the message-rate bucket and the invalid-message count in `#receive`, and the room limits
  *   in `#createRoom` and `#joinRoom`.
  */
@@ -74,12 +74,24 @@ class Connection implements RoomMember {
   #roomCode: string | null = null;
   #queue: Promise<void> = Promise.resolve();
   #closed = false;
+  readonly #quickMatching: QuickMatching;
 
   constructor(socket: Peer, ip: string, options: GatewayOptions, links: RoomLinks) {
     this.#socket = socket;
     this.#options = options;
     this.#links = links;
     this.#logger = options.logger.child({ ip });
+    this.#quickMatching = new QuickMatching(options.stores, this.#logger, {
+      sessionId: () => this.sessionId,
+      busy: () => this.#closed || this.#roomCode !== null,
+      send: (message) => this.#send(message),
+      inTurn: (task) => {
+        this.#queue = this.#queue.then(task).catch(this.#failed);
+      },
+      enter: async (code, room, create) => {
+        if (this.#session) await this.#enter(this.#session, code, room, create);
+      },
+    });
     socket.listen({
       message: (text) => {
         this.#queue = this.#queue.then(() => this.#receive(text)).catch(this.#failed);
@@ -96,6 +108,10 @@ class Connection implements RoomMember {
 
   deliver(message: ServerMessage): void {
     this.#send(message);
+    // The quick-match room broke up: the game pod already took this session out of it.
+    if (message.type === 'opponentLeft') {
+      this.#queue = this.#queue.then(() => this.#leftRoom()).catch(this.#failed);
+    }
   }
 
   lost(roomCode: string): void {
@@ -123,8 +139,9 @@ class Connection implements RoomMember {
       case 'joinRoom':
         return this.#joinRoom(session, message.code);
       case 'quickMatch':
+        return this.#quickMatching.request();
       case 'cancelQuickMatch':
-        return this.#send(error('wrong_phase', "Quick match isn't available yet."));
+        return this.#quickMatching.cancel();
       default:
         return this.#forward(session, message);
     }
@@ -213,6 +230,8 @@ class Connection implements RoomMember {
     room: { podAddress: string; epoch: number },
     create?: Parameters<RoomLinks['enter']>[4],
   ): Promise<void> {
+    // Into a room by any way, the session stops waiting for a quick match.
+    await this.#quickMatching.leave();
     this.#roomCode = code;
     this.#links.enter(code, room, this, { nickname: session.nickname, kind: session.kind }, create);
     await this.#options.stores.sessions.update(session.token, { roomCode: code });
@@ -235,6 +254,16 @@ class Connection implements RoomMember {
     await this.#options.stores.sessions.update(session.token, { roomCode: null });
   }
 
+  /** Out of the quick-match room the pod broke up: off its link, and out of the session. */
+  async #leftRoom(): Promise<void> {
+    const code = this.#roomCode;
+    const session = this.#session;
+    if (!code || !session) return;
+    this.#roomCode = null;
+    this.#links.exit(code, session.id, { detach: false });
+    await this.#options.stores.sessions.update(session.token, { roomCode: null });
+  }
+
   async #close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
@@ -242,6 +271,7 @@ class Connection implements RoomMember {
     if (session && this.#roomCode) {
       this.#links.exit(this.#roomCode, session.id, { detach: true });
     }
+    await this.#quickMatching.leave();
     this.#logger.info({ sessionId: session?.id }, 'connection closed');
   }
 

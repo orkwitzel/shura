@@ -44,6 +44,13 @@ export type OnlineConnection =
   | { readonly status: 'failed'; readonly reason: ConnectionFailure; readonly message: string }
   | { readonly status: 'closed' };
 
+/**
+ * Where quick-match is (design §9.4): not asked for, waiting in the queue for a partner, or back
+ * at the waiting screen because the quick-match opponent left. Once paired you're in the room,
+ * which has no host.
+ */
+export type QuickMatchStatus = 'idle' | 'queued' | 'opponentLeft';
+
 /** A room as the server last described it (`roomState`). */
 export type OnlineRoom = Pick<
   ServerMessageOf<'roomState'>,
@@ -62,6 +69,8 @@ export interface OnlineSessionState {
   readonly room: OnlineRoom | null;
   /** The current match, or the last one until the next starts or you leave the room. */
   readonly match: OnlineMatchState | null;
+  /** Quick-match, outside a room. */
+  readonly quickMatch: QuickMatchStatus;
   /** The latest `error` the server sent that didn't end the connection. */
   readonly error: { readonly code: ErrorCode; readonly message: string } | null;
 }
@@ -100,6 +109,12 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   setReady(ready: boolean): void;
   /** The host's Start (design §10.1). */
   startMatch(): void;
+  /** Asks for a 1v1 against the next player who asks (design §9.4). Sent once connected. */
+  quickMatch(): void;
+  /** Leaves the quick-match queue. */
+  cancelQuickMatch(): void;
+  /** In a quick-match room after results: the next match starts once both ask (design §9.4). */
+  rematch(): void;
   /** A key event from the UI's adapter, for your game in the current match. */
   key(event: KeyEvent): void;
   /** An action that arrived at `time`, for your game in the current match. */
@@ -124,6 +139,7 @@ const INITIAL: OnlineSessionState = {
   ping: null,
   room: null,
   match: null,
+  quickMatch: 'idle',
   error: null,
 };
 
@@ -131,7 +147,6 @@ const INITIAL: OnlineSessionState = {
  * Seams for later tickets:
  * - #64: reconnecting with backoff on `lost`, `hello` with the session token, resending
  *   `match.unacknowledged`, and `snapshot`;
- * - #65: `quickMatch`, `cancelQuickMatch` and `rematch`, and their store state;
  * - #62: `garbageQueued` reaches `OnlineMatch.receiveGarbage`.
  */
 class Session implements OnlineSession {
@@ -179,6 +194,9 @@ class Session implements OnlineSession {
   joinRoom = (code: string): void => this.#send({ type: 'joinRoom', code });
   setReady = (ready: boolean): void => this.#send({ type: 'ready', ready });
   startMatch = (): void => this.#send({ type: 'startMatch' });
+  quickMatch = (): void => this.#send({ type: 'quickMatch' });
+  cancelQuickMatch = (): void => this.#send({ type: 'cancelQuickMatch' });
+  rematch = (): void => this.#send({ type: 'rematch' });
 
   leaveRoom = (): void => {
     this.#send({ type: 'leaveRoom' });
@@ -263,9 +281,19 @@ class Session implements OnlineSession {
         return;
       case 'roomState': {
         const { type: _, ...room } = message;
-        this.#set({ room });
+        this.#set({ room, quickMatch: 'idle' });
         return;
       }
+      case 'quickMatchQueued':
+        this.#set({ quickMatch: 'queued' });
+        return;
+      case 'quickMatchCancelled':
+        this.#set({ quickMatch: 'idle' });
+        return;
+      case 'opponentLeft':
+        // The last match stays, for its results, until the next one starts.
+        this.#set({ room: null, quickMatch: 'opponentLeft' });
+        return;
       case 'countdown':
         this.#countdown(message);
         return;
@@ -285,7 +313,7 @@ class Session implements OnlineSession {
         this.#match?.end(message);
         return;
       default:
-        // quickMatchQueued, quickMatchCancelled, opponentLeft (#65) and snapshot (#64).
+        // snapshot (#64).
         return;
     }
   }
