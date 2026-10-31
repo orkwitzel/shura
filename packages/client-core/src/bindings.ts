@@ -32,19 +32,12 @@ export function rebind(
   ) as Record<PieceActionType, string[]>;
   const own = next[action];
   const replaced = own[slot];
-  if (replaced === undefined) {
-    for (const keys of Object.values(next)) {
-      const at = keys.indexOf(key);
-      if (at !== -1) keys.splice(at, 1);
-    }
-    own.push(key);
-  } else {
-    for (const keys of Object.values(next)) {
-      const at = keys.indexOf(key);
-      if (at !== -1) keys[at] = replaced;
-    }
-    own[slot] = key;
+  for (const keys of Object.values(next)) {
+    const at = keys.indexOf(key);
+    if (at !== -1) keys.splice(at, 1, ...(replaced === undefined ? [] : [replaced]));
   }
+  if (replaced === undefined) own.push(key);
+  else own[slot] = key;
   return next;
 }
 

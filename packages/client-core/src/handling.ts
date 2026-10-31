@@ -63,20 +63,14 @@ export function stepHandling(
   direction: Direction,
 ): HandlingSettings {
   if (field === 'softDropFactor') {
-    const current = handling.softDropFactor;
+    const rank = (factor: number | 'instant') => (factor === 'instant' ? Infinity : factor);
+    const current = rank(handling.softDropFactor);
     // A hand-edited factor between steps goes to the next step its way.
-    let step: number | 'instant' | undefined;
-    if (direction > 0) {
-      step =
-        current === 'instant'
-          ? current
-          : SOFT_DROP_STEPS.find((s) => s === 'instant' || s > current);
-    } else {
-      step = SOFT_DROP_STEPS.findLast(
-        (s) => s !== 'instant' && (current === 'instant' || s < current),
-      );
-    }
-    return { ...handling, softDropFactor: step ?? current };
+    const step =
+      direction > 0
+        ? SOFT_DROP_STEPS.find((s) => rank(s) > current)
+        : SOFT_DROP_STEPS.findLast((s) => rank(s) < current);
+    return { ...handling, softDropFactor: step ?? handling.softDropFactor };
   }
   const { min, max } = HANDLING_RANGES[field];
   const frames = wholeFrames(handling[field]) + direction;
