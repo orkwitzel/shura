@@ -1,11 +1,14 @@
 import Valkey from 'iovalkey';
 import { valkeyKeys } from './keys';
+import type { MatchLog } from './match-log';
+import { createMemoryMatchLog } from './memory/match-log';
 import { createMemoryPodHealth } from './memory/pod-health';
 import { createMemoryRegistry } from './memory/registry';
 import { createMemorySessionStore } from './memory/session-store';
 import type { PodHealth } from './pod-health';
 import type { Registry } from './registry';
 import type { SessionStore } from './session-store';
+import { createValkeyMatchLog } from './valkey/match-log';
 import { createValkeyPodHealth } from './valkey/pod-health';
 import { createValkeyRegistry } from './valkey/registry';
 import { createValkeySessionStore } from './valkey/session-store';
@@ -39,6 +42,7 @@ export interface Stores {
   readonly registry: Registry;
   readonly sessions: SessionStore;
   readonly podHealth: PodHealth;
+  readonly matchLog: MatchLog;
   /** Closes the connections. The memory version has none. */
   close(): Promise<void>;
 }
@@ -50,6 +54,7 @@ export function createMemoryStores(options: StoreOptions = {}): Stores {
     registry: createMemoryRegistry(),
     sessions: createMemorySessionStore(now, sessionTtlMs),
     podHealth: createMemoryPodHealth(now, podTtlMs),
+    matchLog: createMemoryMatchLog(),
     async close() {},
   };
 }
@@ -64,6 +69,7 @@ export function createValkeyStores(url: string, options: ValkeyStoreOptions = {}
     registry: createValkeyRegistry(client, keys),
     sessions: createValkeySessionStore(client, keys, sessionTtlMs),
     podHealth: createValkeyPodHealth(client, keys, podTtlMs),
+    matchLog: createValkeyMatchLog(client, keys),
     async close() {
       if (closed) return;
       closed = true;
