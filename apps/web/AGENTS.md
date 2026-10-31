@@ -14,8 +14,8 @@ src/
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
 │                  backdrop, the "needs a keyboard" screen
 ├── hooks/         shared hooks: use-solo-session, use-theme, use-reduced-motion
-├── lib/           browser APIs and libraries set up for Shura: keyboard/, pixi/, raf-clock,
-│                  local-storage
+├── lib/           browser APIs and libraries set up for Shura: keyboard/, pixi/, audio/,
+│                  raf-clock, local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
 ├── config/        fixed values: default-bindings, routes
 ├── utils/         small pure helpers, created when one is needed

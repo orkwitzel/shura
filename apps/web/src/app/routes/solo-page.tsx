@@ -10,6 +10,7 @@ import { GameMenu } from '@/features/game-menu/components/game-menu';
 import { Hud } from '@/features/hud/components/hud';
 import { Results } from '@/features/results/components/results';
 import { SettingsForm } from '@/features/settings/components/settings-form';
+import { useSound } from '@/features/sound/hooks/use-sound';
 import { useSoloSession } from '@/hooks/use-solo-session';
 import styles from './solo-page.module.css';
 
@@ -18,13 +19,14 @@ const isSoloMode = (mode: string | undefined): mode is SoloMode =>
 
 /**
  * One mode's games: the board, with the HUD and the callouts beside it and the countdown over it,
- * the in-game menu (with the settings) while paused, and the results once a game ends. The game
- * starts once the board is on screen, and no key reaches it while the settings are open.
+ * the in-game menu (with the settings) while paused, the results once a game ends, and its sound.
+ * The game starts once the board is on screen, and no key reaches it while the settings are open.
  */
 function SoloGame({ mode }: { mode: SoloMode }) {
   const [, navigate] = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { session, personalBest, start } = useSoloSession(mode, { keys: !settingsOpen });
+  useSound(session);
   const toMainMenu = () => navigate(ROUTES.mainMenu);
   const closeSettings = () => setSettingsOpen(false);
   return (
