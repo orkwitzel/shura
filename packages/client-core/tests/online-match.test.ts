@@ -2,12 +2,12 @@ import { type Action, ActionType } from '@shura/engine';
 import type { ClientMessageOf } from '@shura/protocol';
 import { expect, it } from 'vitest';
 import versus from '../../engine/recorded-matches/versus-1v1.json';
-import { createInputEngine, DEFAULT_HANDLING } from '../src/index';
+import { countdownLabel, createInputEngine, DEFAULT_HANDLING } from '../src/index';
 import { OnlineMatch } from '../src/online-match';
 import { fakeClock } from './support/fake-clock';
 
-/** A 1v1 you play as `me`, frame 0 at time 0, its batches kept in `sent`. */
-function match({ seed = 7 }: { seed?: number } = {}) {
+/** A 1v1 you play as `me`, frame 0 at time `start` (0), its batches kept in `sent`. */
+function match({ seed = 7, start = 0 }: { seed?: number; start?: number } = {}) {
   const clock = fakeClock(0);
   const sent: ClientMessageOf<'inputBatch'>[] = [];
   const online = new OnlineMatch({
@@ -15,7 +15,7 @@ function match({ seed = 7 }: { seed?: number } = {}) {
     mode: '1v1',
     countdown: {
       type: 'countdown',
-      startAt: 0,
+      startAt: start,
       seed,
       matchId: 'm',
       players: [
@@ -24,7 +24,7 @@ function match({ seed = 7 }: { seed?: number } = {}) {
       ],
     },
     playerId: 'me',
-    start: 0,
+    start,
     input: createInputEngine({ handling: DEFAULT_HANDLING }),
     send: (batch) => sent.push(batch),
     changed: () => {},
@@ -68,4 +68,21 @@ it("counts the lines each player's locks send, from their relays (the HUD's line
   // The recorded match's harness passed 44 lines of theirs on to player 0.
   const them = online.snapshot().players.find(({ playerId }) => playerId === 'them');
   expect(them?.linesSent).toBe(44);
+});
+
+it('counts its 3 s countdown a second a step, as countdownLabel reads it', () => {
+  const { online } = match();
+  expect(online.snapshot()).toMatchObject({ countdownStep: 60 });
+});
+
+it('is playing from frame 0, Go: its countdown label says GO there, not 0', () => {
+  const { clock, online } = match({ start: 50 });
+  expect(online.snapshot()).toMatchObject({ phase: 'countdown', countdown: 3 });
+  clock.advance(50);
+  const state = online.snapshot();
+  expect(state).toMatchObject({ phase: 'playing', countdown: 0 });
+  const me = state.players[0];
+  if (!me) throw new Error('no game of mine');
+  expect(countdownLabel({ ...state, engine: me.engine })).toBe('GO');
+  online.stop();
 });

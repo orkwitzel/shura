@@ -11,6 +11,7 @@ import { ReconnectingBanner } from '@/features/connection/components/reconnectin
 import { NicknameDialog } from '@/features/nickname/components/nickname-dialog';
 import { useOnlineSession } from '@/hooks/use-online-session';
 import { useRoomAddress } from '@/hooks/use-room-address';
+import { playingMatch } from '@/utils/playing-match';
 import styles from './online-routes.module.css';
 import { OnlinePage } from './routes/online-page';
 import { RoomPage } from './routes/room-page';
@@ -49,6 +50,8 @@ export function OnlineRoutes() {
 function Connected({ session, retry }: { session: OnlineSession; retry: () => void }) {
   const [, navigate] = useLocation();
   const connection = useStore(session, (state) => state.connection);
+  // A match shows "Reconnecting…" over its HUD instead.
+  const playing = useStore(session, playingMatch);
   useRoomAddress(session);
 
   if (connection.status !== 'connected' && connection.status !== 'reconnecting') {
@@ -67,7 +70,7 @@ function Connected({ session, retry }: { session: OnlineSession; retry: () => vo
   }
   return (
     <>
-      {connection.status === 'reconnecting' && <ReconnectingBanner />}
+      {connection.status === 'reconnecting' && !playing && <ReconnectingBanner />}
       <Switch>
         <Route path={ROUTES.online}>
           <OnlinePage session={session} />

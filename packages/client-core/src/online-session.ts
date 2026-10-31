@@ -60,6 +60,18 @@ export type OnlineConnection =
  */
 export type QuickMatchStatus = 'idle' | 'queued' | 'opponentLeft';
 
+/**
+ * A garbage routing (design §8.5): the server sent an attack of `lines` from `from` to `to`. Only
+ * its target's game takes it in; every client draws it (the attack streak, design §13.2).
+ */
+export type GarbageRouting = Pick<
+  ServerMessageOf<'garbageQueued'>,
+  'id' | 'from' | 'to' | 'lines' | 'holeSeed'
+>;
+
+/** Hears each garbage routing of the current match. */
+export type RoutingListener = (routing: GarbageRouting) => void;
+
 /** A room as the server last described it (`roomState`). */
 export type OnlineRoom = Pick<
   ServerMessageOf<'roomState'>,
@@ -140,6 +152,8 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   cancelQuickMatch(): void;
   /** In a quick-match room after results: the next match starts once both ask (design §9.4). */
   rematch(): void;
+  /** The time on the session's clock: what the UI stamps key events (`key`, `act`) with. */
+  now(): number;
   /** A key event from the UI's adapter, for your game in the current match. */
   key(event: KeyEvent): void;
   /** An action that arrived at `time`, for your game in the current match. */
@@ -149,6 +163,11 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   onEvents(listener: SessionEventListener): () => void;
   /** Adds a listener for the actions your game applies. Returns its removal. */
   onActions(listener: AppliedActionsListener): () => void;
+  /**
+   * Adds a listener for the current match's garbage routings, whoever they're aimed at (the attack
+   * streak, design §13.2). Returns its removal.
+   */
+  onRoutings(listener: RoutingListener): () => void;
   /** Leaves your room, then closes the connection, as the player leaves online play. */
   close(): void;
 }
@@ -193,6 +212,7 @@ class Session implements OnlineSession {
   #left: string | null = null;
   readonly #eventListeners = new Set<SessionEventListener>();
   readonly #actionListeners = new Set<AppliedActionsListener>();
+  readonly #routingListeners = new Set<RoutingListener>();
 
   constructor(options: OnlineSessionOptions) {
     this.#options = options;
@@ -234,6 +254,7 @@ class Session implements OnlineSession {
 
   leaveMatch = (): void => this.#send({ type: 'leaveMatch' });
 
+  now = (): number => this.#options.clock.now();
   key = (event: KeyEvent): void => this.#match?.key(event);
   act = (type: PieceActionType, time: number): void => this.#match?.act(type, time);
   setInput = (settings: Partial<InputSettings>): void => this.#input.configure(settings);
@@ -251,6 +272,14 @@ class Session implements OnlineSession {
     this.#actionListeners.add(call);
     return () => {
       this.#actionListeners.delete(call);
+    };
+  };
+
+  onRoutings = (listener: RoutingListener): (() => void) => {
+    const call: RoutingListener = (routing) => listener(routing);
+    this.#routingListeners.add(call);
+    return () => {
+      this.#routingListeners.delete(call);
     };
   };
 
@@ -370,9 +399,13 @@ class Session implements OnlineSession {
       case 'relay':
         this.#match?.relay(message);
         return;
-      case 'garbageQueued':
-        this.#match?.receiveGarbage(message);
+      case 'garbageQueued': {
+        if (!this.#match) return;
+        this.#match.receiveGarbage(message);
+        const { type: _, ...routing } = message;
+        for (const listener of this.#routingListeners) listener(routing);
         return;
+      }
       case 'playerOut':
         this.#match?.playerOut(message);
         return;

@@ -16,18 +16,22 @@ import {
 import {
   BATCH_FRAMES,
   type ClientMessageOf,
+  COUNTDOWN_MS,
   type OutReason,
   type RoomMode,
   type ServerMessageOf,
 } from '@shura/protocol';
 import type { Clock } from './clock';
-import { frameAt } from './frames';
+import { frameAt, msToFrames } from './frames';
 import type { InputEngine, KeyEvent } from './input-engine';
 
 /** One frame's actions, as an input batch or a relay lists them. */
 type FrameActions = ClientMessageOf<'inputBatch'>['frames'][number];
 
 const PLAY_SETTINGS = { '1v1': ONE_VS_ONE, ffa: FFA } as const;
+
+/** Frames per step of the countdown's "3", "2", "1": its 3 s in thirds (design §10.1). */
+const COUNTDOWN_STEP = msToFrames(COUNTDOWN_MS) / 3;
 
 /** The lines a step's locks sent on. */
 function linesOf(sent: readonly SentGarbage[]): number {
@@ -70,6 +74,8 @@ export interface OnlineMatchState {
   readonly phase: OnlineMatchPhase;
   /** During the countdown, the frames left before Go. Otherwise 0. */
   readonly countdown: number;
+  /** Frames per step of "3", "2", "1" (a second: the countdown is 3 s), for `countdownLabel`. */
+  readonly countdownStep: number;
   /** The frame play starts at: always 0 online, as `countdownLabel` wants it. */
   readonly goFrame: 0;
   /** Your session id, if you play in this match; `null` if you watch it. */
@@ -281,6 +287,7 @@ export class OnlineMatch {
       mode: this.#options.mode,
       phase: this.#phase,
       countdown: this.#phase === 'countdown' ? -this.#frame : 0,
+      countdownStep: COUNTDOWN_STEP,
       goFrame: 0,
       playerId: this.#me?.playerId ?? null,
       players: this.#games.map(({ playerId, index, engine, out, linesSent }) => ({
@@ -312,7 +319,7 @@ export class OnlineMatch {
    */
   #playFrame(frame: number): void {
     this.#frame = frame;
-    if (frame > 0) this.#phase = 'playing';
+    if (frame >= 0) this.#phase = 'playing';
     let keys = 0;
     while ((this.#keys[keys]?.frame ?? Number.POSITIVE_INFINITY) <= frame) keys++;
     const keyEvents = this.#keys.splice(0, keys).map(({ event }) => event);

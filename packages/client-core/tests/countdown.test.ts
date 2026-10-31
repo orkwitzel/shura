@@ -1,3 +1,4 @@
+import { createEngine, ONE_VS_ONE } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
 import { countdownLabel, createSoloSession } from '../src/index';
 import { fakeClock } from './support/fake-clock';
@@ -59,5 +60,30 @@ describe('the countdown label (design §13.1, Countdown)', () => {
     clock.run(COUNTDOWN_MS);
     expect(label()).toBe('GO');
     session.pause();
+  });
+});
+
+describe('the online countdown label (design §10.1: a 3 s countdown)', () => {
+  const engine = createEngine(ONE_VS_ONE, 7, 0).state;
+  /** An online match's label `left` frames before Go, a second a step. */
+  const at = (left: number) =>
+    countdownLabel({
+      phase: left > 0 ? 'countdown' : 'playing',
+      countdown: Math.max(left, 0),
+      countdownStep: 60,
+      goFrame: 0,
+      engine: { ...engine, frame: Math.max(-left, 0) },
+    });
+
+  it('counts 3, 2, 1 a second a step, then shows GO for the first 0.5 s of play', () => {
+    expect(at(180)).toBe('3');
+    expect(at(121)).toBe('3');
+    expect(at(120)).toBe('2');
+    expect(at(61)).toBe('2');
+    expect(at(60)).toBe('1');
+    expect(at(1)).toBe('1');
+    expect(at(0)).toBe('GO');
+    expect(at(-29)).toBe('GO');
+    expect(at(-30)).toBeNull();
   });
 });

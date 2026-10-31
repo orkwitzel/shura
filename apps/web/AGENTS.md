@@ -10,17 +10,19 @@ src/
 ├── app/           app.tsx, provider.tsx (the stores into <ClientCoreProvider>), router.tsx,
 │   │              online-routes.tsx (online play's routes over one online session)
 │   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page,
-│                  online-page, room-page
+│                  online-page, room-page (with room-match, its match screen, loaded apart)
 ├── features/      one folder per capability: board/ (with effects/), callouts/, hud/, countdown/,
 │                  game-menu/, results/, personal-bests/, settings/, sound/, connection/,
-│                  online-menu/, nickname/, lobby/
+│                  online-menu/, nickname/, lobby/, match/ (the online menu, names, out labels,
+│                  the spectating banner)
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
 │                  backdrop, the "needs a keyboard" screen, the ping chip
-├── hooks/         shared hooks: use-solo-session, use-online-session, use-room-address,
-│                  use-theme, use-reduced-motion
+├── hooks/         shared hooks: use-solo-session, use-game-keys, use-online-session,
+│                  use-room-address, use-player-names, use-theme, use-reduced-motion
 ├── lib/           browser APIs and libraries set up for Shura: keyboard/, pixi/, audio/,
-│                  raf-clock, online-clock, open-online-session (the WebSocket), session-token
-│                  (sessionStorage), clipboard, toasts (Sonner), local-storage
+│                  raf-clock, online-clock (worker-timers in a hidden tab), open-online-session
+│                  (the WebSocket), session-token (sessionStorage), clipboard, toasts (Sonner),
+│                  local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
 ├── config/        fixed values: default-bindings, routes
 ├── utils/         small pure helpers, created when one is needed
@@ -62,12 +64,12 @@ Pixi code is kept thin and isn't unit-tested (design §13.2). Logic goes in `uti
 
 ```text
 features/board/
-├── components/board-canvas.tsx
-├── utils/layout-board.ts, cell-size.ts
+├── components/board-canvas.tsx, match-canvas.tsx
+├── utils/layout-board.ts, cell-size.ts, layout-opponents.ts, meter-flash.ts
 ├── pixi/board-painter.ts
 └── effects/
-    ├── utils/effects-for-events.ts, effect-frame.ts
-    └── pixi/effects-painter.ts
+    ├── utils/effects-for-events.ts, effect-frame.ts, streaks-for-routings.ts, streak-frame.ts
+    └── pixi/effects-painter.ts, streak-painter.ts
 ```
 
 ## Where shared code goes
@@ -92,7 +94,7 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
 - **The online session.** One belongs to the app's stay in online play, across `/online` and every `/r/:code`.
   - `app/online-routes.tsx` makes it with `hooks/use-online-session.ts` once there's a nickname, and closes it as the player leaves those routes. Its token goes to `sessionStorage` through `lib/session-token`.
   - `hooks/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room.
-  - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`).
+  - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`), or a real one over a server the test plays (`tests/support/scripted-server.ts`, on the fake browser clock of `fake-browser.ts`).
 - **UI state.** State that only one feature uses goes in that feature's `stores/`.
 
 ## Names

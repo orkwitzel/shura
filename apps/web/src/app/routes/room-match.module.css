@@ -1,0 +1,12 @@
+.match {
+  width: 100%;
+}
+
+/* The column under your hold: the HUD, then the callouts; "Reconnecting…" over the HUD. */
+.aside {
+  position: relative;
+  display: grid;
+  gap: calc(var(--cell-size, 32px) * 0.5);
+  align-content: start;
+  height: 100%;
+}

@@ -4,16 +4,11 @@ import {
   type SoloMode,
   type SoloSession,
 } from '@shura/client-core';
-import { useSettings, useSettingsStore, useSoloRecord } from '@shura/client-core/react';
-import type { PieceActionType } from '@shura/engine';
-import { useEffect, useRef, useState } from 'react';
-import type { KeyName } from '@/lib/keyboard/key-names';
-import { createWebAdapter } from '@/lib/keyboard/web-adapter';
+import { useSettingsStore, useSoloRecord } from '@shura/client-core/react';
+import { useEffect, useState } from 'react';
 import { createRafClock } from '@/lib/raf-clock';
+import { useGameKeys } from './use-game-keys';
 import { useSessionHandling } from './use-session-handling';
-
-/** The keys that open the in-game menu during a game (design §7.4): fixed, not bindable. */
-const MENU_KEYS: readonly KeyName[] = ['Escape', 'KeyP'];
 
 /** A solo session made by `useSoloSession`, with what the page needs around it. */
 export interface UseSoloSessionResult {
@@ -67,67 +62,13 @@ export function useSoloSession(
 
   useSessionHandling(session);
 
-  // The keys whose press reached the game, with the action each pressed, until released.
-  const held = useRef(new Map<KeyName, PieceActionType>());
-  const letGo = useRef(() => {});
-  letGo.current = () => {
-    const time = clock.now();
-    for (const action of held.current.values()) session.key({ action, kind: 'release', time });
-    held.current.clear();
-  };
-
-  const bindings = useSettings((state) => state.bindings);
-  useEffect(() => {
-    if (!acceptKeys) {
-      letGo.current();
-      return;
-    }
-    const adapt = createWebAdapter(bindings);
-    const onKey = (key: KeyboardEvent) => {
-      const down = key.type === 'keydown';
-      if (down && MENU_KEYS.includes(key.code) && !key.repeat && !key.defaultPrevented) {
-        // Taken, or the browser reads an Esc as a request to close the menu this opens: it would
-        // resume at once.
-        key.preventDefault();
-        session.pause();
-        return;
-      }
-      const { event, preventDefault } = adapt({
-        type: down ? 'keydown' : 'keyup',
-        code: key.code,
-        repeat: key.repeat,
-        time: clock.now(),
-      });
-      if (preventDefault) key.preventDefault();
-      if (!event) return;
-      if (event.kind === 'press') held.current.set(key.code, event.action);
-      else held.current.delete(key.code);
-      session.key(event);
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('keyup', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('keyup', onKey);
-    };
-  }, [session, clock, bindings, acceptKeys]);
-
-  // Keys released while the window has no focus are never heard, so losing it lets go of them all.
-  useEffect(() => {
-    const leave = () => {
-      letGo.current();
-      session.pause();
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') leave();
-    };
-    window.addEventListener('blur', leave);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      window.removeEventListener('blur', leave);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [session]);
+  useGameKeys({
+    game: session,
+    now: clock.now,
+    acceptKeys,
+    onMenu: session.pause,
+    onAway: session.pause,
+  });
 
   const personalBest = useSoloRecord(session);
   return { session, personalBest, start: clock.start };

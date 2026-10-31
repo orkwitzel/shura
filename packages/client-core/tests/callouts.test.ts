@@ -1,6 +1,12 @@
 import { type LockEvent, TSpin } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { type Callout, createSoloSession, lockCallouts, onCallouts } from '../src/index';
+import {
+  type Callout,
+  createSoloSession,
+  lockCallouts,
+  onCallouts,
+  type SessionEventListener,
+} from '../src/index';
 import { fakeEngineEvents, lockEvent } from './support/engine-events';
 import { fakeClock } from './support/fake-clock';
 
@@ -140,5 +146,24 @@ describe('a session’s callouts', () => {
     stop();
     emit(lockEvent({ lines: 4 }));
     expect(heard).toEqual([]);
+  });
+});
+
+describe('an online game’s callouts', () => {
+  it('come from its engine events alone, the game never starting again', () => {
+    const listeners = new Set<SessionEventListener>();
+    const game = {
+      onEvents: (listener: SessionEventListener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    const heard: string[][] = [];
+    onCallouts(game, (callouts) => heard.push(callouts.map(({ text }) => text)));
+    for (const listener of listeners) {
+      listener([lockEvent({ lines: 4, backToBack: true })]);
+      listener([lockEvent({ frame: 0, lines: 4, backToBack: true })]);
+    }
+    expect(heard).toEqual([['TETRIS'], ['TETRIS', 'BACK-TO-BACK']]);
   });
 });

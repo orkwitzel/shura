@@ -1,9 +1,15 @@
 import type {
   ConnectionFailure,
+  GarbageRouting,
+  OnlineMatchState,
+  OnlinePlayerGame,
   OnlineRoom,
   OnlineSession,
   OnlineSessionState,
+  RoutingListener,
+  SessionEventListener,
 } from '@shura/client-core';
+import { createEngine, type EngineEvent, ONE_VS_ONE } from '@shura/engine';
 import type { ErrorCode, ServerMessageOf } from '@shura/protocol';
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -35,6 +41,10 @@ export interface FakeOnlineSession extends OnlineSession {
   error(code: ErrorCode, message?: string): void;
   /** The connection failed. */
   fail(reason: ConnectionFailure, message?: string): void;
+  /** Your own game's engine events, to its `onEvents` listeners, inside `act`. */
+  emitEvents(...events: EngineEvent[]): void;
+  /** A garbage routing, to its `onRoutings` listeners, inside `act`. */
+  emitRouting(routing: GarbageRouting): void;
 }
 
 const INITIAL: OnlineSessionState = {
@@ -52,6 +62,16 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
   const store = createStore<OnlineSessionState>()(() => INITIAL);
   let token: string | null = options.sessionToken ?? null;
   const set = (change: Partial<OnlineSessionState>) => act(() => store.setState(change));
+  const eventListeners = new Set<SessionEventListener>();
+  const routingListeners = new Set<RoutingListener>();
+  /** A `vi.fn()` that adds a listener to `listeners`, returning its removal. */
+  const listen = <L>(listeners: Set<L>) =>
+    vi.fn((listener: L) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    });
   const methods: Methods = {
     createRoom: vi.fn(),
     joinRoom: vi.fn(),
@@ -65,11 +85,13 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     quickMatch: vi.fn(),
     cancelQuickMatch: vi.fn(),
     rematch: vi.fn(),
+    now: vi.fn(() => 0),
     key: vi.fn(),
     act: vi.fn(),
     setInput: vi.fn(),
-    onEvents: vi.fn(() => () => {}),
+    onEvents: listen(eventListeners),
     onActions: vi.fn(() => () => {}),
+    onRoutings: listen(routingListeners),
     close: vi.fn(() => store.setState({ connection: { status: 'closed' } })),
   };
   return {
@@ -89,6 +111,14 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     room: (room) => set({ room }),
     error: (code, message = code) => set({ error: { code, message } }),
     fail: (reason, message = reason) => set({ connection: { status: 'failed', reason, message } }),
+    emitEvents: (...events) =>
+      act(() => {
+        for (const listener of eventListeners) listener(events);
+      }),
+    emitRouting: (routing) =>
+      act(() => {
+        for (const listener of routingListeners) listener(routing);
+      }),
   };
 }
 
@@ -141,5 +171,45 @@ export function lobby(more: Partial<OnlineRoom> = {}): OnlineRoom {
     players: [seated('me', 0)],
     spectators: [],
     ...more,
+  };
+}
+
+/** A player's game in a match: a fresh 1v1 engine at their index, as it is after `change`. */
+export function playerGame(
+  playerId: string,
+  index: number,
+  change: Partial<OnlinePlayerGame> = {},
+): OnlinePlayerGame {
+  return {
+    playerId,
+    index,
+    engine: createEngine(ONE_VS_ONE, 7, index).state,
+    out: null,
+    linesSent: 0,
+    ...change,
+  };
+}
+
+/**
+ * A match you (`me`) play, under way: by default a 1v1 against `bo`. Pass `players` for others (an
+ * FFA's), and `change` for the rest.
+ */
+export function matchState(
+  players: readonly OnlinePlayerGame[] = [playerGame('me', 0), playerGame('bo', 1)],
+  change: Partial<OnlineMatchState> = {},
+): OnlineMatchState {
+  return {
+    matchId: 'm1',
+    seed: 7,
+    mode: players.length > 2 ? 'ffa' : '1v1',
+    phase: 'playing',
+    countdown: 0,
+    countdownStep: 60,
+    goFrame: 0,
+    playerId: 'me',
+    players,
+    actions: [],
+    result: null,
+    ...change,
   };
 }

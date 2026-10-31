@@ -1,11 +1,12 @@
 import {
   type Clock,
   countdownLabel,
-  FRAMES_PER_SECOND,
   type OnlineMatchState,
   type OnlinePlayerGame,
   type OnlineSession,
+  OUT_WORDS,
   PIECE_ACTIONS,
+  placeOf,
 } from '@shura/client-core';
 import { useSettings } from '@shura/client-core/react';
 import { VISIBLE_ROWS } from '@shura/engine';
@@ -28,7 +29,7 @@ import { useScreenKeys } from '../../platform/input/use-screen-keys';
 import { type InputOptions, useTerminalInput } from '../../platform/input/use-terminal-input';
 import { MODE_NAMES } from './lobby-view';
 import { PingText } from './ping-text';
-import { OUT_WORDS, ordinal, placeOf } from './places';
+import { ordinal } from './places';
 
 export interface MatchViewProps {
   readonly session: OnlineSession;
@@ -116,15 +117,6 @@ function Name({ name, flashing, you = false }: { name: string; flashing: boolean
 /** Pieces per second, from a game's locks and its frame. */
 function piecesPerSecond({ piecesPlaced, frame }: OnlinePlayerGame['engine']): string {
   return frame > 0 ? ((piecesPlaced * 60) / frame).toFixed(2) : '0.00';
-}
-
-/**
- * The countdown over your board: "3", "2" and "1" for a second each (an online countdown is 3 s,
- * design §10.1), then "GO" for the first 0.5 s of play, as in single-player.
- */
-function countdownText(match: OnlineMatchState, me: OnlinePlayerGame): string | null {
-  if (match.phase === 'countdown') return String(Math.ceil(match.countdown / FRAMES_PER_SECOND));
-  return countdownLabel({ ...match, engine: me.engine });
 }
 
 /** A player's place and how they went out, as lines over their board. */
@@ -394,7 +386,7 @@ export function MatchView({
     );
   }
 
-  const label = countdownText(match, me);
+  const label = countdownLabel({ ...match, engine: me.engine });
   const overlay = me.out
     ? outLines(match, me)
     : menuOpen

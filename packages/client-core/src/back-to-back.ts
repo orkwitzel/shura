@@ -1,5 +1,5 @@
 import { type LockEvent, TSpin } from '@shura/engine';
-import type { SoloSession } from './solo-session';
+import type { SessionEventListener } from './solo-session';
 
 /** A clear that chains back-to-back: a Tetris, or a T-spin or mini that clears lines (§3). */
 function isDifficult({ lines, tSpin }: LockEvent['clear']): boolean {
@@ -29,14 +29,30 @@ export interface BackToBackTracker {
 }
 
 /**
- * Keeps `session`'s back-to-back status before each lock, starting again with each new game (a game
- * at frame 0 has locked nothing: a restart, or the first countdown).
+ * A game whose locks are followed (a single-player session, or your game in an online match): its
+ * engine events, and, for a session that starts new games in place, its state.
  */
-export function trackBackToBack(session: SoloSession): BackToBackTracker {
+export interface GameEvents {
+  onEvents(listener: SessionEventListener): () => void;
+  /**
+   * The state, after each change: a game at frame 0 has locked nothing, so it is a new one (a
+   * single-player restart). An online match's game never starts again, and goes without.
+   */
+  subscribe?(
+    listener: (state: { readonly engine: { readonly frame: number } }) => void,
+  ): () => void;
+}
+
+/**
+ * Keeps `game`'s back-to-back status before each lock, starting again with each new game it
+ * starts (a game at frame 0 has locked nothing: a restart, or the first countdown).
+ */
+export function trackBackToBack(game: Pick<GameEvents, 'subscribe'> = {}): BackToBackTracker {
   let backToBack = false;
-  const stop = session.subscribe(({ engine }) => {
-    if (engine.frame === 0) backToBack = false;
-  });
+  const stop =
+    game.subscribe?.(({ engine }) => {
+      if (engine.frame === 0) backToBack = false;
+    }) ?? (() => {});
   return {
     next(lock) {
       const before = backToBack;
