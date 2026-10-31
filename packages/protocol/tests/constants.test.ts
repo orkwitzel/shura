@@ -45,7 +45,6 @@ test('the limit defaults are the design’s (§11)', () => {
     connectionsPerIp: 10,
     newConnectionsPerIpPerMinute: 30,
     roomsPerIpPerMinute: 3,
-    hostedRoomsPerSession: 1,
     failedJoinsPerIpPerMinute: 10,
     maxSpectators: 16,
     quickMatchCooldownMs: 3000,
