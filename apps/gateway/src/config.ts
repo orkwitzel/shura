@@ -4,6 +4,8 @@ import { z } from 'zod';
 const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   VALKEY_URL: z.url().default('redis://localhost:6379'),
+  /** Prepended to every Valkey key and channel, so several stacks can share one Valkey. */
+  VALKEY_PREFIX: z.string().default(''),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** The pod's name in its logs (design §12). */
   POD_ID: z.string().min(1).default(hostname()),

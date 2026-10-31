@@ -40,7 +40,7 @@ export function LobbyView({ room, sessionId, ping, last, error }: LobbyViewProps
   const host = room.hostId === sessionId;
   const result = last && resultLine(last, sessionId);
   return (
-    <Box flexDirection="column" width={60} marginTop={2}>
+    <Box flexDirection="column" width={78} marginTop={2}>
       <Text bold>
         ROOM {room.code} <Text dimColor>({room.mode})</Text>
         {ping !== null && <Text dimColor>{`  ping ${Math.round(ping)} ms`}</Text>}

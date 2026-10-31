@@ -8,7 +8,7 @@ import { createHttpServer } from './server';
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL, config.POD_ID);
-const stores = createValkeyStores(config.VALKEY_URL);
+const stores = createValkeyStores(config.VALKEY_URL, { prefix: config.VALKEY_PREFIX });
 const gateway = createGateway({ clock: systemClock, stores, dial: dialGame, logger });
 const server = createHttpServer(gateway);
 
