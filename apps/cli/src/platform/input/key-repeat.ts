@@ -135,6 +135,12 @@ export function createKeyRepeatReader({
     if (sample >= FASTEST_TAP && sample <= LONGEST_REPEAT_DELAY) keep(delays, sample, DELAYS_KEPT);
   };
 
+  /** Releases the key named `name` at `time` if it is held. */
+  const letGo = (name: KeyName, time: number): KeyChange[] => {
+    if (!held.delete(name)) return [];
+    return [{ name, kind: 'release', time }];
+  };
+
   const press = (name: KeyName, time: number): KeyChange => {
     const before = pressedAt.get(name);
     pressedAt.set(name, time);
@@ -186,8 +192,7 @@ export function createKeyRepeatReader({
       }
       return [repeat(name, key, time)];
     }
-    held.delete(name);
-    return [{ name, kind: 'release', time }, press(name, time)];
+    return [...letGo(name, time), press(name, time)];
   };
 
   return {
@@ -205,20 +210,13 @@ export function createKeyRepeatReader({
       const key = held.get(name);
       switch (raw.key.eventType) {
         case 'release':
-          if (key) {
-            held.delete(name);
-            out.push({ name, kind: 'release', time });
-          }
+          out.push(...letGo(name, time));
           break;
         case 'repeat':
           out.push(key ? repeat(name, key, time) : { name, kind: 'repeat', time });
           break;
         case 'press':
-          if (key) {
-            held.delete(name);
-            out.push({ name, kind: 'release', time });
-          }
-          out.push(press(name, time));
+          out.push(...letGo(name, time), press(name, time));
           break;
         default:
           out.push(...(key ? again(name, key, time) : [press(name, time)]));
