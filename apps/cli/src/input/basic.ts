@@ -1,4 +1,5 @@
-import { type Bindings, boundSignals } from './bindings';
+import type { Bindings } from '@shura/client-core';
+import { boundSignals } from './bindings';
 import { createKeyRepeatReader, type KeyChange, type KeyRepeatOptions } from './key-repeat';
 import type { InputAdapter, InputSignal, KeyName } from './terminal-input';
 

@@ -1,15 +1,14 @@
 import type { SoloMode } from '@shura/client-core';
 import pkg from '../package.json' with { type: 'json' };
-import { type Command, HELP } from './args';
-import type { InputChoice } from './input/detect';
+import { type Command, type GlobalOptions, HELP } from './args';
 
-/** What the terminal app opens with: the main menu, or straight on a game of `mode`. */
-export interface PlayOptions {
+/**
+ * What the terminal app opens with: the main menu, or straight on a game of `mode`, and the global
+ * options that change it (`--server` and `--name` don't yet).
+ */
+export interface PlayOptions extends Pick<GlobalOptions, 'noColor' | 'input' | 'debugInput'> {
   /** `shura solo <mode>`; without it the app opens on the main menu. */
   readonly mode?: SoloMode;
-  readonly noColor: boolean;
-  readonly input: InputChoice;
-  readonly debugInput: boolean;
 }
 
 /** Where a command's output goes, and how it starts the terminal app (returning its exit code). */

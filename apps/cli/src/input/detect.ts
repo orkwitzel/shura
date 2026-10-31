@@ -1,5 +1,5 @@
+import type { Bindings } from '@shura/client-core';
 import { createBasicAdapter } from './basic';
-import type { Bindings } from './bindings';
 import { createPreciseAdapter } from './precise';
 import {
   type InputAdapter,

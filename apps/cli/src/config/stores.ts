@@ -1,8 +1,7 @@
 import {
+  type AppStores,
   createRecordsStore,
   createSettingsStore,
-  type RecordsStore,
-  type SettingsStore,
   type Storage,
 } from '@shura/client-core';
 import { DEFAULT_BINDINGS } from '../input/bindings';
@@ -14,9 +13,7 @@ export interface Notice {
 }
 
 /** The CLI's settings and records stores, and what went wrong loading them. */
-export interface CliStores {
-  readonly settings: SettingsStore;
-  readonly records: RecordsStore;
+export interface CliStores extends AppStores {
   readonly notices: readonly Notice[];
 }
 

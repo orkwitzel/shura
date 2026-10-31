@@ -3,8 +3,8 @@ import { ClientCoreProvider } from '@shura/client-core/react';
 import { Box, useApp } from 'ink';
 import { useState } from 'react';
 import type { CliStores } from '../config/stores';
-import type { ColorMode } from '../render/palette';
-import { MainMenu } from './main-menu';
+import type { ColorMode } from '../render/look';
+import { MainMenu, type MenuReturn } from './main-menu';
 import { SettingsScreen } from './settings-screen';
 import { SoloScreen } from './solo-screen';
 import { EnlargeMessage, useTerminalSize } from './terminal-size';
@@ -34,7 +34,7 @@ export function App({ mode, clock, seed, colors, input, settings, records, notic
   const { exit } = useApp();
   const [screen, setScreen] = useState<Screen>(mode ? { kind: 'solo', mode } : { kind: 'menu' });
   // Where the menu was left: it opens there again.
-  const [left, setLeft] = useState<'settings' | SoloMode | undefined>(mode);
+  const [left, setLeft] = useState<MenuReturn | undefined>(mode);
   const go = (next: Screen) => {
     if (next.kind === 'settings') setLeft('settings');
     if (next.kind === 'solo') setLeft(next.mode);

@@ -1,8 +1,7 @@
 import type { EventEmitter } from 'node:events';
-import type { AutoShift, Clock, SoloSession } from '@shura/client-core';
+import type { AutoShift, Bindings, Clock, SoloSession } from '@shura/client-core';
 import { useInput, useStdin } from 'ink';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Bindings } from '../input/bindings';
 import type { ActionsEntry, CaptureEntry, CaptureFile, KeyEntry } from '../input/capture';
 import { createInputAdapter, type InputChoice } from '../input/detect';
 import type {
@@ -72,16 +71,16 @@ export function useTerminalInput({
   shortcut,
   active = true,
 }: TerminalInputProps): TerminalInputState {
-  // The adapter in use, replaced when the bindings change.
-  const [reading] = useState<{ adapter: InputAdapter }>(() => ({
+  // The adapter in use, in a box that keeps it across renders: replaced when the bindings change.
+  const [current] = useState<{ adapter: InputAdapter }>(() => ({
     adapter: createInputAdapter(options.choice, bindings),
   }));
-  const [name, setName] = useState(reading.adapter.name);
+  const [name, setName] = useState(current.adapter.name);
   const [log, setLog] = useState<readonly CaptureEntry[]>([]);
   const autoShift = useRef<AutoShift | null>(null);
   const wake = useRef<(() => void) | null>(null);
   const bytes = useRef<string | null>(null);
-  const shown = useRef(reading.adapter.name);
+  const shownName = useRef(current.adapter.name);
   const menu = useRef(onMenu);
   menu.current = onMenu;
   const chosen = useRef(onChosen);
@@ -110,7 +109,7 @@ export function useTerminalInput({
   }, [session, options.debug]);
 
   const deliver = (signals: readonly InputSignal[], raw: string | null, time: number) => {
-    const { adapter } = reading;
+    const { adapter } = current;
     if (adapter.autoShift !== autoShift.current) {
       autoShift.current = adapter.autoShift;
       session.setInput({ autoShift: adapter.autoShift });
@@ -119,8 +118,8 @@ export function useTerminalInput({
       if (signal.kind === 'key') session.key(signal.event);
       else menu.current?.();
     }
-    const changed = adapter.name !== shown.current;
-    shown.current = adapter.name;
+    const changed = adapter.name !== shownName.current;
+    shownName.current = adapter.name;
     if (changed && adapter.name !== 'auto') chosen.current?.(adapter.name);
     setName(adapter.name);
     if (options.debug && (raw !== null || signals.length > 0 || changed)) {
@@ -131,7 +130,7 @@ export function useTerminalInput({
       wake.current = clock.schedule(() => {
         wake.current = null;
         const now = clock.now();
-        deliver(reading.adapter.poll(now), null, now);
+        deliver(current.adapter.poll(now), null, now);
       });
     }
   };
@@ -139,8 +138,8 @@ export function useTerminalInput({
   // The session's input engine auto-shifts as the adapter needs from the start (and again for a new
   // adapter, through `deliver`).
   useEffect(() => {
-    autoShift.current = reading.adapter.autoShift;
-    session.setInput({ autoShift: reading.adapter.autoShift });
+    autoShift.current = current.adapter.autoShift;
+    session.setInput({ autoShift: current.adapter.autoShift });
     return () => wake.current?.();
   }, []);
 
@@ -156,14 +155,14 @@ export function useTerminalInput({
   // already chosen, so an auto adapter that has chosen doesn't start over.
   // A settings change makes new bindings objects even when they are the same, so compare contents.
   const bindingsKey = JSON.stringify(bindings);
-  const built = useRef(bindingsKey);
+  const builtFor = useRef(bindingsKey);
   useLayoutEffect(() => {
-    if (built.current === bindingsKey) return;
-    built.current = bindingsKey;
+    if (builtFor.current === bindingsKey) return;
+    builtFor.current = bindingsKey;
     wake.current?.();
     wake.current = null;
-    const { name } = reading.adapter;
-    reading.adapter = createInputAdapter(name === 'auto' ? options.choice : name, bindings);
+    const { name } = current.adapter;
+    current.adapter = createInputAdapter(name === 'auto' ? options.choice : name, bindings);
     releaseAll();
     deliver([], null, clock.now());
   }, [bindingsKey]);
@@ -196,7 +195,7 @@ export function useTerminalInput({
       const raw = bytes.current ?? input;
       bytes.current = null;
       if (shortcut?.({ input, key, time })) return;
-      deliver(reading.adapter.feed({ input, key, time }), raw, time);
+      deliver(current.adapter.feed({ input, key, time }), raw, time);
     },
     { isActive: active },
   );

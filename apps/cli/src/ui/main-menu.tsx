@@ -1,8 +1,13 @@
-import { personalBestSummary, type SoloMode } from '@shura/client-core';
+import { type Direction, personalBestSummary, type SoloMode } from '@shura/client-core';
 import { useRecords } from '@shura/client-core/react';
 import { Box, Text, useInput } from 'ink';
 import { useState } from 'react';
 import { SOLO_MODES } from '../args';
+
+/**
+ * Where the player comes back to the menu from: the settings, or a game of a mode (design §13.3).
+ */
+export type MenuReturn = 'settings' | SoloMode;
 
 export interface MainMenuProps {
   /** Start a game of `mode`. */
@@ -15,7 +20,7 @@ export interface MainMenuProps {
    * The screen the player comes back from, so the menu opens where they left it: on Settings, or
    * on the mode they played, in Single player. Without it, on Single player.
    */
-  readonly from?: 'settings' | SoloMode;
+  readonly from?: MenuReturn;
   /** Short notices under the menu (a stored file that couldn't be used). */
   readonly notices?: readonly string[];
 }
@@ -45,7 +50,7 @@ const SINGLE_PLAYER = 1;
 const SETTINGS = 2;
 
 /** The entry from `at` in `direction` that isn't disabled, or `at` if there's none. */
-function nextEntry(entries: readonly Entry[], at: number, direction: 1 | -1): number {
+function nextEntry(entries: readonly Entry[], at: number, direction: Direction): number {
   for (let next = at + direction; next >= 0 && next < entries.length; next += direction) {
     if (!entries[next]?.disabled) return next;
   }
@@ -98,7 +103,7 @@ export function MainMenu({
     },
   };
   const { title, hint, entries } = pages[page];
-  const move = (direction: 1 | -1) =>
+  const move = (direction: Direction) =>
     setCursors((at) => ({ ...at, [page]: nextEntry(entries, at[page], direction) }));
 
   // Keys that come while it can't be seen are dropped here, rather than by unsubscribing: with no

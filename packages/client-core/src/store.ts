@@ -1,4 +1,6 @@
 import type { StoreApi } from 'zustand/vanilla';
+import type { RecordsStore } from './records';
+import type { SettingsStore } from './settings';
 
 /**
  * A read-only Zustand store (design §13.1, ADR 0012): what UIs read, through the hooks in
@@ -8,3 +10,9 @@ import type { StoreApi } from 'zustand/vanilla';
  * `zustand/vanilla`.
  */
 export type Store<State> = Pick<StoreApi<State>, 'getState' | 'getInitialState' | 'subscribe'>;
+
+/** The app-wide stores: one settings and one records store for the life of the app (design §13.1). */
+export interface AppStores {
+  readonly settings: SettingsStore;
+  readonly records: RecordsStore;
+}

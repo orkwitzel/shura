@@ -27,8 +27,8 @@ export interface Theme {
     readonly text: ThemeColor;
     readonly border: ThemeColor;
     readonly accent: ThemeColor;
-    /** The board's empty well. */
-    readonly well: ThemeColor;
+    /** The board's background, behind its empty cells. */
+    readonly board: ThemeColor;
     /** The board's grid: the CLI's empty-cell dots, and anything greyed out. */
     readonly grid: ThemeColor;
   };
@@ -58,7 +58,7 @@ export const SHURA_DARK = {
     text: { rgb: [220, 222, 228], ansi16: 7 },
     border: { rgb: [70, 74, 86], ansi16: 8 },
     accent: { rgb: [49, 199, 239], ansi16: 14 },
-    well: { rgb: [10, 11, 15], ansi16: 0 },
+    board: { rgb: [10, 11, 15], ansi16: 0 },
     grid: { rgb: [72, 72, 72], ansi16: 8 },
   },
 } as const satisfies Theme;

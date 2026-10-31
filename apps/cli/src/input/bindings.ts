@@ -1,9 +1,6 @@
-import type { KeyEvent } from '@shura/client-core';
+import type { Bindings, KeyEvent } from '@shura/client-core';
 import { ActionType, type PieceActionType } from '@shura/engine';
 import type { InputSignal, KeyName } from './terminal-input';
-
-/** The keys bound to each game control. A key is bound to one action at most. */
-export type Bindings = Readonly<Record<PieceActionType, readonly KeyName[]>>;
 
 /**
  * The CLI's default bindings (design §7.4). Terminals can't report Ctrl or Shift on their own, so

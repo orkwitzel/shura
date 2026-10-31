@@ -1,13 +1,14 @@
 import type { ThemeColor } from '@shura/client-core';
-import { CELLS, type CellKind, GLYPHS, type Look } from './palette';
+import { GARBAGE } from '@shura/engine';
+import { CELLS, type CellKind, GLYPHS, type Look } from './look';
 
 /**
  * What a cell shows: a solid cell or a ghost of a kind, a greyed-out cell (a hold already used), an
  * empty cell of the board, or a blank (outside the board, or beside a small piece).
  */
 export type Paint =
-  | { readonly look: 'solid' | 'ghost' | 'grey'; readonly kind: CellKind }
-  | { readonly look: 'empty' | 'blank' };
+  | { readonly fill: 'solid' | 'ghost' | 'grey'; readonly kind: CellKind }
+  | { readonly fill: 'empty' | 'blank' };
 
 const RESET = '\x1b[39m';
 
@@ -18,10 +19,10 @@ function sgr({ colors }: Look, { rgb, ansi16 }: ThemeColor): string {
 }
 
 function glyph(paint: Paint): string {
-  switch (paint.look) {
+  switch (paint.fill) {
     case 'solid':
     case 'grey':
-      return paint.kind === 'G' ? GLYPHS.garbage : GLYPHS.solid;
+      return paint.kind === GARBAGE ? GLYPHS.garbage : GLYPHS.solid;
     case 'ghost':
       return GLYPHS.ghost;
     case 'empty':
@@ -32,8 +33,8 @@ function glyph(paint: Paint): string {
 }
 
 function colored(paint: Paint, { theme, skin }: Look): { text: string; color: ThemeColor | null } {
-  const of = (kind: CellKind) => (kind === 'G' ? theme.garbage : theme.pieces[kind]);
-  switch (paint.look) {
+  const of = (kind: CellKind) => (kind === GARBAGE ? theme.garbage : theme.pieces[kind]);
+  switch (paint.fill) {
     case 'solid':
       return { text: skin.terminal, color: of(paint.kind) };
     case 'ghost':

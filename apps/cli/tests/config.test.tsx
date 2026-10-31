@@ -3,7 +3,7 @@ import type { SoloMode } from '@shura/client-core';
 import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
 import { exitMessages, openStores } from '../src/config/stores';
-import type { ColorMode } from '../src/render/palette';
+import type { ColorMode } from '../src/render/look';
 import { App } from '../src/ui/app';
 import { fakeClock } from './support/fake-clock';
 import { resize, settle, visibleRows } from './support/ink';

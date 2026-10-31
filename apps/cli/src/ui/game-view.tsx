@@ -1,8 +1,8 @@
 import type { SoloSessionState } from '@shura/client-core';
 import { Box, Text } from 'ink';
 import { boardRows, HIDDEN_ROWS_SHOWN } from '../render/board';
+import type { Look } from '../render/look';
 import { overlayRows } from '../render/overlay';
-import type { Look } from '../render/palette';
 import { NO_PIECE, pieceRows } from '../render/piece';
 import { Hud } from './hud';
 

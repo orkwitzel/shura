@@ -2,13 +2,12 @@ import { hasEnded } from '@shura/client-core';
 import {
   BOARD_WIDTH,
   canMove,
-  GARBAGE,
   pieceCells,
   type ReadonlyEngineState,
   VISIBLE_ROWS,
 } from '@shura/engine';
 import { type Paint, paintRow } from './cells';
-import { type Look, WALLS } from './palette';
+import { type Look, WALLS } from './look';
 
 /** How to draw a board: the look of its cells, and whether to show the ghost (a setting). */
 export interface BoardStyle extends Look {
@@ -33,12 +32,12 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
   const top = VISIBLE_ROWS + HIDDEN_ROWS_SHOWN - 1;
   const grid: Paint[][] = [];
   for (let row = top; row >= 0; row--) {
-    const look = row < VISIBLE_ROWS ? 'empty' : 'blank';
+    const fill = row < VISIBLE_ROWS ? 'empty' : 'blank';
     grid.push(
       Array.from({ length: BOARD_WIDTH }, (_, col): Paint => {
         const cell = state.board[row]?.[col] ?? null;
-        if (cell === null) return { look };
-        return { look: 'solid', kind: cell === GARBAGE ? 'G' : cell };
+        if (cell === null) return { fill };
+        return { fill: 'solid', kind: cell };
       }),
     );
   }
@@ -51,13 +50,13 @@ function cellGrid(state: ReadonlyEngineState, ghost: boolean): Paint[][] {
   if (ghost && !over) {
     const fall = dropDistance(state);
     for (const { col, row } of pieceCells(active)) {
-      put(col, row - fall, { look: 'ghost', kind: active.kind });
+      put(col, row - fall, { fill: 'ghost', kind: active.kind });
     }
   }
   // A game that finished or locked out leaves the piece that locked as the active piece, already
   // drawn as locked cells; a block out leaves the one that couldn't spawn, overlapping the stack.
   for (const { col, row } of pieceCells(active)) {
-    put(col, row, { look: 'solid', kind: active.kind });
+    put(col, row, { fill: 'solid', kind: active.kind });
   }
   return grid;
 }

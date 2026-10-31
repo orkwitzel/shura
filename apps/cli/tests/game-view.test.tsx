@@ -11,7 +11,7 @@ import {
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { boardRows } from '../src/render/board';
-import { type ColorMode, type Look, lookOf } from '../src/render/palette';
+import { type ColorMode, type Look, lookOf } from '../src/render/look';
 import { GameView, type GameViewProps } from '../src/ui/game-view';
 import { visibleRows, wallRows } from './support/ink';
 

@@ -62,11 +62,14 @@ export interface InputEngine {
 
 /** An input engine. Without settings, the default handling and auto-shift by handling. */
 export function createInputEngine(settings: Partial<InputSettings> = {}): InputEngine {
-  return new Input({ handling: DEFAULT_HANDLING, autoShift: 'handling', ...settings });
+  return new InputEngineImpl({ handling: DEFAULT_HANDLING, autoShift: 'handling', ...settings });
 }
 
-/** Left is −1 column, right +1. */
-type Direction = -1 | 1;
+/**
+ * One way or the other: for a move, left is −1 column and right +1; for a stepper or a list, −1 is
+ * back (smaller, up) and +1 forward.
+ */
+export type Direction = -1 | 1;
 
 const MOVES: Readonly<Record<Direction, PieceActionType>> = {
   [-1]: ActionType.MoveLeft,
@@ -80,11 +83,11 @@ function directionOf(action: PieceActionType): Direction | null {
 }
 
 /**
- * One frame's actions, and where they leave the active piece, so each move is checked against the
- * board where it will apply. After a turn, hold or hard drop, `canMove` can't say where the piece
- * is, so the frame makes no more moves: it is blind.
+ * The actions the input engine emits in one frame, and where they leave the active piece, so each
+ * move is checked against the board where it will apply. After a turn, hold or hard drop, `canMove`
+ * can't say where the piece is, so no more moves are emitted that frame: it is blind.
  */
-class Frame {
+class FrameActions {
   readonly actions: PieceActionType[] = [];
   /** The columns and rows the frame's moves have taken the piece so far. */
   #cols = 0;
@@ -124,7 +127,7 @@ class Frame {
   }
 }
 
-class Input implements InputEngine {
+class InputEngineImpl implements InputEngine {
   #settings: InputSettings;
   /** The direction keys held. */
   readonly #held = new Set<Direction>();
@@ -152,26 +155,26 @@ class Input implements InputEngine {
   }
 
   playFrame(events: readonly KeyEvent[], game: ReadonlyEngineState | null): PieceActionType[] {
-    const frame = new Frame(game);
+    const emitted = new FrameActions(game);
     const queue = [...this.#waiting, ...events];
     this.#waiting = [];
     // A direction pressed in this frame starts DAS: it doesn't charge until the next frame.
     let pressed = false;
     for (const [index, event] of queue.entries()) {
-      if (frame.blind) {
+      if (emitted.blind) {
         // The rest waits for the next frame, which shows where the piece went.
         this.#waiting = queue.slice(index);
         break;
       }
-      if (this.#take(event, frame)) pressed = true;
+      if (this.#take(event, emitted)) pressed = true;
     }
-    if (!pressed) this.#autoShift(frame);
-    if (game !== null) this.#dropSoftly(frame, game);
-    return frame.actions;
+    if (!pressed) this.#autoShift(emitted);
+    if (game !== null) this.#dropSoftly(emitted, game);
+    return emitted.actions;
   }
 
   /** Takes one key event. Returns whether it pressed a direction (or handed back to one). */
-  #take({ action, kind }: KeyEvent, frame: Frame): boolean {
+  #take({ action, kind }: KeyEvent, emitted: FrameActions): boolean {
     if (action === ActionType.SoftDrop) {
       if (kind === 'press') {
         this.#softDrop = true;
@@ -186,17 +189,17 @@ class Input implements InputEngine {
     const direction = directionOf(action);
     if (direction === null) {
       // Turns, hold and hard drop: one action per press, and none during the countdown.
-      if (kind === 'press' && frame.game !== null) frame.add(action);
+      if (kind === 'press' && emitted.game !== null) emitted.add(action);
       return false;
     }
     if (kind === 'press') {
       this.#held.add(direction);
-      this.#press(direction, frame);
+      this.#press(direction, emitted);
       return true;
     }
     if (kind === 'repeat') {
       if (this.#settings.autoShift === 'keyRepeat' && this.#direction === direction) {
-        frame.shift(direction);
+        emitted.shift(direction);
       }
       return false;
     }
@@ -207,7 +210,7 @@ class Input implements InputEngine {
     this.#direction = null;
     const other = -direction as Direction;
     if (!this.#held.has(other)) return false;
-    this.#press(other, frame);
+    this.#press(other, emitted);
     return true;
   }
 
@@ -216,33 +219,33 @@ class Input implements InputEngine {
    * row for each whole row built up. A row the piece can't drop is lost. 'instant' drops to the
    * stack.
    */
-  #dropSoftly(frame: Frame, game: ReadonlyEngineState): void {
+  #dropSoftly(emitted: FrameActions, game: ReadonlyEngineState): void {
     if (!this.#softDrop) return;
     const factor = this.#settings.handling.softDropFactor;
     if (factor === 'instant') {
-      while (frame.drop());
+      while (emitted.drop());
       return;
     }
     if (this.#softDropPressed) this.#softDropPressed = false;
     else this.#fall += factor * currentGravity(game);
-    // A blind frame can't tell where the piece is: its rows wait for the next frame.
-    if (frame.blind) return;
-    for (; this.#fall >= SUBROWS_PER_ROW; this.#fall -= SUBROWS_PER_ROW) frame.drop();
+    // Blind, it can't tell where the piece is: its rows wait for the next frame.
+    if (emitted.blind) return;
+    for (; this.#fall >= SUBROWS_PER_ROW; this.#fall -= SUBROWS_PER_ROW) emitted.drop();
   }
 
   /** A direction pressed: one move, and DAS starts charging. With DAS 0, auto-repeat starts. */
-  #press(direction: Direction, frame: Frame): void {
+  #press(direction: Direction, emitted: FrameActions): void {
     this.#direction = direction;
     this.#charge = 0;
-    const moved = frame.shift(direction);
+    const moved = emitted.shift(direction);
     const { das, arr } = this.#settings.handling;
     if (das > 0 || this.#settings.autoShift === 'keyRepeat') return;
-    if (arr === 0) this.#repeat(direction, frame);
+    if (arr === 0) this.#repeat(direction, emitted);
     else this.#wait = moved ? arr : 0;
   }
 
   /** Charges DAS for the direction held, and once it is charged, moves every ARR frames. */
-  #autoShift(frame: Frame): void {
+  #autoShift(emitted: FrameActions): void {
     const direction = this.#direction;
     if (direction === null || this.#settings.autoShift === 'keyRepeat') return;
     const { das, arr } = this.#settings.handling;
@@ -252,18 +255,18 @@ class Input implements InputEngine {
     } else if (arr > 0 && --this.#wait > 0) {
       return;
     }
-    this.#repeat(direction, frame);
+    this.#repeat(direction, emitted);
   }
 
   /**
    * An auto-repeated move: at ARR 0, as far as the piece can go towards the wall. A move the piece
    * can't make waits for the next frame.
    */
-  #repeat(direction: Direction, frame: Frame): void {
+  #repeat(direction: Direction, emitted: FrameActions): void {
     const { arr } = this.#settings.handling;
     if (arr === 0) {
-      while (frame.shift(direction));
-    } else if (frame.shift(direction)) {
+      while (emitted.shift(direction));
+    } else if (emitted.shift(direction)) {
       this.#wait = arr;
     }
   }

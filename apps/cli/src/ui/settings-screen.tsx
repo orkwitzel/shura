@@ -1,6 +1,7 @@
 import {
-  type BindingsOf,
+  type Bindings,
   type Clock,
+  type Direction,
   type HandlingSettings,
   handlingFrames,
   rebind,
@@ -37,9 +38,9 @@ interface ValueRow {
   /** The value as shown. */
   readonly value: (settings: Settings) => string;
   /** Whether ← (−1) or → (+1) can still change it (an arrow is shown on that side). */
-  readonly can: (settings: Settings, direction: 1 | -1) => boolean;
+  readonly can: (settings: Settings, direction: Direction) => boolean;
   /** The change ← or → makes. */
-  readonly step: (settings: Settings, direction: 1 | -1) => SettingsChange;
+  readonly step: (settings: Settings, direction: Direction) => SettingsChange;
 }
 
 /** A game control's keys: ← and → choose a slot (the one after the last adds a key). */
@@ -51,7 +52,7 @@ interface BindingRow {
 
 type Row = ValueRow | BindingRow;
 
-function frames(count: number): string {
+function frameCount(count: number): string {
   return `${count} ${count === 1 ? 'frame' : 'frames'}`;
 }
 
@@ -119,8 +120,8 @@ const SECTIONS: readonly { title: string; rows: readonly Row[] }[] = [
   {
     title: 'HANDLING',
     rows: [
-      handlingRow('DAS', 'das', (h) => `${h.das} ms (${frames(handlingFrames(h).das)})`),
-      handlingRow('ARR', 'arr', (h) => `${h.arr} ms (${frames(handlingFrames(h).arr)})`),
+      handlingRow('DAS', 'das', (h) => `${h.das} ms (${frameCount(handlingFrames(h).das)})`),
+      handlingRow('ARR', 'arr', (h) => `${h.arr} ms (${frameCount(handlingFrames(h).arr)})`),
       handlingRow('Soft drop factor', 'softDropFactor', ({ softDropFactor: factor }) =>
         factor === 'instant' ? 'instant' : `×${factor}`,
       ),
@@ -159,7 +160,7 @@ const ROWS: readonly Row[] = SECTIONS.flatMap(({ rows }) => rows);
  * What a rebind did besides binding the key, for the message line: which control took the key this
  * slot had (a swap), or lost the key it had.
  */
-function rebindMessage(before: BindingsOf, after: BindingsOf, action: PieceActionType): string {
+function rebindMessage(before: Bindings, after: Bindings, action: PieceActionType): string {
   for (const [other, label] of CONTROLS) {
     if (other === action) continue;
     const gained = after[other].find((key) => !before[other].includes(key));

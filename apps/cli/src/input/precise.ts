@@ -1,4 +1,5 @@
-import { type Bindings, boundSignals } from './bindings';
+import type { Bindings } from '@shura/client-core';
+import { boundSignals } from './bindings';
 import { type InputAdapter, keyName } from './terminal-input';
 
 /**

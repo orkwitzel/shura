@@ -12,7 +12,7 @@ import type { ReadonlyEngineState } from '@shura/engine';
 import { Box } from 'ink';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { keyName, type TerminalInput } from '../input/terminal-input';
-import type { ColorMode, Look } from '../render/palette';
+import type { ColorMode, Look } from '../render/look';
 import { useCountdownLabel } from './countdown';
 import { DebugPanel } from './debug-panel';
 import { commandFor, type MenuCommand, menuLines } from './game-menu';
@@ -130,7 +130,7 @@ export function SoloScreen({
     if (visible) command.run();
     return true;
   };
-  const keys = useTerminalInput({
+  const terminalInput = useTerminalInput({
     session,
     clock,
     bindings,
@@ -158,12 +158,12 @@ export function SoloScreen({
           state={state}
           look={look}
           ghost={ghost}
-          input={keys.adapter}
+          input={terminalInput.adapter}
           overlay={overlay}
           {...(notices && { notices })}
         />
       )}
-      {input.debug && <DebugPanel {...keys} capture={input.capture?.path} />}
+      {input.debug && <DebugPanel {...terminalInput} capture={input.capture?.path} />}
     </Box>
   );
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PIECE_ACTIONS } from './actions';
 import { framesToMs, msToFrames } from './frames';
-import type { Handling } from './input-engine';
+import type { Direction, Handling } from './input-engine';
 import type { Storage } from './storage';
 import type { Store } from './store';
 import { SKINS, type SkinId, THEMES, type ThemeId } from './themes';
@@ -38,9 +38,7 @@ export const DEFAULT_HANDLING_SETTINGS: HandlingSettings = {
  * The keys bound to each game control, by the platform's own key names (the CLI's `left`, `x`; the
  * web's). A key is bound to one action at most.
  */
-export type BindingsOf<Key extends string = string> = Readonly<
-  Record<PieceActionType, readonly Key[]>
->;
+export type Bindings = Readonly<Record<PieceActionType, readonly string[]>>;
 
 /** The web's effects setting (design §13.2). Unset, the web follows `prefers-reduced-motion`. */
 export type Effects = 'full' | 'reduced' | 'off';
@@ -53,7 +51,7 @@ export interface Settings {
   /** The server to play online on (M4). */
   readonly server?: string;
   readonly handling: HandlingSettings;
-  readonly bindings: BindingsOf;
+  readonly bindings: Bindings;
   readonly ghost: boolean;
   readonly theme: ThemeId;
   readonly skin: SkinId;
@@ -67,7 +65,7 @@ export interface Settings {
 export type SettingsChange = Partial<Omit<Settings, 'version'>>;
 
 /** The settings that nothing has changed yet, with a platform's default bindings. */
-export function defaultSettings(bindings: BindingsOf): Settings {
+export function defaultSettings(bindings: Bindings): Settings {
   return {
     version: SETTINGS_VERSION,
     handling: DEFAULT_HANDLING_SETTINGS,
@@ -80,7 +78,7 @@ export function defaultSettings(bindings: BindingsOf): Settings {
 }
 
 /** The keys bound to more than one action. */
-function sharedKeys(bindings: BindingsOf): string[] {
+function sharedKeys(bindings: Bindings): string[] {
   const seen = new Set<string>();
   const shared = new Set<string>();
   for (const keys of Object.values(bindings)) {
@@ -141,7 +139,7 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, Migration>> = {};
 export interface SettingsStoreOptions {
   readonly storage: Storage;
   /** The platform's default bindings (design §7.4). */
-  readonly bindings: BindingsOf;
+  readonly bindings: Bindings;
 }
 
 /** The settings, loaded from storage when created, and the settings rules' writes. */
@@ -245,7 +243,7 @@ const SOFT_DROP_STEPS: readonly (number | 'instant')[] = [5, 10, 15, 20, 25, 30,
 export function stepHandling(
   handling: HandlingSettings,
   field: keyof HandlingSettings,
-  direction: 1 | -1,
+  direction: Direction,
 ): HandlingSettings {
   if (field === 'softDropFactor') {
     const current = handling.softDropFactor;
@@ -274,15 +272,15 @@ export function stepHandling(
  * key). A key already in use swaps (design §7.4): the action that had it takes the key this slot
  * had, or just loses it when this slot was empty.
  */
-export function rebind<Key extends string>(
-  bindings: BindingsOf<Key>,
+export function rebind(
+  bindings: Bindings,
   action: PieceActionType,
   slot: number,
-  key: Key,
-): BindingsOf<Key> {
+  key: string,
+): Bindings {
   const next = Object.fromEntries(
-    Object.entries(bindings).map(([name, keys]) => [name, [...(keys as Key[])]]),
-  ) as Record<PieceActionType, Key[]>;
+    Object.entries(bindings).map(([name, keys]) => [name, [...keys]]),
+  ) as Record<PieceActionType, string[]>;
   const own = next[action];
   const replaced = own[slot];
   if (replaced === undefined) {
@@ -302,10 +300,6 @@ export function rebind<Key extends string>(
 }
 
 /** Removes the key in `action`'s `slot`, if there is one. */
-export function unbind<Key extends string>(
-  bindings: BindingsOf<Key>,
-  action: PieceActionType,
-  slot: number,
-): BindingsOf<Key> {
+export function unbind(bindings: Bindings, action: PieceActionType, slot: number): Bindings {
   return { ...bindings, [action]: bindings[action].filter((_, index) => index !== slot) };
 }

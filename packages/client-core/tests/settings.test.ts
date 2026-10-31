@@ -1,7 +1,7 @@
 import { ActionType } from '@shura/engine';
 import { describe, expect, test } from 'vitest';
 import {
-  type BindingsOf,
+  type Bindings,
   createSettingsStore,
   DEFAULT_HANDLING_SETTINGS,
   type HandlingSettings,
@@ -14,7 +14,7 @@ import {
 import { memoryStorage } from './support/memory-storage';
 
 /** A platform's default bindings, as the CLI's or the web's would be. */
-const BINDINGS: BindingsOf = {
+const BINDINGS: Bindings = {
   [ActionType.MoveLeft]: ['left'],
   [ActionType.MoveRight]: ['right'],
   [ActionType.SoftDrop]: ['down'],

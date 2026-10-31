@@ -1,6 +1,6 @@
 import { BOARD_WIDTH, VISIBLE_ROWS } from '@shura/engine';
 import { HIDDEN_ROWS_SHOWN } from './board';
-import { WALLS } from './palette';
+import { WALLS } from './look';
 
 /** The characters between the walls. */
 const INSIDE = BOARD_WIDTH * 2;

@@ -1,6 +1,6 @@
 import { type PieceKind, srs } from '@shura/engine';
 import { type Paint, paintRow } from './cells';
-import type { Look } from './palette';
+import type { Look } from './look';
 
 /** A small piece's box: 4 cells (8 characters) wide, 2 rows tall, enough for any piece flat. */
 const BOX_CELLS = 4;
@@ -20,11 +20,11 @@ export function pieceRows(
   const left = Math.min(...cols);
   const width = Math.max(...cols) - left + 1;
   const topRow = Math.max(...rows);
-  const fill = grey ? 'grey' : 'solid';
+  const shade = grey ? 'grey' : 'solid';
   const paint = (rowFromTop: number): string => {
-    const cells: Paint[] = Array.from({ length: width }, () => ({ look: 'blank' }));
+    const cells: Paint[] = Array.from({ length: width }, () => ({ fill: 'blank' }));
     for (const [col, row] of offsets) {
-      if (topRow - row === rowFromTop) cells[col - left] = { look: fill, kind };
+      if (topRow - row === rowFromTop) cells[col - left] = { fill: shade, kind };
     }
     // Centre in characters: a 3-cell piece sits half a cell in.
     const pad = BOX_CELLS * 2 - width * 2;

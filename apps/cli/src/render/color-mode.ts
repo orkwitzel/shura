@@ -1,4 +1,4 @@
-import type { ColorMode } from './palette';
+import type { ColorMode } from './look';
 
 /**
  * How to draw colour (design §13.3): glyphs with `--no-color` or a non-empty `NO_COLOR`

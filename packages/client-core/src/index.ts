@@ -7,6 +7,7 @@ export {
   type AutoShift,
   createInputEngine,
   DEFAULT_HANDLING,
+  type Direction,
   type Handling,
   type InputEngine,
   type InputSettings,
@@ -27,7 +28,7 @@ export {
   replayPersonalBest,
 } from './records';
 export {
-  type BindingsOf,
+  type Bindings,
   createSettingsStore,
   DEFAULT_HANDLING_SETTINGS,
   defaultSettings,
@@ -63,7 +64,7 @@ export {
   type SoloSessionState,
 } from './solo-session';
 export type { Storage, StoredKind } from './storage';
-export type { Store } from './store';
+export type { AppStores, Store } from './store';
 export {
   type Ansi16,
   SHURA_DARK,

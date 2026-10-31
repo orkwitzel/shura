@@ -5,6 +5,7 @@ import { useStore } from 'zustand';
 import type { Records, RecordsStore } from './records';
 import type { Settings, SettingsStore } from './settings';
 import type { SoloSession, SoloSessionState } from './solo-session';
+import type { AppStores } from './store';
 
 /**
  * A session's whole state, re-rendering after each change: the board's view, which changes every
@@ -22,12 +23,6 @@ export function useSession(
   selector: (state: SoloSessionState) => unknown = (state) => state,
 ): unknown {
   return useStore(session, selector);
-}
-
-/** The app-wide stores: one settings and one records store for the life of the app. */
-interface AppStores {
-  readonly settings: SettingsStore;
-  readonly records: RecordsStore;
 }
 
 const StoresContext = createContext<AppStores | null>(null);

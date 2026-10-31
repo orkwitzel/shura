@@ -1,5 +1,5 @@
 import { SHURA_DARK, SKINS, type Skin, type Theme } from '@shura/client-core';
-import type { PieceKind } from '@shura/engine';
+import type { GARBAGE, PieceKind } from '@shura/engine';
 
 /**
  * How the CLI draws cells (design §13.3): the colours come from the theme and a filled cell's
@@ -13,8 +13,8 @@ import type { PieceKind } from '@shura/engine';
  */
 export type ColorMode = 'truecolor' | 'ansi16' | 'none';
 
-/** What fills a cell: a piece kind, or `G` for garbage. */
-export type CellKind = PieceKind | 'G';
+/** What fills a cell: a piece kind, or garbage. */
+export type CellKind = PieceKind | typeof GARBAGE;
 
 /** Everything that decides how a cell looks: the colour mode, the theme and the skin. */
 export interface Look {
@@ -47,5 +47,5 @@ export const GLYPHS: Readonly<Record<'solid' | 'garbage' | 'ghost' | 'empty' | '
   blank: '  ',
 };
 
-/** The well's walls and floor. */
+/** The board's walls and floor. */
 export const WALLS = { side: '│', floor: '─', left: '└', right: '┘' };

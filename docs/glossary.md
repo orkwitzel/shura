@@ -150,6 +150,10 @@ _Avoid_: kitty mode, fallback mode
 
 ## Clients
 
+**Single-player session**:
+One local player's single-player games of one mode, from the countdown through play, the menu and the results, restarted in place: client-core's `SoloSession`, which runs the game loop, the engine and the input engine for them. Not the server's session, which is an online identity.
+_Avoid_: session (alone), match (that's online), game (for the whole session)
+
 **Engine event**:
 Something that happened during an engine step (a lock and what it cleared, a hold, a turn, a hard drop, a level-up, a top-out), reported to clients for sound, effects and callouts. Output only: never part of the engine state or its hash.
 _Avoid_: action (actions go into the engine, events come out), signal
@@ -197,7 +201,7 @@ The global queue that pairs waiting players into a new 1v1 room.
 _Avoid_: matchmaking, random match
 
 **Session**:
-An anonymous player's identity on the server for as long as their session token is valid.
+An anonymous player's identity on the server for as long as their session token is valid. A single-player session is something else.
 _Avoid_: user, account, connection
 
 **Session token**:
