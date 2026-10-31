@@ -126,8 +126,7 @@ const INITIAL: OnlineSessionState = {
  * Seams for later tickets:
  * - #64: reconnecting with backoff on `lost`, `hello` with the session token, resending
  *   `match.unacknowledged`, and `snapshot`;
- * - #65: `quickMatch`, `cancelQuickMatch` and `rematch`, and their store state;
- * - #62: `garbageQueued` reaches `OnlineMatch.receiveGarbage`.
+ * - #65: `quickMatch`, `cancelQuickMatch` and `rematch`, and their store state.
  */
 class Session implements OnlineSession {
   readonly #options: OnlineSessionOptions;

@@ -1,4 +1,4 @@
-import { createOnlineSession, type OnlineSession } from '@shura/client-core';
+import { type Connect, createOnlineSession, type OnlineSession } from '@shura/client-core';
 import { createGameService, type GameService } from '@shura/game';
 import { createMemoryStores, type Stores } from '@shura/valkey';
 import { pino } from 'pino';
@@ -15,11 +15,19 @@ export interface OnlineWorld {
   readonly stores: Stores;
   readonly game: GameService;
   readonly gateway: Gateway;
-  /** A client: client-core's real online session, connected to the gateway in memory. */
-  client(nickname: string): OnlineSession;
+  /**
+   * A client: client-core's real online session, connected to the gateway in memory, through
+   * `through` if given (to hold its messages back, say).
+   */
+  client(nickname: string, through?: (connect: Connect) => Connect): OnlineSession;
 }
 
-export async function onlineWorld(): Promise<OnlineWorld> {
+export interface OnlineWorldOptions {
+  /** The seed of every match. Random by default. */
+  readonly seed?: number;
+}
+
+export async function onlineWorld({ seed }: OnlineWorldOptions = {}): Promise<OnlineWorld> {
   // A whole number of 50 ms steps from 0, so each step of 50 ms is exactly 3 frames.
   const time = fakeTime(1_800_000_000_000);
   const stores = createMemoryStores({ now: time.now });
@@ -30,6 +38,7 @@ export async function onlineWorld(): Promise<OnlineWorld> {
     podId: 'game-1',
     address: POD_ADDRESS,
     logger,
+    ...(seed !== undefined && { newSeed: () => seed }),
   });
   await game.start();
   const gateway = createGateway({
@@ -44,10 +53,10 @@ export async function onlineWorld(): Promise<OnlineWorld> {
     stores,
     game,
     gateway,
-    client: (nickname) =>
+    client: (nickname, through) =>
       createOnlineSession({
         url: 'ws://gateway.test',
-        connect,
+        connect: through ? through(connect) : connect,
         clock: time,
         nickname,
         clientVersion: 'test',

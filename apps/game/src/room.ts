@@ -11,9 +11,11 @@ import {
   type ServerMessage,
   type ServerMessageOf,
 } from '@shura/protocol';
+import type { MatchLog } from '@shura/valkey';
 import type { ServerClock } from './clock';
 import type { Logger } from './logger';
 import { Match, type VerifiedGame } from './match';
+import { MATCH_LOG_APPEND_MS } from './match-log-writer';
 
 /** Where a room's messages to one session go: the gateway link it attached through. */
 export type Deliver = (sessionId: string, message: ServerMessage) => void;
@@ -37,6 +39,8 @@ export interface RoomOptions {
   readonly hostId?: string;
   readonly clock: ServerClock;
   readonly logger: Logger;
+  /** Where each match's log goes (design §9.6). */
+  readonly matchLog: MatchLog;
   /** A fresh match: its id and seed. */
   readonly newMatch: () => { matchId: string; seed: number };
   /** The room's phase or host changed, for the registry (design §9.5). */
@@ -216,6 +220,9 @@ export class Room {
       mode: this.mode,
       seed,
       players,
+      epoch: this.epoch,
+      log: this.#options.matchLog,
+      logger: this.#options.logger,
       output: {
         toPlayer: (id, message) => this.#send(id, message),
         toOthers: (id, message) => {
@@ -238,6 +245,7 @@ export class Room {
         this.#broadcastState();
       }),
       clock.every(ROOM_TICK_MS, () => match.tick()),
+      clock.every(MATCH_LOG_APPEND_MS, () => match.appendLog()),
     );
   }
 
