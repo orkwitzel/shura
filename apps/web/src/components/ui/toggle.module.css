@@ -1,0 +1,69 @@
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  cursor: pointer;
+}
+
+.label {
+  font-weight: 700;
+}
+
+/* The checkbox stays in the page for the keyboard and screen readers, drawn by the track instead. */
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 72px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  background: var(--color-deep);
+  border: var(--border-width-small) solid var(--color-shadow);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: var(--color-text);
+  transition: transform var(--duration-quick) var(--ease-bounce);
+}
+
+.track[data-checked] {
+  justify-content: flex-start;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.track[data-checked] .thumb {
+  transform: translateX(44px);
+  background: var(--color-shadow);
+}
+
+.input:focus-visible + .track {
+  outline: var(--border-width-small) solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb {
+    transition: none;
+  }
+}

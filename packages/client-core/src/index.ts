@@ -19,6 +19,7 @@ export {
   type Handling,
   type HandlingSettings,
   handlingFrames,
+  handlingSteps,
   stepHandling,
 } from './handling';
 export {

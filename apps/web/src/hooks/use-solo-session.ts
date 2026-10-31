@@ -8,6 +8,7 @@ import { useSettings, useSettingsStore, useSoloRecord } from '@shura/client-core
 import { useEffect, useState } from 'react';
 import { createWebAdapter } from '@/lib/keyboard/web-adapter';
 import { createRafClock } from '@/lib/raf-clock';
+import { useSessionHandling } from './use-session-handling';
 
 export interface SoloGame {
   /** The session: pass it to the features that show it. */
@@ -43,8 +44,7 @@ export function useSoloSession(mode: SoloMode): SoloGame {
     return () => clock.stop();
   }, [clock]);
 
-  const handling = useSettings((state) => state.handling);
-  useEffect(() => session.setInput({ handling: handlingFrames(handling) }), [session, handling]);
+  useSessionHandling(session);
 
   const bindings = useSettings((state) => state.bindings);
   useEffect(() => {

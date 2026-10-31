@@ -6,6 +6,7 @@ import {
   DEFAULT_HANDLING_SETTINGS,
   type HandlingSettings,
   handlingFrames,
+  handlingSteps,
   rebind,
   rebindChange,
   SETTINGS_VERSION,
@@ -214,6 +215,15 @@ describe('handling', () => {
     expect(stepHandling(handling, 'softDropFactor', -1).softDropFactor).toBe(40);
     const slowest = { ...DEFAULT_HANDLING_SETTINGS, softDropFactor: 5 };
     expect(stepHandling(slowest, 'softDropFactor', -1).softDropFactor).toBe(5);
+  });
+
+  test('lists every value a slider can take, a frame or a factor step apart', () => {
+    expect(handlingSteps('das')).toEqual([
+      0, 17, 33, 50, 67, 83, 100, 117, 133, 150, 167, 183, 200, 217, 233, 250, 267, 283, 300, 317,
+      333,
+    ]);
+    expect(handlingSteps('arr')).toEqual([0, 17, 33, 50, 67, 83]);
+    expect(handlingSteps('softDropFactor')).toEqual([5, 10, 15, 20, 25, 30, 35, 40, 'instant']);
   });
 
   test('steps a hand-edited soft-drop factor to the next step its way', () => {

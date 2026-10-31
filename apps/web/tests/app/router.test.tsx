@@ -67,12 +67,19 @@ describe('the main menu, at /', () => {
 });
 
 describe('the other routes', () => {
-  test('/settings is a placeholder that leads back to the menu', async () => {
+  test('/settings shows the settings, and Esc leads back to the menu', async () => {
     const app = renderWithStores(<AppRouter />, { path: '/settings' });
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('slider', { name: 'DAS' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
     expect(app.location()).toBe('/');
     expect(menu()).toBeInTheDocument();
+  });
+
+  test('/settings has a Back button to the menu too', async () => {
+    const app = renderWithStores(<AppRouter />, { path: '/settings' });
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(app.location()).toBe('/');
   });
 
   test.each([
