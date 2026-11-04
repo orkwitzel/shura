@@ -11,12 +11,17 @@ FROM base AS build
 COPY --from=prune /repo/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=prune /repo/out/full/ .
-RUN pnpm --filter @shura/gateway build
+# The packages the gateway uses build first (tsdown), then the gateway itself (nest build).
+RUN pnpm turbo run build --filter=@shura/gateway...
+# dist/ plus the production node_modules, the workspace packages as their built dist/ (ADR 0015).
+RUN pnpm --filter @shura/gateway deploy --prod /deploy
 
 FROM node:26-slim
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build /repo/apps/gateway/dist/ ./
+COPY --from=build /deploy/package.json ./
+COPY --from=build /deploy/node_modules/ ./node_modules/
+COPY --from=build /deploy/dist/ ./dist/
 USER node
 EXPOSE 8080
-CMD ["node", "--enable-source-maps", "main.js"]
+CMD ["node", "--enable-source-maps", "dist/main.js"]

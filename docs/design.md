@@ -363,7 +363,7 @@ gateway, game ──▶ Valkey (registry, queue, sessions, pod health, match log
 
 - **gateway** (stateless, scales freely):
   - terminates player WebSockets and handles the room and quick-match messages on them (§8.7);
-  - looks up `room → pod` and forwards each room's traffic to the game pod that owns it, reusing one internal connection per room (a plain `ws` client owned by its `RoomLinksService` provider, accepted on the game pod by its one WS gateway class, ADR 0014);
+  - looks up `room → pod` and forwards each room's traffic to the game pod that owns it, reusing one internal connection per room (a plain `ws` client owned by its `RoomLinksService` provider, accepted on the game pod at `/room-links` by its one WS gateway class, ADR 0014);
   - serves `/api` (§8.7), enforces the abuse limits (§11), and serves `/livez`, `/readyz` and `/metrics`, which the route table never exposes.
 
   If a gateway pod dies, its players reconnect to any other gateway with their session token.
@@ -688,12 +688,12 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 |---|---|
 | Package manager | pnpm workspaces, version pinned via the `packageManager` field + corepack (installed from npm, since Node 25+ doesn't bundle it). Versions shared by several packages live in the `catalog:` in `pnpm-workspace.yaml`. Install scripts run only for packages listed under `allowBuilds` |
 | Task runner | Turborepo (task graph and caching, with the cache shared to CI through the Actions cache) |
-| Language / runtime | TypeScript (strict), ESM only, Node 26 LTS |
+| Language / runtime | TypeScript (strict), ESM only, Node 26 LTS. `gateway` and `game` stay on TypeScript 6 (a named catalog) until TypeScript 7.1 brings back the compiler API that the Nest CLI needs |
 | Internal packages | Built with tsdown to `dist/` (ADR 0015): ESM, ES2024, with source maps, from each package's `tsdown.config.ts`. Code that two entries share (client-core's root and `./react`) goes in one unhashed shared chunk beside them. `typecheck` = `tsc --noEmit` per package, cached by Turbo. `build`, `typecheck`, `test` and `dev` depend on `^build`, so a fresh checkout needs no manual build step |
 | Server framework | NestJS 11 on Express with `@nestjs/platform-ws`, `nestjs-zod`, `@nestjs/config`, `nestjs-pino`, `@nestjs/terminus` (ADR 0014). Conventions in [`agents/nest.md`](agents/nest.md) |
 | App builds | `gateway`, `game`: the Nest CLI with its SWC builder (decorator metadata), run with `--enable-source-maps`. `cli`, `bot`: esbuild → one unminified JS file + source map. `web`: Vite |
 | Docker images | `node:26-slim` + the service's `dist/` and production `node_modules`, made by `pnpm --filter <service> deploy --prod` after `nest build` (the workspace packages come in as their built `dist/`) |
-| Tests | Vitest everywhere, with one workspace config and a project per package. Tests live in `tests/` next to `src/` in every app and package, with test-only helpers in `tests/support/`. Ink components via `ink-testing-library`, web via Testing Library. Playwright end-to-end tests come later |
+| Tests | Vitest everywhere, with one workspace config and a project per package. Tests live in `tests/` next to `src/` in every app and package, with test-only helpers in `tests/support/`. Ink components via `ink-testing-library`, web via Testing Library, `gateway` and `game` compiled by `unplugin-swc` (decorator metadata). Playwright end-to-end tests come later |
 | Lint / format | Biome (`biome.json` at the root) for code, JSON, YAML and CSS. Markdown is excluded, because Biome's Markdown formatter rewrites YAML frontmatter |
 | Git hooks | lefthook: Biome on staged files before commit. Before push: reject pushes to `main` and branch names that don't match the convention. The allowed types and scopes live in `scripts/conventions.sh`, which both the hook and CI read |
 | Service config | Environment variables validated at startup by a zod schema in each service, given to `@nestjs/config` as its `validate`. `.env.example` is committed |

@@ -3,22 +3,48 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --outfile=dist/main.js",
+    "dev": "nest build && concurrently --kill-others --names build,run \"nest build --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
+    "build": "nest build",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc",
-    "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache"
+    "test": "vitest run --fsModuleCachePath node_modules/.vitest-cache"
   },
   "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/config": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-express": "catalog:",
+    "@nestjs/platform-ws": "catalog:",
+    "@nestjs/terminus": "catalog:",
+    "@nestjs/websockets": "catalog:",
+    "@shura/engine": "workspace:*",
+    "@shura/protocol": "workspace:*",
+    "nestjs-pino": "catalog:",
+    "nestjs-zod": "catalog:",
+    "pino": "catalog:",
+    "pino-http": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@nestjs/cli": "catalog:",
+    "@nestjs/schematics": "catalog:",
+    "@nestjs/testing": "catalog:",
     "@shura/tsconfig": "workspace:*",
+    "@swc/cli": "catalog:",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
-    "esbuild": "catalog:",
-    "tsx": "catalog:",
-    "typescript": "catalog:",
+    "@types/ws": "catalog:",
+    "concurrently": "catalog:",
+    "pino-pretty": "catalog:",
+    "typescript": "catalog:nest",
+    "unplugin-swc": "catalog:",
     "vitest": "catalog:"
   }
 }
