@@ -4,7 +4,7 @@ Shura (Hebrew שורה, "row") is an online multiplayer falling-block puzzle gam
 
 This document is the source of truth for how the system works. It describes the system **as it is meant to be**, and it changes in the same pull request as any code that changes the behaviour it describes. Decisions that are expensive to reverse are recorded in [`adr/`](adr/), and terms are defined in [`glossary.md`](glossary.md). The interactive [architecture report](https://claude.ai/artifact/3EnAy6cCCW2VUC1ByKny2c) is a visual companion to the backend sections. Where they differ, this document wins.
 
-Status (October 2026): M0 skeleton, M1 engine and M2 CLI single-player done. M3 web single-player is built and awaits its manual real-browser checklist ([#51](https://github.com/orkwitzel/shura/issues/51), [checklist](web-browser-checklist.md)). M4 multiplayer is designed (§8–§13, the [match screens mockup](https://claude.ai/artifact/Pijgo3kT79ydG7hCRT31f2)) and next.
+Status (October 2026): M0 skeleton, M1 engine and M2 CLI single-player done. M3 web single-player is built and awaits its manual real-browser checklist ([#51](https://github.com/orkwitzel/shura/issues/51), [checklist](web-browser-checklist.md)). M4 multiplayer is designed (§8–§13, the [match screens mockup](https://claude.ai/artifact/Pijgo3kT79ydG7hCRT31f2)) and next, with both services on NestJS ([ADR 0014](adr/0014-server-services-on-nestjs.md)).
 
 ---
 
@@ -31,8 +31,8 @@ A pnpm workspace monorepo run with Turborepo.
 apps/
   web/          React + Vite single-page app; boards drawn with PixiJS
   cli/          Ink terminal client; published to npm as `shura`
-  gateway/      service: public WebSocket, room and quick-match HTTP API, forwarding to game pods
-  game/         service: hosts rooms; verification engines, clock, garbage, relay, match log
+  gateway/      NestJS service: public WebSocket, the /api routes (sessions, room look-ups), forwarding to game pods
+  game/         NestJS service: hosts rooms; verification engines, clock, garbage, relay, match log
   bot/          testing tool only: headless bot players that join rooms through the gateway (never deployed, §13.4)
 packages/
   engine/       deterministic game rules (used by game, web, cli)
@@ -43,7 +43,7 @@ packages/
   valkey/       Registry, MatchQueue, SessionStore, PodHealth, MatchLog, RateLimiter interfaces; Valkey and in-memory
                 versions
   tsconfig/     shared TypeScript config
-docs/           this file, adr/, glossary.md
+docs/           this file, adr/, glossary.md, agents/ (agent guides, the NestJS conventions in agents/nest.md)
 deploy/         (later) Kubernetes manifests
 ```
 
@@ -53,7 +53,8 @@ Dependency rules:
 - `protocol` may import `engine` types.
 - Apps depend on packages. Packages never depend on apps.
 - `gateway` and `game` communicate only through `protocol` messages and Valkey.
-- Internal packages export **TypeScript source** (`"exports": { ".": "./src/index.ts" }`) and have no build step. See [ADR 0010](adr/0010-source-only-internal-packages.md).
+- Internal packages are **built with tsdown** into `dist/` (one bundled `.js` and `.d.ts` per entry point), and their `exports` point there. Every consumer runs the same compiled output. See [ADR 0015](adr/0015-internal-packages-built-with-tsdown.md), which supersedes ADR 0010.
+- `gateway` and `game` are NestJS apps and follow [`agents/nest.md`](agents/nest.md). See [ADR 0014](adr/0014-server-services-on-nestjs.md).
 
 ---
 
@@ -255,7 +256,9 @@ See [ADR 0001](adr/0001-deterministic-engine-with-server-verification.md) and [A
 
 ### 8.2 Transport
 
-- Raw WebSocket (`ws` on the server; the native `WebSocket` in browsers and in Node for the CLI) carrying JSON text messages.
+- Raw WebSocket (`ws` on the server, through Nest's `WsAdapter`; the native `WebSocket` in browsers and in Node for the CLI) carrying JSON text messages.
+- Every message is `{ event, data }`, Nest's envelope, in both directions and on the internal gateway ⇄ game links too. `event` is the message name and `data` its fields.
+- A socket's messages are handled one at a time, in the order they arrived (`maxConcurrentMessages: 1`), even when a handler waits on Valkey. Input batches must reach the engine in sequence.
 - Every message is validated with a zod schema from `packages/protocol` on receipt. Unknown fields are tolerated (`passthrough`), so adding fields stays backward compatible.
 - `permessage-deflate` is off. `bufferutil` is installed on the server.
 
@@ -265,7 +268,8 @@ See [ADR 0006](adr/0006-strict-version-handshake.md).
 
 - `protocolVersion` (an integer) changes only on **breaking** message changes, such as a renamed or removed message or a field whose meaning changes. New optional fields and new message types that old clients can ignore don't change it.
 - `engineVersion` (an integer) changes only when **game outcomes** change. The replay-hash test (§5.3) decides this mechanically.
-- Clients open with `hello{ protocolVersion, engineVersion, clientVersion, nickname, sessionToken?, kind? }` (`kind: 'bot'` from the bot tool, §13.4). The gateway rejects any mismatch with an explicit error that includes what to do. The web says "A new version of Shura is out" and reloads when the player presses Enter. The CLI prints `npm i -g shura@latest` and exits with code 1.
+- Every `/api` request carries `Shura-Protocol` and `Shura-Engine` headers, and the gateway's `VersionGuard` rejects a mismatch with `version_mismatch` (HTTP 426). A client's first contact is `POST /api/sessions` (§8.7), so an outdated client learns it there, before it opens a socket.
+- On the socket, clients open with `hello{ protocolVersion, engineVersion, clientVersion, sessionToken, kind? }` (`kind: 'bot'` from the bot tool, §13.4). The gateway rejects any mismatch with an explicit error that includes what to do. The web says "A new version of Shura is out" and reloads when the player presses Enter. The CLI prints `npm i -g shura@latest` and exits with code 1.
 - Accounts (§16) will add an optional `accountToken` to `hello`, which isn't a breaking change: sign-in itself happens over HTTP, and play stays on the WebSocket (§9.1).
 - Game pods publish their `engineVersion` in their heartbeat. Rooms are placed only on pods with a matching version, so during a rolling deploy, running rooms finish on old pods and new rooms go to new pods.
 - Single-player works offline whatever the version.
@@ -309,11 +313,18 @@ Without step 3, the server would add the attack to its copy of the target's mete
 
 ### 8.7 Messages
 
-The authoritative definitions are the zod schemas in `packages/protocol`. Every room action is a WebSocket message (§9.1).
+The authoritative definitions are the zod schemas in `packages/protocol`, which the clients and both services validate with (through `nestjs-zod` on the server). Every room action is a WebSocket message (§9.1). A message written below as `name{ fields }` travels as `{ event: "name", data: { fields } }`.
+
+**HTTP (client → gateway):**
+
+- `POST /api/sessions { nickname, sessionToken? }` → `{ sessionId, sessionToken, nickname }`: a new session, or the existing one when the token is still valid (§10.2). The nickname comes back as the server normalised it.
+- `GET /api/rooms/:code` → `{ code, mode, seats, seated, spectators }`, or `room_not_found` (404). Lets a client check a room link (`/r/K7QX`) before joining.
+
+More may move to HTTP later. Anything that changes a room stays on the socket for now, because it's pushed to everyone in the room.
 
 **Client → gateway:**
 
-- `hello{ protocolVersion, engineVersion, clientVersion, nickname, sessionToken?, kind? }`, `setNickname{ nickname }` (in the lobby only), `ping{ id }`
+- `hello{ protocolVersion, engineVersion, clientVersion, sessionToken, kind? }` (the first message; every other message except `ping` is rejected with `session_required` until it succeeds), `setNickname{ nickname }` (in the lobby only), `ping{ id }`
 - `createRoom{ mode }` (`1v1` or `ffa`, fixed for the room's life), `joinRoom{ code }`, `leaveRoom`
 - `ready{ ready }`, `startMatch` (host only), `spectate` (step out of a seat), `takeSeat` (take a free seat, in the lobby)
 - `quickMatch`, `cancelQuickMatch`, `rematch` (quick-match rooms, after results)
@@ -321,14 +332,14 @@ The authoritative definitions are the zod schemas in `packages/protocol`. Every 
 
 **Gateway → client:**
 
-- `welcome{ sessionId, sessionToken, nickname, serverTime }` (the nickname as the server normalised it), `error{ code, message }`, `pong{ id, serverTime }`
+- `welcome{ sessionId, serverTime }`, `exception{ code, message }` (Nest's error event), `pong{ id, serverTime }`
 - `roomState{ code, mode, hostId, phase, players: [{ id, nickname, kind, seat, ready, lastPlace? }], spectators: [{ id, nickname, kind }] }`: `kind` is `guest` or `bot` (§10.2), and `seat` is the seat number. Quick-match rooms have no `hostId`.
 - `quickMatchQueued`, `quickMatchCancelled`, `opponentLeft` (quick-match rooms)
 - `countdown{ startAt, seed, matchId, players: [{ id, index }] }`, `snapshot{ players: [{ playerId, frame, state }] }`
 - `batchAck{ seq }`, `relay{ playerId, frames }`, `garbageQueued{ id, from, to, lines, holeSeed }`
 - `playerOut{ playerId, reason, frame }` (`reason`: `toppedOut`, `laggedOut`, `removed` or `left`), `matchEnd{ placements: [{ playerId, place, reason?, frame? }], stats: [{ playerId, linesSent, apm, pps }] }`
 
-`error` codes clients show in plain words include `version_mismatch`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit` and `not_host`.
+**Errors.** One table, `ERRORS` in `packages/protocol`, lists every error `code` with its default text and HTTP status. On the socket an error is `exception{ code, message }` (thrown as `WsException`); over HTTP it's a `{ code, message }` body with the code's status (thrown as `HttpException`). Clients match on `code` on both, through one error type in client-core. Codes clients show in plain words include `version_mismatch`, `session_required`, `invalid_message`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit` and `not_host`.
 
 **Gateway ⇄ game (internal):** the room-scoped messages above, wrapped with `{roomCode, epoch, sessionId}`, plus `createRoom`, `attach`, `detach`, `drain`.
 
@@ -344,7 +355,7 @@ See [ADR 0004](adr/0004-gateway-and-game-services-with-valkey.md) and [ADR 0005]
             ┌──────── Gateway API (one public origin, TLS) ────────┐
             │  /        → shura-web   (static Vite build)           │
             │  /ws      → gateway     (stateless, N pods)           │
-            │  /api     → reserved for future HTTP (accounts)       │
+            │  /api     → gateway     (sessions, room look-ups)     │
             └───────────────────────────────────────────────────────┘
 gateway ──(internal WS, per room)──▶ game pod that owns the room (stateful, M pods)
 gateway, game ──▶ Valkey (registry, queue, sessions, pod health, match logs)
@@ -352,8 +363,8 @@ gateway, game ──▶ Valkey (registry, queue, sessions, pod health, match log
 
 - **gateway** (stateless, scales freely):
   - terminates player WebSockets and handles the room and quick-match messages on them (§8.7);
-  - looks up `room → pod` and forwards each room's traffic to the game pod that owns it, reusing one internal connection per room;
-  - enforces the abuse limits (§11) and serves `/livez`, `/readyz` and `/metrics` on an internal port.
+  - looks up `room → pod` and forwards each room's traffic to the game pod that owns it, reusing one internal connection per room (a plain `ws` client owned by its `RoomLinksService` provider, accepted on the game pod by its one WS gateway class, ADR 0014);
+  - serves `/api` (§8.7), enforces the abuse limits (§11), and serves `/livez`, `/readyz` and `/metrics`, which the route table never exposes.
 
   If a gateway pod dies, its players reconnect to any other gateway with their session token.
 - **game** (stateful):
@@ -364,7 +375,9 @@ gateway, game ──▶ Valkey (registry, queue, sessions, pod health, match log
 
 Players are never "on" a game pod; rooms are. Two players matched through different gateways end up in the same room, so on the same game pod.
 
-Everything live goes over the WebSocket: `hello`, rooms, quick-match and play. The gateway has no public HTTP routes in v1, only `/livez`, `/readyz` and `/metrics` on its internal port. `/api` is reserved in the route table for future HTTP: accounts, sign-in and leaderboards (§16). Sign-in flows (OAuth redirects, email links, cookies) need HTTP, and data people read (leaderboards, profiles) is cacheable and linkable over it, while anything live stays on the socket. Whether that HTTP lives in the gateway or in a service of its own is left to the accounts work.
+Everything live goes over the WebSocket: `hello`, rooms, quick-match and play. Request/response calls go over HTTP at `/api`: in v1 only creating or resuming a session and looking up a room by code (§8.7). Later, sign-in flows (OAuth redirects, email links, cookies) and data people read (leaderboards, profiles), which is cacheable and linkable over HTTP, join them there (§16), while anything live stays on the socket.
+
+Each service is one NestJS app on one port (ADR 0014). `/livez`, `/readyz` and `/metrics` are on that port too, and stay private because the public route table only sends `/ws` and `/api` to the gateway and never routes to the game pods at all.
 
 ### 9.2 Room placement
 
@@ -445,9 +458,9 @@ lobby ──(host starts, ≥ 1 other seated player ready)──▶ countdown (3
 ### 10.2 Identity and reconnects
 
 - Every player in v1 is a **guest**: known only by a nickname and a session token, with no account. Players carry a `kind` in `roomState`, `guest` for now, so when accounts arrive (§16) "guest or account" is already a branch in the code. Bots from the testing tool (§13.4) say `kind: 'bot'` in their `hello`, and the server passes that on.
-- On `hello` the server issues a random **session token**. The web client keeps it in `sessionStorage`, and the CLI in memory.
-- The **nickname** comes from the client's settings (§13.1) and is sent in `hello`. The server normalises it (§11), applies the blocklist and the `#2` suffix, and sends back the name it uses, which the client shows. It can be changed in the lobby (`setNickname`), never during a match.
-- Reconnecting with the token restores the same seat and nickname.
+- `POST /api/sessions` issues a random **session token** (§8.7), and the client sends it in `hello` when it opens the socket. The web client keeps it in `sessionStorage`, and the CLI in memory.
+- The **nickname** comes from the client's settings (§13.1) and is sent in `POST /api/sessions`. The server normalises it (§11), applies the blocklist and the `#2` suffix, and sends back the name it uses, which the client shows. It can be changed in the lobby (`setNickname`), never during a match.
+- Reconnecting with the token (`POST /api/sessions` with it, then `hello`) restores the same seat and nickname.
 - Disconnected **in the lobby:** the seat is held for 30 s.
 - Disconnected **during a match:** the client keeps playing locally and keeps its unacknowledged batches. It reconnects at once and backs off (250 ms, 500 ms, 1 s, then every 2 s).
   - **Back within the 3 s window** (§8.4): it resends its unacknowledged batches, the server verifies them in order, and the match carries on with nothing lost. The player sees "Reconnecting…" over their HUD meanwhile; opponents see only that board pause for a moment.
@@ -463,7 +476,7 @@ lobby ──(host starts, ≥ 1 other seated player ready)──▶ countdown (3
 
 ## 11. Abuse protection
 
-All limits are enforced in the gateway (the only public entry point). Each is an environment variable of the gateway, defaulting to the value below and validated by its zod config. A rejected action gets an `error{ code }` (`rate_limited`, `too_many_connections`, `room_limit`, …), and the clients say what happened in plain words ("Too many rooms created. Try again in a minute").
+All limits are enforced in the gateway (the only public entry point). Each is an environment variable of the gateway, defaulting to the value below and validated by its zod config. A rejected action gets an error code (`rate_limited`, `too_many_connections`, `room_limit`, …): an `exception{ code }` on the socket, or a `{ code }` body with the code's HTTP status over HTTP (`rate_limited` is 429), as in §8.7. The clients say what happened in plain words ("Too many rooms created. Try again in a minute").
 
 | Threat | Protection |
 |---|---|
@@ -471,12 +484,13 @@ All limits are enforced in the gateway (the only public entry point). Each is an
 | Message floods | Token bucket per connection: 60 msg/s, burst 120 |
 | Connection floods | Per IP: 10 concurrent connections, 30 new per minute. Counted in Valkey, so the limits hold across gateway pods |
 | Room spam | 3 rooms created per minute per IP. 1 hosted room per session. At most 16 spectators per room |
-| Room-code guessing | 10 failed joins per minute per IP |
+| Session spam | 10 `POST /api/sessions` per minute per IP |
+| Room-code guessing | 10 failed joins per minute per IP. Room look-ups that find nothing (`GET /api/rooms/:code`) count in the same bucket, so guessing over HTTP costs the same as over the socket |
 | Nicknames | 1–16 characters: Unicode letters (Hebrew included), digits, `_`, `-`, spaces. NFC-normalized, control and zero-width characters stripped, plus an extendable blocklist file. Duplicates in a room get `#2` |
 | Quick-match | One queue entry per session, with a cooldown on rapid requeueing |
 | Cheating | Server re-simulation (§8.1), clock enforcement (§8.4), version handshake (§8.3) |
 
-Counts and buckets that must hold across gateway pods live in Valkey (`rl:*`), behind the `RateLimiter` interface in `packages/valkey`, with in-memory and Valkey versions like the others.
+Counts and buckets that must hold across gateway pods live in Valkey (`rl:*`), behind the `RateLimiter` interface in `packages/valkey`, with in-memory and Valkey versions like the others. One mechanism serves both transports: a `@RateLimit('<key>')` decorator and `RateLimitGuard` on controllers and WS handlers alike. The connection limits are checked in the WS gateway class's `handleConnection`, where guards don't run.
 
 `LIMITS_EXEMPT_IPS` (empty by default) exempts the listed addresses from the **per-IP** limits only: the connection caps, room creation and failed joins. The per-connection protections (message size, validation, the message-rate bucket) always apply, so a looping bug still gets caught. `.env.example` sets it to `127.0.0.1,::1`, so a laptop running web, CLI and bot clients at once isn't blocked (§14).
 
@@ -486,9 +500,9 @@ Client IPs come from `X-Forwarded-For`, trusted only from the peers listed in `T
 
 ## 12. Observability
 
-- **Health:** `/livez` (process alive) and `/readyz` (Valkey connected, not draining) on an internal port.
-- **Logs:** pino JSON to stdout, from M4 in `gateway`, `game` and the bot tool, with `service`, `pod`, and where relevant `roomCode`, `matchId` and `sessionId`. `pino-pretty` in dev. Inputs and nicknames are never logged at info level.
-- **Metrics** (M5): Prometheus format via `prom-client` on `/metrics`.
+- **Health:** `/livez` (process alive) and `/readyz` (Valkey connected, not draining), through `@nestjs/terminus`, on each service's one port and never routed publicly (§9.1).
+- **Logs:** pino JSON to stdout (`nestjs-pino` in the services, context fields added with `PinoLogger.assign`), from M4 in `gateway`, `game` and the bot tool, with `service`, `pod`, and where relevant `roomCode`, `matchId` and `sessionId`. `pino-pretty` in dev. Inputs and nicknames are never logged at info level.
+- **Metrics** (M5): Prometheus format via `prom-client` on `/metrics`, through `@willsoto/nestjs-prometheus`.
   - **gateway:** connections, messages/s, rate-limit rejections, quick-match queue length and wait time, forwarding errors.
   - **game:** rooms hosted, active matches, batches/s, verification time per batch, clock violations, lag-outs, log-append latency, garbage-ack timeouts.
   - **both:** event-loop delay, memory, GC.
@@ -542,7 +556,9 @@ Each record keeps the date, the stats the results show (Finished or Game over, s
 
 The look is juicy arcade pixel: pixel fonts, pixel-art cells, thick cream borders with hard offset shadows, saturated piece colours on a deep backdrop, bouncy menus, and effects that make every clear land (§13.2). Not restrained terminal styling, and no hacker clichés (green-on-black, scanlines, glitch effects). The CLI shares the colours and skins and draws the rest as text.
 
-**Online session.** client-core's `OnlineSession` is what both UIs (and the bot tool, §13.4) use for online play. It opens the WebSocket when the player enters *Play online* and closes it when they go back to the main menu, so single-player never touches the network (§6). It does the `hello`, keeps the session token, reconnects with backoff (§10.2), keeps the clock offset and ping from ping samples (§8.4), and holds a Zustand store of the connection (connecting, connected, reconnecting, failed, with the reason), the room (`roomState`), the quick-match state and the current match. A match runs the same game loop and input engine as a single-player session, with the loop's start set from `startAt` and the clock offset, plus: the player's actions sent as input batches about every 3 frames, kept until acknowledged and resent after a reconnect; `garbageQueued` for this player turned into a `garbageReceived` action at the next frame (§8.5); one engine per opponent fed from relays (§8.6); snapshots restored on joining or reconnecting mid-match; and who is out, with placements, from `playerOut` and `matchEnd`. Engine events from the player's own engine reach `onEvents` as in single-player. The loop never pauses (§8.4). Every online screen in both UIs is a view over this store.
+**Online session.** client-core's `OnlineSession` is what both UIs (and the bot tool, §13.4) use for online play. When the player enters *Play online* it creates or resumes the session (`POST /api/sessions`), then opens the WebSocket, and it closes the socket when they go back to the main menu, so single-player never touches the network (§6). It does the `hello`, keeps the session token, reconnects with backoff (§10.2), keeps the clock offset and ping from ping samples (§8.4), and holds a Zustand store of the connection (connecting, connected, reconnecting, failed, with the reason), the room (`roomState`), the quick-match state and the current match. A match runs the same game loop and input engine as a single-player session, with the loop's start set from `startAt` and the clock offset, plus: the player's actions sent as input batches about every 3 frames, kept until acknowledged and resent after a reconnect; `garbageQueued` for this player turned into a `garbageReceived` action at the next frame (§8.5); one engine per opponent fed from relays (§8.6); snapshots restored on joining or reconnecting mid-match; and who is out, with placements, from `playerOut` and `matchEnd`. Engine events from the player's own engine reach `onEvents` as in single-player. The loop never pauses (§8.4). Every online screen in both UIs is a view over this store.
+
+**API client.** client-core's HTTP calls (`api.createSession(…)`, `api.lookupRoom(code)`) are a small hand-written wrapper over `fetch`. It sends the version headers (§8.3) and parses every response with the same `packages/protocol` schemas the gateway validates with, and a `{ code, message }` body becomes the same error type as a socket `exception`, so both UIs handle errors one way. Sessions are part of connecting, which runs outside React, so the online session calls the API itself and keeps the result in its store. Screens that only read (the room link page checking that a room exists) use `useRoomLookup(code)` from `@shura/client-core/react`, a small hook over the wrapper. React Query is left until there are more server reads (§16). In dev the gateway serves its OpenAPI document at `/api/docs`, for people to read.
 
 **Nickname.** A `nickname` field in the settings model, empty until set, kept the way the rest of the settings are (`localStorage` on the web, `config.json` in the CLI). The first time a player chooses *Play online* with no nickname, a prompt asks for one, prefilled with a random suggestion (`Player4821`) that Enter accepts, and checked as it's typed with the same validation the gateway uses, from `protocol` (§11). It can be changed in the settings screen and in the lobby; a change made in the lobby is saved to settings too. The CLI's `--name` overrides it for one run without saving it. The server still has the last word on the name (§10.2).
 
@@ -588,7 +604,7 @@ The look is juicy arcade pixel: pixel fonts, pixel-art cells, thick cream border
   - **Results:** an overlay over the match: the player's place as its title, then every player's place with their lines sent, attack per minute and pieces per second, the player's row highlighted. Enter, or 10 s, goes back to the lobby. In a quick-match room: *Rematch* (Enter) and *Leave* (Esc) instead (§9.4).
   - **Hidden tab:** the loop runs from `worker-timers` while the tab is hidden (§8.4).
 - UI text is in English. Nicknames in any script, Hebrew included, display correctly.
-- In dev, Vite forwards `/ws` to the gateway, so the browser sees one origin. `/api` is added when something uses it (§9.1).
+- In dev, Vite forwards `/ws` and `/api` to the gateway, so the browser sees one origin, as in production (§9.1), and needs no CORS.
 
 **Code layout:** the folders of `apps/web` and the rules for what goes where are in [`apps/web/AGENTS.md`](../apps/web/AGENTS.md): pages in `app/routes/` compose features, features never import each other, and the import direction is checked by Biome.
 
@@ -649,7 +665,7 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 
 **Quitting:** Ctrl+C quits at once from anywhere and restores the terminal (cursor, keyboard protocol, alternate screen). A game in progress is dropped.
 
-**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the settings: nickname, bindings, handling, ghost, theme, skin and server URL. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build.
+**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the settings: nickname, bindings, handling, ghost, theme, skin and server URL. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build. The server URL is the HTTP origin (`https://…`); the CLI derives `/api` and the WebSocket URL (`wss://…/ws`) from it.
 
 **Records:** personal bests (§13.1) live in `records.json` in the XDG data directory (`~/.local/share/shura/`; `%LOCALAPPDATA%\shura` on Windows), apart from the config people edit by hand. Both files are written atomically (a temporary file, then a rename), so a crash mid-save never corrupts them. An invalid `config.json` falls back to the defaults with a message that says what's wrong. An invalid `records.json` is moved to `records.json.bak` and a fresh one started, with a message, so personal bests are never silently lost. The game drew on the alternate screen, so these messages show in short in the status line during the game, and in full on the terminal after quitting.
 
@@ -673,32 +689,35 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 | Package manager | pnpm workspaces, version pinned via the `packageManager` field + corepack (installed from npm, since Node 25+ doesn't bundle it). Versions shared by several packages live in the `catalog:` in `pnpm-workspace.yaml`. Install scripts run only for packages listed under `allowBuilds` |
 | Task runner | Turborepo (task graph and caching, with the cache shared to CI through the Actions cache) |
 | Language / runtime | TypeScript (strict), ESM only, Node 26 LTS |
-| Internal packages | Source-only, no build step. `typecheck` = `tsc --noEmit` per package, cached by Turbo |
-| App builds | `gateway`, `game`, `cli`, `bot`: esbuild → one unminified JS file + source map, run with `--enable-source-maps`. `web`: Vite |
-| Docker images | `node:26-slim` + the bundle (+ source map). Native optional dependencies such as `bufferutil` are left out of the bundle and installed in the image |
+| Internal packages | Built with tsdown to `dist/` (ADR 0015). `typecheck` = `tsc --noEmit` per package, cached by Turbo. `build`, `typecheck`, `test` and `dev` depend on `^build` |
+| Server framework | NestJS 11 on Express with `@nestjs/platform-ws`, `nestjs-zod`, `@nestjs/config`, `nestjs-pino`, `@nestjs/terminus` (ADR 0014). Conventions in [`agents/nest.md`](agents/nest.md) |
+| App builds | `gateway`, `game`: the Nest CLI with its SWC builder (decorator metadata), run with `--enable-source-maps`. `cli`, `bot`: esbuild → one unminified JS file + source map. `web`: Vite |
+| Docker images | `node:26-slim` + the service's `dist/` and production `node_modules`, made by `pnpm --filter <service> deploy --prod` after `nest build` (the workspace packages come in as their built `dist/`) |
 | Tests | Vitest everywhere, with one workspace config and a project per package. Tests live in `tests/` next to `src/` in every app and package, with test-only helpers in `tests/support/`. Ink components via `ink-testing-library`, web via Testing Library. Playwright end-to-end tests come later |
 | Lint / format | Biome (`biome.json` at the root) for code, JSON, YAML and CSS. Markdown is excluded, because Biome's Markdown formatter rewrites YAML frontmatter |
 | Git hooks | lefthook: Biome on staged files before commit. Before push: reject pushes to `main` and branch names that don't match the convention. The allowed types and scopes live in `scripts/conventions.sh`, which both the hook and CI read |
-| Service config | Environment variables validated at startup by a zod schema in each service. `.env.example` is committed |
+| Service config | Environment variables validated at startup by a zod schema in each service, given to `@nestjs/config` as its `validate`. `.env.example` is committed |
 
 **Dev workflow:**
 
 ```
-pnpm dev        docker compose up -d valkey  →  turbo dev:
-                gateway :8080 (tsx watch) · game :8081 (tsx watch) · web :5173 (Vite, forwards /ws)
-pnpm cli        Ink client in its own terminal (needs a real TTY); defaults to ws://localhost:8080
+pnpm dev        docker compose up -d valkey  →  turbo dev (after building the packages):
+                packages (tsdown --watch) · gateway :8080 · game :8081 · web :5173 (Vite, forwards /ws and /api)
+pnpm cli        Ink client in its own terminal (needs a real TTY); defaults to http://localhost:8080
 pnpm dev:game2  second game instance on :8082 to test multi-pod behaviour
 pnpm dev:bot    the bot tool on :8090 (testing only, §13.4)
 pnpm bot        join K7QX --count 5 · quick: asks the bot tool for bots
 pnpm check      Biome + typecheck + test across the repo (the same command CI runs)
 ```
 
+Each service runs `nest build --watch` beside `node --watch --enable-source-maps dist/main.js`. `node --watch` restarts on any file the service loaded, so an edit to the service or to a package (once its `tsdown --watch` has rebuilt `dist/`) restarts it.
+
 `.env.example` sets `LIMITS_EXEMPT_IPS=127.0.0.1,::1`, so the per-IP limits (§11) don't block a laptop running several clients and bots.
 
 **Testing online play (from M4):**
 
-- `gateway` and `game` take a clock (`now()` and timers) as client-core's loop does, so tests drive countdowns, the 1 s and 3 s windows, the 30 s seat hold, `GARBAGE_ACK_TIMEOUT` and empty-room deletion with fake time, without waiting.
-- Integration tests run `gateway` and `game` in one process against the in-memory `valkey` versions, so they don't need Docker. Their clients are client-core's real online session, with scripted inputs or bot brains. They cover a full 1v1 and a 4-player FFA through to `matchEnd`; garbage, with `garbageReceived` and a clear that cancels an attack between its sending and its receipt (§8.5); top-outs at the same frame sharing a place; a reconnect within 3 s carrying on and one after it spectating; a client running ahead being removed; a version mismatch; and each limit tripping.
+- `gateway` and `game` take a clock (`now()` and timers) as an injected provider, as client-core's loop takes one, so tests replace it (`overrideProvider`) and drive countdowns, the 1 s and 3 s windows, the 30 s seat hold, `GARBAGE_ACK_TIMEOUT` and empty-room deletion with fake time, without waiting.
+- Integration tests build `gateway` and `game` in one process with `Test.createTestingModule`, override the clock, the stores (the in-memory `valkey` versions, so no Docker) and the logger, and start them with `app.listen(0)`. Their clients are client-core's real online session over real sockets and `fetch`, with scripted inputs or bot brains. Reconnects and lag-outs go through `faultySocket()` (in `tests/support/`), which wraps a client's socket and can hold, release or drop messages either way, so the services carry no test-only code. They cover a full 1v1 and a 4-player FFA through to `matchEnd`; garbage, with `garbageReceived` and a clear that cancels an attack between its sending and its receipt (§8.5); top-outs at the same frame sharing a place; a reconnect within 3 s carrying on and one after it spectating; a client running ahead being removed; a version mismatch; and each limit tripping.
 - Every integration match ends by checking that each client's own engine hash equals the server's copy of that player's game at the final frame: the server's verdict and the client's game agree.
 - Each `packages/valkey` interface has one test suite, run against the in-memory version always and against real Valkey when `VALKEY_URL` is set. CI runs a Valkey service container, so both run on every PR.
 - `packages/protocol` has schema round-trip tests, and a stored snapshot of the schemas' shape that fails when a message or field is removed or renamed without a `PROTOCOL_VERSION` bump.
@@ -741,7 +760,7 @@ The full rules for contributors are in [`CONTRIBUTING.md`](../CONTRIBUTING.md). 
 | Where Valkey runs (managed vs in-cluster with Sentinel) | Deploy time. The code is the same either way |
 | Domain name | Before M6 (the CLI compiles in the default server URL) |
 | Standalone CLI binary (Node SEA, CI matrix, GitHub Releases) | When there's demand |
-| Accounts, database, leaderboards, replays, log archive, ratings | Future. The match log is already complete for this. Sign-in and data people read go over HTTP at the reserved `/api`, in the gateway or a service of its own; play stays on the WebSocket, with an optional `accountToken` in `hello` (§8.3, §9.1). Players already carry `kind: 'guest'` (§10.2) |
+| Accounts, database, leaderboards, replays, log archive, ratings | Future. The match log is already complete for this. Sign-in and data people read go over HTTP under `/api`, which the gateway already serves (§9.1); play stays on the WebSocket, with an optional `accountToken` in `hello` (§8.3, §9.1). Players already carry `kind: 'guest'` (§10.2) |
 | PvE bots and difficulty levels | Future. Builds on the bot tool's `BotProfile` (§13.4), with the server spawning bots itself |
 | 6-character room codes for private rooms | Future (§10.3) |
 | Chat, other players' pings, changing a room's mode | Future. A room's mode is fixed at creation (§10.1); the ping shown is the player's own (§13.2) |
@@ -752,6 +771,8 @@ The full rules for contributors are in [`CONTRIBUTING.md`](../CONTRIBUTING.md). 
 | UI localisation | Future. English only for now |
 | Composite actions (`shiftToWall`, `sonicDrop`) | If action counts at ARR 0 or with instant soft drop become a problem. The input engine sends plain moves for now (§7.3) |
 | Personal best history | Future. Only the best run per mode is kept, with its action log (§13.1) |
+| React Query for server reads | When leaderboard or profile reads arrive. Until then `useRoomLookup` is a plain hook (§13.1) |
+| More lobby actions over HTTP | If wanted. In v1 only sessions and room look-ups are HTTP; the rest stays on the socket (§8.7) |
 | OpenTelemetry tracing | When needed |
 | Playwright end-to-end tests | After M4, once the online screens have settled. Until then the web keeps a manual real-browser checklist, with an online section from M4 (§13.2) |
 | Touch controls on the web: on-screen buttons (a new adapter feeding the input engine) and swipe gestures (their own input model and handling) | Future. The web is desktop and keyboard only for now (§13.2) |

@@ -10,6 +10,7 @@ An online multiplayer falling-block puzzle game (guideline rules) with a web cli
 - `apps/web/AGENTS.md`: where code and tests go in the web client. Read it before adding or moving a web file.
 - `CONTRIBUTING.md`: branch, PR and release rules. Follow them exactly.
 - `apps/cli/AGENTS.md`: where code and tests go in the terminal client. Read it before adding or moving a CLI file.
+- `docs/agents/nest.md`, `apps/gateway/AGENTS.md` and `apps/game/AGENTS.md`: the NestJS conventions of the two services and where their code and tests go. Read them before adding or moving a server file.
 
 ## Determinism (packages/engine)
 
@@ -36,11 +37,11 @@ Tests go in `tests/` next to `src/` in every app and package, never inside `src/
 - `engine` imports nothing from the workspace.
 - Packages never import apps.
 - `gateway` and `game` talk only through `protocol` messages and the `packages/valkey` interfaces.
-- Internal packages export TypeScript source with no build step.
+- Internal packages are built with tsdown to `dist/`, and their `exports` point there (ADR 0015). Turbo builds them before anything that uses them.
 
 ## Commands
 
-`pnpm dev` (Valkey + services + web), `pnpm cli` (the terminal client, in its own TTY), `pnpm check` (lint + typecheck + test, the same as CI). Run `pnpm check` before declaring work done.
+`pnpm dev` (Valkey + package watchers + services + web), `pnpm cli` (the terminal client, in its own TTY), `pnpm check` (lint + typecheck + test, the same as CI). Run `pnpm check` before declaring work done.
 
 ## Agent skills
 

@@ -274,6 +274,10 @@ _Avoid_: targeting (for one attack's choice), dispatch
 The stateless service that holds player connections and forwards room traffic to the right game pod.
 _Avoid_: proxy, API server, edge
 
+**WS gateway class**:
+A NestJS `@WebSocketGateway` class: the one class per socket endpoint whose handlers pass each message to a feature service (`ClientGateway` in the gateway, `RoomLinkGateway` in a game pod). Not the gateway service.
+_Avoid_: gateway (alone, that's the service), socket handler
+
 **Game pod**:
 An instance of the stateful service that hosts rooms in memory and verifies their matches.
 _Avoid_: game server, worker, shard
