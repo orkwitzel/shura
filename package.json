@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "docker compose up -d --wait valkey && turbo run dev",
     "dev:game2": "PORT=8082 pnpm --filter @shura/game dev",
-    "cli": "pnpm --filter shura dev",
+    "cli": "turbo run build --filter=shura^... --output-logs=errors-only && pnpm --filter shura dev",
     "check": "biome check && turbo run typecheck test",
     "build": "turbo run build",
     "test": "turbo run test",

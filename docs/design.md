@@ -689,7 +689,7 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 | Package manager | pnpm workspaces, version pinned via the `packageManager` field + corepack (installed from npm, since Node 25+ doesn't bundle it). Versions shared by several packages live in the `catalog:` in `pnpm-workspace.yaml`. Install scripts run only for packages listed under `allowBuilds` |
 | Task runner | Turborepo (task graph and caching, with the cache shared to CI through the Actions cache) |
 | Language / runtime | TypeScript (strict), ESM only, Node 26 LTS |
-| Internal packages | Built with tsdown to `dist/` (ADR 0015). `typecheck` = `tsc --noEmit` per package, cached by Turbo. `build`, `typecheck`, `test` and `dev` depend on `^build` |
+| Internal packages | Built with tsdown to `dist/` (ADR 0015): ESM, ES2024, with source maps, from each package's `tsdown.config.ts`. Code that two entries share (client-core's root and `./react`) goes in one unhashed shared chunk beside them. `typecheck` = `tsc --noEmit` per package, cached by Turbo. `build`, `typecheck`, `test` and `dev` depend on `^build`, so a fresh checkout needs no manual build step |
 | Server framework | NestJS 11 on Express with `@nestjs/platform-ws`, `nestjs-zod`, `@nestjs/config`, `nestjs-pino`, `@nestjs/terminus` (ADR 0014). Conventions in [`agents/nest.md`](agents/nest.md) |
 | App builds | `gateway`, `game`: the Nest CLI with its SWC builder (decorator metadata), run with `--enable-source-maps`. `cli`, `bot`: esbuild → one unminified JS file + source map. `web`: Vite |
 | Docker images | `node:26-slim` + the service's `dist/` and production `node_modules`, made by `pnpm --filter <service> deploy --prod` after `nest build` (the workspace packages come in as their built `dist/`) |
@@ -703,14 +703,14 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 ```
 pnpm dev        docker compose up -d valkey  →  turbo dev (after building the packages):
                 packages (tsdown --watch) · gateway :8080 · game :8081 · web :5173 (Vite, forwards /ws and /api)
-pnpm cli        Ink client in its own terminal (needs a real TTY); defaults to http://localhost:8080
+pnpm cli        Ink client in its own terminal (needs a real TTY; builds the packages it uses first); defaults to http://localhost:8080
 pnpm dev:game2  second game instance on :8082 to test multi-pod behaviour
 pnpm dev:bot    the bot tool on :8090 (testing only, §13.4)
 pnpm bot        join K7QX --count 5 · quick: asks the bot tool for bots
 pnpm check      Biome + typecheck + test across the repo (the same command CI runs)
 ```
 
-Each service runs `nest build --watch` beside `node --watch --enable-source-maps dist/main.js`. `node --watch` restarts on any file the service loaded, so an edit to the service or to a package (once its `tsdown --watch` has rebuilt `dist/`) restarts it.
+Each package's `dev` is `tsdown --watch --no-clean` (it doesn't empty `dist/` under a consumer that already loaded it). Each service runs `nest build --watch` beside `node --watch --enable-source-maps dist/main.js`. `node --watch` restarts on any file the service loaded, so an edit to the service or to a package (once its `tsdown --watch` has rebuilt `dist/`) restarts it.
 
 `.env.example` sets `LIMITS_EXEMPT_IPS=127.0.0.1,::1`, so the per-IP limits (§11) don't block a laptop running several clients and bots.
 

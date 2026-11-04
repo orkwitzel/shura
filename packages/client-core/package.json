@@ -4,10 +4,21 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/react.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch --no-clean",
     "typecheck": "tsc",
     "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache"
   },
@@ -27,6 +38,7 @@
     "happy-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "zustand": "catalog:"

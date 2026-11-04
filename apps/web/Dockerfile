@@ -11,7 +11,7 @@ FROM base AS build
 COPY --from=prune /repo/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=prune /repo/out/full/ .
-RUN pnpm --filter @shura/web build
+RUN pnpm turbo run build --filter=@shura/web
 
 FROM nginxinc/nginx-unprivileged:1.31-alpine-slim
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
