@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { Lobby } from '@/features/lobby/components/lobby';
+import { isolate } from '@/features/lobby/utils/room-change-text';
 import { Toasts } from '@/lib/toasts';
 import { fakeOnlineSession, lobby, seated, watching } from '../../../support/fake-online-session';
 
@@ -158,9 +159,9 @@ describe('Lobby', () => {
         spectators: [watching('tal', { nickname: 'Tal' })],
       }),
     );
-    expect(await screen.findByText('Tal joined')).toBeInTheDocument();
+    expect(await screen.findByText(`${isolate('Tal')} joined`)).toBeInTheDocument();
     session.room(lobby({ hostId: 'me', players: [seated('me', 0)] }));
-    expect(await screen.findByText('Mira left')).toBeInTheDocument();
+    expect(await screen.findByText(`${isolate('Mira')} left`)).toBeInTheDocument();
     expect(await screen.findByText('You are now host')).toBeInTheDocument();
   });
 
