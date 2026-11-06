@@ -10,6 +10,7 @@
     "./match": "./src/match/index.ts",
     "./match-log": "./src/match-log/index.ts",
     "./rooms": "./src/rooms/index.ts",
+    "./tests/recorded-1v1": "./tests/support/recorded-1v1.ts",
     "./valkey": "./src/valkey/index.ts"
   },
   "files": [
