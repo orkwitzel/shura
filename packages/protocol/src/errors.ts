@@ -4,7 +4,29 @@
  * `{ code, message }` body with the code's status. Clients match on `code`.
  */
 export const ERRORS = {
+  /** `protocolVersion` or `engineVersion` differs from the server's: the client must update. */
+  version_mismatch: {
+    message: 'A new version of Shura is out. Update to keep playing online.',
+    status: 426,
+  },
+  /** A socket message other than `hello` or `ping` before `hello` succeeded, or a bad token. */
+  session_required: { message: 'Start a session first.', status: 401 },
+  /** A message or request body that isn't valid JSON or fails its schema. */
   invalid_message: { message: 'The message is malformed.', status: 400 },
+  room_not_found: { message: 'There is no room with that code.', status: 404 },
+  /** The room's spectator list is full (`MAX_SPECTATORS`). Joining a full set of seats spectates. */
+  room_full: { message: 'That room is full.', status: 409 },
+  nickname_invalid: {
+    message: 'Nicknames are 1–16 letters, digits, spaces, _ or -, and some words are not allowed.',
+    status: 400,
+  },
+  rate_limited: { message: 'Too many requests. Slow down and try again.', status: 429 },
+  too_many_connections: { message: 'Too many connections from your address.', status: 429 },
+  /** Too many rooms created from this address, or this session already hosts one. */
+  room_limit: { message: 'Too many rooms created. Try again in a minute.', status: 429 },
+  /** A host-only action from someone who isn't the host. */
+  not_host: { message: 'Only the host can do that.', status: 403 },
+  /** An exception without a code of its own: logged, and sent as this. */
   internal_error: { message: 'Something went wrong on the server.', status: 500 },
 } as const satisfies Record<string, { readonly message: string; readonly status: number }>;
 
