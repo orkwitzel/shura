@@ -1,4 +1,5 @@
-import type { AddressInfo } from 'node:net';
+import type { Server } from 'node:http';
+import type { AddressInfo, Socket } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import {
@@ -75,6 +76,22 @@ export interface OnlineWorldOptions {
   readonly game?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
 }
 
+/**
+ * Counts every chunk of TCP traffic in or out of `app`'s server (client sockets, room links), so
+ * `settle()` waits while messages are still moving between the apps, not only to the clients.
+ */
+function countTraffic(app: INestApplication, time: FakeTime): void {
+  const server = app.getHttpServer() as Server;
+  server.on('connection', (socket: Socket) => {
+    socket.on('data', () => time.traffic());
+    const write = socket.write.bind(socket) as (...args: unknown[]) => boolean;
+    socket.write = ((...args: unknown[]) => {
+      time.traffic();
+      return write(...args);
+    }) as Socket['write'];
+  });
+}
+
 /** Starts `app` on a free port and gives its HTTP origin. */
 async function listen(app: INestApplication): Promise<string> {
   await app.listen(0, '127.0.0.1');
@@ -100,6 +117,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
   ).compile();
   const game = gameModule.createNestApplication({ bufferLogs: true });
   configureGame(game);
+  countTraffic(game, time);
   await listen(game);
 
   const gatewayModule = await (options.gateway ?? ((builder) => builder))(
@@ -111,6 +129,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
   ).compile();
   const gateway = gatewayModule.createNestApplication({ bufferLogs: true });
   configureApp(gateway);
+  countTraffic(gateway, time);
   const serverUrl = await listen(gateway);
 
   // The pod's first heartbeat goes once it listens: rooms can be placed after it.

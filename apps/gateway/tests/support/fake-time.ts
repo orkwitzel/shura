@@ -32,7 +32,7 @@ interface Timer {
 }
 
 /** How many quiet real turns in a row count as settled. */
-const QUIET_TURNS = 4;
+const QUIET_TURNS = 6;
 
 /** One real turn of the event loop, with time for loopback I/O to come in. */
 const realTurn = () => new Promise<void>((resolve) => setTimeout(resolve, 1));

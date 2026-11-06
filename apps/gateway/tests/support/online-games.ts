@@ -7,13 +7,29 @@ import type { OnlineWorld } from './online-world';
 /** One loop wake per step: exactly 3 frames, a batch's worth. */
 export const STEP_MS = 50;
 
-/** Waits until every client has connected (or failed), every message arrived. */
-export async function connected(world: OnlineWorld, ...sessions: OnlineSession[]): Promise<void> {
-  for (let tries = 0; tries < 100; tries++) {
-    if (sessions.every((session) => session.getState().connection.status !== 'connecting')) return;
+/**
+ * Settles until `check` holds, without game time moving: for a step whose answer has to travel
+ * through both apps on a busy machine. Throws, naming `what`, if it never does.
+ */
+export async function eventually(
+  world: OnlineWorld,
+  check: () => boolean,
+  what: string,
+): Promise<void> {
+  for (let tries = 0; tries < 200; tries++) {
     await world.time.settle();
+    if (check()) return;
   }
-  throw new Error('a client never connected');
+  throw new Error(`never: ${what}`);
+}
+
+/** Waits until every client has connected (or failed), every message arrived. */
+export function connected(world: OnlineWorld, ...sessions: OnlineSession[]): Promise<void> {
+  return eventually(
+    world,
+    () => sessions.every((session) => session.getState().connection.status !== 'connecting'),
+    'every client connected',
+  );
 }
 
 /** A room of `mode` that `host` created, with `others` joined, every message arrived. */
@@ -25,12 +41,16 @@ export async function openRoom(
 ): Promise<string> {
   await connected(world, host, ...others);
   host.createRoom(mode);
-  await world.time.settle();
+  await eventually(world, () => host.getState().room !== null, 'the room was created');
   const code = host.getState().room?.code ?? '';
   for (const other of others) {
     other.joinRoom(code);
-    await world.time.settle();
+    await eventually(world, () => other.getState().room?.code === code, `joined ${code}`);
   }
+  // Everyone has heard of everyone who joined.
+  const members = () =>
+    (host.getState().room?.players.length ?? 0) + (host.getState().room?.spectators.length ?? 0);
+  await eventually(world, () => members() === others.length + 1, 'everyone is in the room');
   return code;
 }
 
