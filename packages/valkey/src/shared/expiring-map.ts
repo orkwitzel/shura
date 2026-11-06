@@ -1,0 +1,49 @@
+/** A map whose entries expire on the given clock, as Valkey keys with a TTL do. */
+export class ExpiringMap<V> {
+  readonly #entries = new Map<string, { value: V; expiresAt: number }>();
+  readonly #now: () => number;
+
+  constructor(now: () => number) {
+    this.#now = now;
+  }
+
+  get(key: string): V | undefined {
+    const entry = this.#entries.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= this.#now()) {
+      this.#entries.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  /** Stores `value` for `ttlMs` (forever when undefined). */
+  set(key: string, value: V, ttlMs?: number): void {
+    const expiresAt = ttlMs === undefined ? Number.POSITIVE_INFINITY : this.#now() + ttlMs;
+    this.#entries.set(key, { value, expiresAt });
+  }
+
+  /** Restarts an entry's TTL. Returns false if there is no such entry. */
+  expire(key: string, ttlMs: number): boolean {
+    const value = this.get(key);
+    if (value === undefined) return false;
+    this.set(key, value, ttlMs);
+    return true;
+  }
+
+  /** The time left before `key` expires, in ms: 0 if there is no such entry. */
+  ttl(key: string): number {
+    if (this.get(key) === undefined) return 0;
+    const expiresAt = this.#entries.get(key)?.expiresAt ?? 0;
+    return expiresAt === Number.POSITIVE_INFINITY ? expiresAt : expiresAt - this.#now();
+  }
+
+  delete(key: string): void {
+    this.#entries.delete(key);
+  }
+
+  /** The keys of the entries that haven't expired. */
+  keys(): string[] {
+    return [...this.#entries.keys()].filter((key) => this.get(key) !== undefined);
+  }
+}
