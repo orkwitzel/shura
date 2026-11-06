@@ -16,6 +16,7 @@ export {
   type Engine,
   type EngineState,
   type GarbageAcceptedAction,
+  type GarbageReceivedAction,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
