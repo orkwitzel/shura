@@ -21,6 +21,7 @@
     "react-dom": "catalog:",
     "react-hotkeys-hook": "5.3.3",
     "sonner": "2.0.8",
+    "usehooks-ts": "3.1.1",
     "worker-timers": "8.0.34",
     "wouter": "3.13.0",
     "zustand": "catalog:"

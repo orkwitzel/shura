@@ -90,3 +90,12 @@ Run `pnpm dev` (Valkey, the gateway, the game service and the web), and `pnpm de
 - [ ] **A hidden tab.** Mid-match, switch to another tab for 5 s, then come back: your board kept playing (your piece fell and locked under gravity), the server didn't lag you out, and the menu is open.
 - [ ] **A 1v1 at 1600×900** (DevTools' device toolbar): both full boards at 32 px cells; at 1280×720, both at 24 px.
 - [ ] With DevTools' offline mode for a moment mid-match, "Reconnecting…" shows over the HUD (not across the top), and the match plays on once back.
+
+## Online: spectating and results (M4)
+
+As above. `pnpm bot quick` adds a bot that waits for a quick match and asks for every rematch.
+
+- [ ] **A third tab joins a running FFA and watches it to the results.** With a tab and 3 bots playing an FFA (`pnpm bot join XXXX --count 3`), open the room's link (*Copy link*) in another window. It shows every player's board at the same size in one row (no board of its own), drawn from the snapshot, under a banner "Spectating · you take a seat at the next lobby". Out boards grey with their place. When the match ends, a *Results* overlay lists every player by place with Sent, APM and PPS; Enter goes back to the lobby, where the spectator now has a seat.
+- [ ] **Results in a room by code.** The player who played sees their place as the title ("4th place") and their row in gold with a `you` tag. Players out at the same frame share a place. *Back to lobby* counts down from 10 s and goes back by itself.
+- [ ] **Quick-match results.** Quick match against the bot and top out: "2nd place" with *Rematch* and *Leave* (Esc), and no countdown. Enter shows "Waiting for …" until the bot's rematch starts the next countdown. Esc instead leaves for `/online`.
+- [ ] **Lagged out.** In an FFA with 2 or more others, cut the connection for 5 s mid-match (DevTools' *Offline* if it closes the WebSocket in your browser, or stop the gateway's port another way). Back, the banner says "You lagged out · watching the rest", your board greys with *lagged out*, and the banner covers no name. In a 1v1, the lag-out ends the match and the results show instead.

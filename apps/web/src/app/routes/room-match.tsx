@@ -1,4 +1,4 @@
-import { matchCountdownLabel, type OnlineSession } from '@shura/client-core';
+import { lobbyRole, matchCountdownLabel, type OnlineSession } from '@shura/client-core';
 import { useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { MatchCanvas } from '@/features/board/components/match-canvas';
@@ -11,6 +11,7 @@ import { OutLabel } from '@/features/match/components/out-label';
 import { PlayerName } from '@/features/match/components/player-name';
 import { SpectatingBanner } from '@/features/match/components/spectating-banner';
 import { youOutText } from '@/features/match/utils/out-text';
+import { MatchResults } from '@/features/results/components/match-results';
 import { useSound } from '@/features/sound/hooks/use-sound';
 import { useGameKeys } from '@/hooks/use-game-keys';
 import { useSessionHandling } from '@/hooks/use-session-handling';
@@ -19,28 +20,45 @@ import styles from './room-match.module.css';
 /** The CSS pixels the boards leave clear across the top, for the spectating banner. */
 const SPECTATING_BANNER_SPACE = 104;
 
+/** What the spectating banner says to someone watching a match they don't play in. */
+const WATCHING_TEXT = 'you take a seat at the next lobby';
+
 export interface RoomMatchProps {
-  /** The online session, in a match it plays in. */
+  /** The online session, in a match it plays in or spectates, or one just ended. */
   readonly session: OnlineSession;
+  /** Done with an ended match's results in a room with a code: back to the lobby. */
+  readonly onResultsDone: () => void;
 }
 
 /**
- * A room's match (design §13.2, Match): every board on the match canvas, with your HUD and
- * callouts beside your board and the countdown over it, and your keys, sound and handling as in
- * single-player. Esc or P, or the window losing focus, opens the online menu, which doesn't pause;
- * *Leave match* leaves the room (design §7.4). Once you're out your board greys and a banner says
- * you're spectating and why, with *Leave* (Esc) out of the room. "Reconnecting…" shows over the HUD
- * while the connection is down.
+ * A room's match (design §13.2, Match, Spectating, Results): every board on the match canvas.
+ *
+ * - **Playing:** your HUD and callouts beside your board and the countdown over it, and your keys,
+ *   sound and handling as in single-player. Esc or P, or the window losing focus, opens the online
+ *   menu, which doesn't pause; *Leave match* leaves the room (design §7.4). Once you're out your
+ *   board greys and a banner says you're spectating and why ("You lagged out" after coming back
+ *   too late, §10.2), with *Leave* (Esc) out of the room. "Reconnecting…" shows over the HUD while
+ *   the connection is down.
+ * - **Spectating** a match you don't play in: every board the same size in a grid, from the
+ *   snapshot, under a banner saying you take a seat at the next lobby, with *Leave* (Esc).
+ * - **Ended:** the results over the boards, until they're done with.
  *
  * Loaded apart, with Pixi.
  */
-export function RoomMatch({ session }: RoomMatchProps) {
+export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
   // Every nickname seen: a player who leaves mid-match keeps theirs on their board.
   const names = useStore(session, (state) => state.names);
   const [menuOpen, setMenuOpen] = useState(false);
   const me = useStore(session, (state) => state.match?.playerId ?? null);
   const myOut = useStore(session, (state) => state.match?.me?.out ?? null);
-  const ended = useStore(session, (state) => state.match?.phase === 'ended');
+  const result = useStore(session, (state) => state.match?.result ?? null);
+  const quickMatch = useStore(session, (state) => state.room?.quickMatch === true);
+  const roomCode = useStore(session, (state) => state.room?.code ?? '');
+  // The server marks you ready once you've asked for the rematch (design §9.4).
+  const rematchAsked = useStore(session, ({ room, sessionId }) => {
+    const role = room ? lobbyRole(room, sessionId) : null;
+    return role?.kind === 'player' && role.ready;
+  });
   const reconnecting = useStore(session, (state) => state.connection.status === 'reconnecting');
   const countdown = useStore(session, (state) =>
     state.match ? matchCountdownLabel(state.match) : null,
@@ -48,7 +66,7 @@ export function RoomMatch({ session }: RoomMatchProps) {
   // Who is out so far, how and when, and their place: a new roster only as someone goes out or
   // the match ends, for the names and out labels.
   const roster = useStore(session, (state) => state.match?.roster ?? []);
-  const playing = me !== null && myOut === null && !ended;
+  const playing = me !== null && myOut === null && result === null;
 
   useSessionHandling(session);
   useSound(session);
@@ -74,7 +92,8 @@ export function RoomMatch({ session }: RoomMatchProps) {
     const entry = entryOf(playerId);
     return entry?.out && <OutLabel place={entry.place} reason={entry.out.reason} />;
   };
-  const banner = myOut && !ended ? youOutText(myOut.reason) : null;
+  const banner =
+    result !== null ? null : me === null ? WATCHING_TEXT : myOut && youOutText(myOut.reason);
 
   return (
     <main className={styles.match}>
@@ -104,6 +123,19 @@ export function RoomMatch({ session }: RoomMatchProps) {
         onBack={() => setMenuOpen(false)}
         onLeave={leaveMatch}
       />
+      {result && (
+        <MatchResults
+          result={result}
+          you={me}
+          name={(playerId) => names.get(playerId) ?? '?'}
+          roomCode={roomCode}
+          quickMatch={quickMatch}
+          rematchAsked={rematchAsked}
+          onBack={onResultsDone}
+          onRematch={session.rematch}
+          onLeave={session.leaveRoom}
+        />
+      )}
     </main>
   );
 }

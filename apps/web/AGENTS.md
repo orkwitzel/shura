@@ -11,11 +11,12 @@ src/
 │   │              <ClientCoreProvider>), router.tsx, online-routes.tsx (online play's routes
 │   │              over one online session)
 │   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page,
-│                  online-page, room-page (with room-match, its match screen, loaded apart)
+│                  online-page, room-page (with room-match, its match screen, loaded apart:
+│                  playing, spectating and the results)
 ├── features/      one folder per capability: board/ (with effects/), callouts/, hud/, countdown/,
-│                  game-menu/, results/, personal-bests/, settings/, sound/, connection/,
-│                  online-menu/, nickname/, lobby/, match/ (the online menu, names, out
-│                  labels, the spectating banner)
+│                  game-menu/, results/ (single-player's and a match's), personal-bests/,
+│                  settings/, sound/, connection/, online-menu/, nickname/, lobby/, match/
+│                  (the online menu, names, out labels, the spectating banner)
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
 │                  backdrop, the "needs a keyboard" screen, the ping chip
 ├── hooks/         shared hooks: use-solo-session, use-game-keys (a game's keys from the window),
