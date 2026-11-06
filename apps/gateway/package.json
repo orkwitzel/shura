@@ -39,6 +39,7 @@
     "@nestjs/cli": "catalog:",
     "@nestjs/schematics": "catalog:",
     "@nestjs/testing": "catalog:",
+    "@shura/bot": "workspace:*",
     "@shura/client-core": "workspace:*",
     "@shura/game": "workspace:*",
     "@shura/tsconfig": "workspace:*",
