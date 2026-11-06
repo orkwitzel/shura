@@ -158,6 +158,7 @@
         "code": "string",
         "mode": "enum(1v1|ffa)",
         "hostId": "string?",
+        "quickMatch": "literal(true)?",
         "phase": "enum(lobby|countdown|playing|results)",
         "players": "array",
         "players[]": "object",
@@ -249,6 +250,7 @@
         "code": "string",
         "mode": "enum(1v1|ffa)",
         "hostId": "string?",
+        "quickMatch": "literal(true)?",
         "phase": "enum(lobby|countdown|playing|results)",
         "players": "array",
         "players[]": "object",
@@ -289,6 +291,7 @@
         "epoch": "number:safeint",
         "mode": "enum(1v1|ffa)",
         "hostId": "string?",
+        "quickMatch": "literal(true)?",
         "maxSpectators": "number:safeint?"
       },
       "detach": {

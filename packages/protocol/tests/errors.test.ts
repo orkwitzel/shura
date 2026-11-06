@@ -27,6 +27,9 @@ test('ERRORS has every code the design names, with its HTTP status (§8.3, §8.7
     'too_many_connections',
     'room_limit',
     'not_host',
+    'wrong_phase',
+    'not_in_room',
+    'unavailable',
   ]) {
     expect(status).toHaveProperty(code);
   }

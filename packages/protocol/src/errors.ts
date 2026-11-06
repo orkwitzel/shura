@@ -26,6 +26,15 @@ export const ERRORS = {
   room_limit: { message: 'Too many rooms created. Try again in a minute.', status: 429 },
   /** A host-only action from someone who isn't the host. */
   not_host: { message: 'Only the host can do that.', status: 403 },
+  /**
+   * An action the room's phase or the player's place in it doesn't allow: readying outside the
+   * lobby, starting before another seated player is ready, creating a room from inside one.
+   */
+  wrong_phase: { message: "That can't be done right now.", status: 409 },
+  /** A room action from a session that isn't in a room. */
+  not_in_room: { message: "You're not in a room.", status: 409 },
+  /** No game server can take the room right now (none live, or no free room code). */
+  unavailable: { message: 'No game server is available. Try again soon.', status: 503 },
   /** An exception without a code of its own: logged, and sent as this. */
   internal_error: { message: 'Something went wrong on the server.', status: 500 },
 } as const satisfies Record<string, { readonly message: string; readonly status: number }>;

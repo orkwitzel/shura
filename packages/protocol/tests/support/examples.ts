@@ -132,9 +132,11 @@ export const SERVER_EXAMPLES: Record<string, Examples> = {
         players: [{ ...player, lastPlace: 1 }],
         spectators: [],
       },
+      { ...room, quickMatch: true, players: [player], spectators: [] },
     ],
     invalid: [
       { ...room, players: [] },
+      { ...room, quickMatch: 'yes', players: [], spectators: [] },
       { ...room, phase: 'paused', players: [], spectators: [] },
       { ...room, players: [{ ...player, seat: -1 }], spectators: [] },
       { ...room, players: [{ ...player, lastPlace: 0 }], spectators: [] },
@@ -222,12 +224,14 @@ export const GATEWAY_TO_GAME_EXAMPLES: Record<string, Examples> = {
     valid: [
       { roomCode: 'K7QX', epoch: 0, mode: '1v1', hostId: 's1' },
       { roomCode: 'K7QX', epoch: 2, mode: '1v1', maxSpectators: 4 },
+      { roomCode: 'K7QX', epoch: 0, mode: '1v1', quickMatch: true },
     ],
     invalid: [
       { epoch: 0, mode: '1v1' },
       { roomCode: 'K7QX', epoch: -1, mode: '1v1' },
       { roomCode: 'K7QX', epoch: 0, mode: 'solo' },
       { roomCode: 'K7QX', epoch: 0, mode: 'ffa', maxSpectators: -1 },
+      { roomCode: 'K7QX', epoch: 0, mode: '1v1', quickMatch: 1 },
     ],
   },
   attach: {
