@@ -19,3 +19,16 @@ export function formatScore(score: number): string {
 export function formatHeadline(headline: SoloHeadline): string {
   return headline.kind === 'time' ? formatFrames(headline.frames) : formatScore(headline.score);
 }
+
+/** A wait in milliseconds as `m:ss`, rounded down to the second: the quick-match wait. */
+export function formatWait(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** How good a round trip is (design §13.2): good under 80 ms, fair under 150, poor above. */
+export function pingQuality(ms: number): 'good' | 'fair' | 'poor' {
+  if (ms < 80) return 'good';
+  if (ms < 150) return 'fair';
+  return 'poor';
+}
