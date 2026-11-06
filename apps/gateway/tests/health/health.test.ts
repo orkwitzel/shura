@@ -21,10 +21,9 @@ test('/readyz answers 200 while not draining', async () => {
   expect(res.status).toBe(200);
 });
 
+// Last: draining can't be undone, so it drains the shared app.
 test('/readyz answers 503 once the pod is draining', async () => {
-  const draining = await boot();
-  draining.app.get(DrainingIndicator).drain();
-  const res = await fetch(`${draining.http}/readyz`);
+  booted.app.get(DrainingIndicator).drain();
+  const res = await fetch(`${booted.http}/readyz`);
   expect(res.status).toBe(503);
-  await draining.app.close();
 });

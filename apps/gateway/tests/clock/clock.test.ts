@@ -1,6 +1,6 @@
+import { Test } from '@nestjs/testing';
 import { afterEach, expect, test, vi } from 'vitest';
-import { CLOCK, type Clock, systemClock } from '../../src/clock';
-import { boot } from '../support/boot';
+import { CLOCK, type Clock, ClockModule, systemClock } from '../../src/clock';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -34,9 +34,9 @@ test('every() calls back each period until stopped', () => {
 
 test('tests replace the clock by its token', async () => {
   const fake: Clock = { now: () => 42, after: () => () => {}, every: () => () => {} };
-  const faked = await boot({
-    override: (builder) => builder.overrideProvider(CLOCK).useValue(fake),
-  });
-  expect(faked.app.get<Clock>(CLOCK).now()).toBe(42);
-  await faked.app.close();
+  const moduleRef = await Test.createTestingModule({ imports: [ClockModule] })
+    .overrideProvider(CLOCK)
+    .useValue(fake)
+    .compile();
+  expect(moduleRef.get<Clock>(CLOCK).now()).toBe(42);
 });

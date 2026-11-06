@@ -1,15 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
-  "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
-  "compilerOptions": {
-    "builder": {
-      "type": "swc",
-      "options": { "swcrcPath": ".swcrc" }
-    },
-    "typeCheck": false,
-    "deleteOutDir": false
-  },
+  "compilerOptions": { "builder": "swc" },
   "generateOptions": {
     "flat": false,
     "spec": false

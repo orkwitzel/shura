@@ -1,4 +1,4 @@
-export { ERRORS, type ErrorBody, type ErrorCode, errorBody } from './errors';
+export { ERRORS, type ErrorBody, type ErrorCode, errorBody, isErrorBody } from './errors';
 
 /**
  * Bumped only for breaking message changes: renaming, removing or changing the meaning of a

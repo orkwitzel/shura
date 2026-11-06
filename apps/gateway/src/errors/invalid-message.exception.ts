@@ -7,7 +7,7 @@ import { ERRORS, errorBody } from '@shura/protocol';
  * status, and on a socket `WsExceptionFilter` sends the same body as `exception`.
  */
 export class InvalidMessageException extends HttpException {
-  constructor(cause?: unknown) {
+  constructor(cause: unknown) {
     super(errorBody('invalid_message'), ERRORS.invalid_message.status, { cause });
   }
 }

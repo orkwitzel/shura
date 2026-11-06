@@ -6,29 +6,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { WsException } from '@nestjs/websockets';
-import { ERRORS, type ErrorBody, errorBody } from '@shura/protocol';
+import { type ErrorBody, errorBody, isErrorBody } from '@shura/protocol';
 import { WebSocket } from 'ws';
-
-const isErrorBody = (value: unknown): value is ErrorBody =>
-  typeof value === 'object' &&
-  value !== null &&
-  'code' in value &&
-  typeof value.code === 'string' &&
-  Object.hasOwn(ERRORS, value.code) &&
-  'message' in value &&
-  typeof value.message === 'string';
 
 /** The `ErrorBody` an exception carries, or `undefined` for an unexpected one. */
 const bodyOf = (exception: unknown): ErrorBody | undefined => {
-  if (exception instanceof WsException) {
-    const error = exception.getError();
-    return isErrorBody(error) ? error : undefined;
-  }
-  if (exception instanceof HttpException) {
-    const response = exception.getResponse();
-    return isErrorBody(response) ? response : undefined;
-  }
-  return undefined;
+  const payload =
+    exception instanceof WsException
+      ? exception.getError()
+      : exception instanceof HttpException
+        ? exception.getResponse()
+        : undefined;
+  return isErrorBody(payload) ? payload : undefined;
 };
 
 /**

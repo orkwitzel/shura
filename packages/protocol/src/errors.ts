@@ -22,3 +22,13 @@ export const errorBody = (code: ErrorCode, message: string = ERRORS[code].messag
   code,
   message,
 });
+
+/** Whether `value` is an `ErrorBody` with a code from `ERRORS`. */
+export const isErrorBody = (value: unknown): value is ErrorBody =>
+  typeof value === 'object' &&
+  value !== null &&
+  'code' in value &&
+  typeof value.code === 'string' &&
+  Object.hasOwn(ERRORS, value.code) &&
+  'message' in value &&
+  typeof value.message === 'string';

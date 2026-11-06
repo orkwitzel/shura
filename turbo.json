@@ -3,6 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!scripts/**", "!recorded-matches/**"],
       "outputs": ["dist/**"]
     },
     "typecheck": {
