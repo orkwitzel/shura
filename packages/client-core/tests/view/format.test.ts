@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formatFrames, formatHeadline, formatScore, framesToMs, msToFrames } from '../../src/index';
+import {
+  formatFrames,
+  formatHeadline,
+  formatScore,
+  formatWait,
+  framesToMs,
+  msToFrames,
+  pingQuality,
+} from '../../src/index';
 
 describe('frames and milliseconds', () => {
   it('convert at 60 frames a second', () => {
@@ -28,5 +36,26 @@ describe('formatting', () => {
   it('shows a headline as its time or its score', () => {
     expect(formatHeadline({ kind: 'time', frames: 2_700 })).toBe('0:45.000');
     expect(formatHeadline({ kind: 'score', score: 21_449 })).toBe('21,449');
+  });
+});
+
+describe('the quick-match wait', () => {
+  it('reads m:ss, rounding down to the second', () => {
+    expect(formatWait(0)).toBe('0:00');
+    expect(formatWait(9_999)).toBe('0:09');
+    expect(formatWait(61_000)).toBe('1:01');
+    expect(formatWait(600_000)).toBe('10:00');
+  });
+});
+
+describe('ping quality (design §13.2: green under 80 ms, yellow under 150, red above)', () => {
+  it.each([
+    [0, 'good'],
+    [79, 'good'],
+    [80, 'fair'],
+    [149, 'fair'],
+    [150, 'poor'],
+  ] as const)('%i ms is %s', (ms, quality) => {
+    expect(pingQuality(ms)).toBe(quality);
   });
 });

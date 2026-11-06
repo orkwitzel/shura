@@ -146,6 +146,19 @@ export {
   onCallouts,
 } from './view/callouts';
 export { countdownLabel, matchCountdownLabel } from './view/countdown';
-export { errorText } from './view/error-text';
-export { formatFrames, formatHeadline, formatScore } from './view/format';
-export { type PlacedMatch, placeOf } from './view/places';
+export { errorText, NICKNAME_PROBLEMS } from './view/error-text';
+export {
+  formatFrames,
+  formatHeadline,
+  formatScore,
+  formatWait,
+  pingQuality,
+} from './view/format';
+export { ordinal, type PlacedMatch, placeOf } from './view/places';
+export {
+  type LobbyRole,
+  lobbyRole,
+  MODE_NAMES,
+  type RoomChange,
+  roomChanges,
+} from './view/room';

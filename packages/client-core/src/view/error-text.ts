@@ -1,3 +1,5 @@
+import { NICKNAME_MAX_LENGTH, type NicknameProblem } from '@shura/protocol';
+
 /**
  * The plain words both clients show for the abuse limits (design §11): what happened, and what to
  * do about it. `rate_limited` keeps the server's words, since how long to wait depends on which
@@ -15,3 +17,11 @@ const LIMIT_TEXT: Readonly<Record<string, string>> = {
 export function errorText(code: string, serverMessage: string): string {
   return Object.hasOwn(LIMIT_TEXT, code) ? (LIMIT_TEXT[code] as string) : serverMessage;
 }
+
+/** What's wrong with a nickname, in plain words, as both UIs' prompts say it (design §11). */
+export const NICKNAME_PROBLEMS: Readonly<Record<NicknameProblem, string>> = {
+  empty: 'Type a nickname.',
+  tooLong: `At most ${NICKNAME_MAX_LENGTH} characters.`,
+  invalidCharacters: 'Letters, digits, spaces, _ and - only.',
+  blocked: 'That nickname isn’t allowed.',
+};

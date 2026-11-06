@@ -1,0 +1,68 @@
+.screen {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  width: 100%;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: 1.15;
+  text-shadow:
+    3px 3px 0 var(--color-piece-z),
+    6px 6px 0 var(--color-shadow);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.connecting {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 700;
+  text-shadow: 4px 4px 0 var(--color-shadow);
+}
+
+/* One pixel cell turning on the spot, a quarter at a time. */
+.spinner {
+  width: 24px;
+  height: 24px;
+  background: var(--color-accent);
+  box-shadow:
+    inset -4px -4px 0 rgb(0 0 0 / 0.3),
+    inset 4px 4px 0 rgb(255 255 255 / 0.45),
+    3px 3px 0 var(--color-shadow);
+  animation: turn 800ms steps(4) infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.buttons {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
