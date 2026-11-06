@@ -22,6 +22,7 @@ import { createMemoryStores, type Stores } from '@shura/valkey';
 import { WebSocket } from 'ws';
 import { AppModule } from '../../src/app.module';
 import { CLOCK } from '../../src/clock';
+import { type GatewayLimits, LIMITS, limitsOf, validateEnv } from '../../src/config';
 import { configureApp } from '../../src/configure-app';
 import { STORES } from '../../src/valkey';
 import { type FakeTime, fakeTime } from './fake-time';
@@ -31,6 +32,12 @@ import { type FakeTime, fakeTime } from './fake-time';
  * run and a failure reproduces.
  */
 export const DEFAULT_MATCH_SEED = 7;
+
+/** The limits of a world that doesn't set its own: the defaults, with loopback exempt. */
+export const WORLD_LIMITS: GatewayLimits = {
+  ...limitsOf(validateEnv({})),
+  exemptIps: ['127.0.0.1', '::1'],
+};
 
 /**
  * The fake clock's start: a whole number of 50 ms steps, so each `advance(STEP_MS)` is exactly 3
@@ -70,6 +77,12 @@ export interface ClientOptions {
 export interface OnlineWorldOptions {
   /** The seed of every match: `DEFAULT_MATCH_SEED` unless given. */
   readonly seed?: number;
+  /**
+   * The gateway's abuse limits (design §11) that differ from `WORLD_LIMITS`: the defaults, with
+   * loopback exempt from the per-IP limits as `pnpm dev` has it, since every client of a test
+   * comes from it.
+   */
+  readonly limits?: Partial<GatewayLimits>;
   /** Replaces more of the gateway's providers. */
   readonly gateway?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
   /** Replaces more of the game service's providers. */
@@ -125,7 +138,9 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
       .overrideProvider(CLOCK)
       .useValue(time)
       .overrideProvider(STORES)
-      .useValue(stores),
+      .useValue(stores)
+      .overrideProvider(LIMITS)
+      .useValue({ ...WORLD_LIMITS, ...options.limits }),
   ).compile();
   const gateway = gatewayModule.createNestApplication({ bufferLogs: true });
   configureApp(gateway);

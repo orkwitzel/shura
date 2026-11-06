@@ -1,3 +1,4 @@
+import type { IncomingMessage } from 'node:http';
 import { UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
@@ -7,9 +8,9 @@ import {
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
-import { LIMIT_DEFAULTS } from '@shura/protocol';
 import type { WebSocket } from 'ws';
 import { WsProtocol } from './errors';
+import { ConnectionLimits, ConnectionLimitsService, INVALID_MESSAGE, RateLimit } from './limits';
 import { InputBatchDto, PlayService } from './play';
 import { QuickMatchService } from './quick-match';
 import { CreateRoomDto, JoinRoomDto, ReadyDto, RoomsService } from './rooms';
@@ -17,14 +18,12 @@ import { ConnectionsService, HelloDto, PingDto, SessionGuard, SessionsService } 
 
 /**
  * The one WS gateway class for the public socket, `/ws` (docs/agents/nest.md). Every
- * `@SubscribeMessage` handler is one statement handing the message to a feature service.
+ * `@SubscribeMessage` handler is one statement handing the message to a feature service. Its
+ * largest message is `MAX_PAYLOAD_BYTES`, set by `ClientWsAdapter` (design §11).
  */
-@WebSocketGateway({
-  path: '/ws',
-  maxPayload: LIMIT_DEFAULTS.maxPayloadBytes,
-  perMessageDeflate: false,
-})
+@WebSocketGateway({ path: '/ws', perMessageDeflate: false })
 @WsProtocol()
+@ConnectionLimits()
 export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly connections: ConnectionsService,
@@ -32,14 +31,27 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly rooms: RoomsService,
     private readonly play: PlayService,
     private readonly quickMatching: QuickMatchService,
+    private readonly limits: ConnectionLimitsService,
   ) {}
 
-  handleConnection(socket: WebSocket): void {
+  /**
+   * A socket opened: its first turn is the per-IP connection limits' answer (design §11), so its
+   * messages wait for it.
+   */
+  handleConnection(socket: WebSocket, request: IncomingMessage): void {
     this.connections.open(socket);
+    this.connections.inTurn(socket, () => this.limits.admit(socket, request)).catch(() => {});
   }
 
   handleDisconnect(socket: WebSocket): Promise<void> {
+    this.limits.closed(socket).catch(() => {});
     return this.connections.close(socket);
+  }
+
+  /** Anything that isn't a client message (design §11). */
+  @SubscribeMessage(INVALID_MESSAGE)
+  invalid(@ConnectedSocket() socket: WebSocket) {
+    return this.limits.invalid(socket);
   }
 
   @SubscribeMessage('hello')
@@ -53,12 +65,14 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('createRoom')
+  @RateLimit('rooms')
   @UseGuards(SessionGuard)
   createRoom(@ConnectedSocket() socket: WebSocket, @MessageBody() message: CreateRoomDto) {
     return this.rooms.createRoom(socket, message);
   }
 
   @SubscribeMessage('joinRoom')
+  @RateLimit('failedJoins')
   @UseGuards(SessionGuard)
   joinRoom(@ConnectedSocket() socket: WebSocket, @MessageBody() message: JoinRoomDto) {
     return this.rooms.joinRoom(socket, message);
