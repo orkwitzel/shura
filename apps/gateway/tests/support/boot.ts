@@ -1,9 +1,11 @@
 import type { AddressInfo } from 'node:net';
 import type { INestApplication, Type } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
+import { createMemoryStores } from '@shura/valkey';
 import { WebSocket } from 'ws';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/configure-app';
+import { STORES } from '../../src/valkey';
 
 export interface Booted {
   readonly app: INestApplication;
@@ -16,7 +18,10 @@ export interface Booted {
 export interface BootOptions {
   /** Test-only modules (fixtures) to run alongside `AppModule`. */
   readonly imports?: readonly Type[];
-  /** Replaces providers (`overrideProvider(CLOCK)` and so on) before the app is built. */
+  /**
+   * Replaces providers (`overrideProvider(CLOCK)` and so on) before the app is built. The stores
+   * are always in-memory ones unless this replaces them too.
+   */
   readonly override?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
 }
 
@@ -26,7 +31,9 @@ export const boot = async ({
   override = (builder) => builder,
 }: BootOptions = {}): Promise<Booted> => {
   const moduleRef = await override(
-    Test.createTestingModule({ imports: [AppModule, ...imports] }),
+    Test.createTestingModule({ imports: [AppModule, ...imports] })
+      .overrideProvider(STORES)
+      .useValue(createMemoryStores()),
   ).compile();
   const app = moduleRef.createNestApplication({ bufferLogs: true });
   configureApp(app);

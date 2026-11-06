@@ -12,6 +12,15 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** The pod's name in its logs (design §12). */
   POD_ID: z.string().min(1).default(hostname()),
+  /**
+   * The pod's own IP, which gateways reach it at: its heartbeat advertises `POD_IP:PORT`
+   * (design §9.2). The cluster sets it from the pod's status; on a laptop it's localhost.
+   */
+  POD_IP: z.string().min(1).default('127.0.0.1'),
+  /** The Valkey that holds the shared state (design §9.5). */
+  VALKEY_URL: z.string().min(1).default('redis://localhost:6379'),
+  /** Prepended to every Valkey key and channel. */
+  VALKEY_PREFIX: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

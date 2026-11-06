@@ -7,7 +7,10 @@ import { ClockModule } from './clock';
 import { type Env, validateEnv } from './config';
 import { ValidationPipe } from './errors';
 import { HealthModule } from './health';
+import { HeartbeatModule } from './heartbeat';
 import { RoomLinkGateway } from './room-link.gateway';
+import { RoomsModule } from './rooms';
+import { ValkeyModule } from './valkey';
 
 @Module({
   imports: [
@@ -31,7 +34,10 @@ import { RoomLinkGateway } from './room-link.gateway';
       }),
     }),
     ClockModule,
+    ValkeyModule,
     HealthModule,
+    RoomsModule,
+    HeartbeatModule,
   ],
   providers: [{ provide: APP_PIPE, useClass: ValidationPipe }, RoomLinkGateway],
 })

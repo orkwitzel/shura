@@ -21,9 +21,13 @@
     "@nestjs/platform-ws": "catalog:",
     "@nestjs/terminus": "catalog:",
     "@nestjs/websockets": "catalog:",
+    "@shura/engine": "workspace:*",
     "@shura/protocol": "workspace:*",
+    "@shura/valkey": "workspace:*",
+    "bufferutil": "4.1.0",
     "nestjs-pino": "catalog:",
     "nestjs-zod": "catalog:",
+    "p-queue": "10.0.0",
     "pino": "catalog:",
     "pino-http": "catalog:",
     "reflect-metadata": "catalog:",
@@ -35,6 +39,8 @@
     "@nestjs/cli": "catalog:",
     "@nestjs/schematics": "catalog:",
     "@nestjs/testing": "catalog:",
+    "@shura/client-core": "workspace:*",
+    "@shura/game": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@swc/cli": "catalog:",
     "@swc/core": "catalog:",
@@ -44,6 +50,7 @@
     "pino-pretty": "catalog:",
     "typescript": "catalog:nest",
     "unplugin-swc": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zustand": "catalog:"
   }
 }
