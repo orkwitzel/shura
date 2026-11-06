@@ -7,6 +7,7 @@ import { ClockModule } from './clock';
 import { type Env, validateEnv } from './config';
 import { ValidationPipe } from './errors';
 import { HealthModule } from './health';
+import { LimitsModule } from './limits';
 import { PlayModule } from './play';
 import { QuickMatchModule } from './quick-match';
 import { RoomLinksModule } from './room-links';
@@ -33,6 +34,7 @@ import { VersionGuard } from './versions';
       }),
     }),
     ClockModule,
+    LimitsModule,
     ValkeyModule,
     HealthModule,
     SessionsModule,

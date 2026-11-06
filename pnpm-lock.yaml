@@ -550,6 +550,9 @@ importers:
       bufferutil:
         specifier: 4.1.0
         version: 4.1.0
+      ipaddr.js:
+        specifier: 1.9.1
+        version: 1.9.1
       nestjs-pino:
         specifier: 'catalog:'
         version: 5.3.1(@nestjs/common@11.2.8(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.2.8)(pino-http@11.0.0)(pino@10.4.0)(rxjs@7.8.2)
@@ -565,6 +568,9 @@ importers:
       pino-http:
         specifier: 'catalog:'
         version: 11.0.0
+      proxy-addr:
+        specifier: 2.0.8
+        version: 2.0.8
       reflect-metadata:
         specifier: 'catalog:'
         version: 0.2.2
@@ -608,6 +614,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/proxy-addr':
+        specifier: 2.0.3
+        version: 2.0.3
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.2
@@ -1981,6 +1990,9 @@ packages:
 
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
+
+  '@types/proxy-addr@2.0.3':
+    resolution: {integrity: sha512-TgAHHO4tNG3HgLTUhB+hM4iwW6JUNeQHCLnF1DjaDA9c69PN+IasoFu2MYDhubFc+ZIw5c5t9DMtjvrD6R3Egg==}
 
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
@@ -5657,6 +5669,10 @@ snapshots:
   '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
+
+  '@types/proxy-addr@2.0.3':
+    dependencies:
+      '@types/node': 26.6.6
 
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:

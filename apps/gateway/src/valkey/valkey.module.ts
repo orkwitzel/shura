@@ -1,9 +1,8 @@
 import { Global, Inject, Injectable, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LIMIT_DEFAULTS } from '@shura/protocol';
 import { createValkeyStores, type Stores } from '@shura/valkey';
 import { CLOCK, type Clock } from '../clock';
-import type { Env } from '../config';
+import { type Env, type GatewayLimits, LIMITS } from '../config';
 
 /**
  * The injection token of the shared state (design §9.5): one `Stores` from `@shura/valkey`, every
@@ -28,12 +27,12 @@ class StoresCloser implements OnApplicationShutdown {
   providers: [
     {
       provide: STORES,
-      inject: [ConfigService, CLOCK],
-      useFactory: (config: ConfigService<Env, true>, clock: Clock): Stores =>
+      inject: [ConfigService, CLOCK, LIMITS],
+      useFactory: (config: ConfigService<Env, true>, clock: Clock, limits: GatewayLimits): Stores =>
         createValkeyStores(config.get('VALKEY_URL', { infer: true }), {
           prefix: config.get('VALKEY_PREFIX', { infer: true }),
           now: () => clock.now(),
-          requeueCooldownMs: LIMIT_DEFAULTS.quickMatchCooldownMs,
+          requeueCooldownMs: limits.quickMatchCooldownMs,
         }),
     },
     StoresCloser,

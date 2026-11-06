@@ -142,5 +142,6 @@ export {
   onCallouts,
 } from './view/callouts';
 export { countdownLabel, matchCountdownLabel } from './view/countdown';
+export { errorText } from './view/error-text';
 export { formatFrames, formatHeadline, formatScore } from './view/format';
 export { type PlacedMatch, placeOf } from './view/places';

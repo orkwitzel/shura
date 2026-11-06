@@ -7,10 +7,10 @@ The gateway service: the public WebSocket, the `/api` routes and forwarding room
 ```text
 src/
 ├── main.ts            creates the app, calls configureApp, listens
-├── configure-app.ts   configureApp(app): the pino logger, WsAdapter (maxConcurrentMessages: 1),
-│                      shutdown hooks
+├── configure-app.ts   configureApp(app): the pino logger, ClientWsAdapter (Nest's WsAdapter with
+│                      maxConcurrentMessages: 1 and the socket limits), shutdown hooks
 ├── app.module.ts      imports the add-ons and the feature modules
-├── config/            the zod schema of the environment, given to @nestjs/config
+├── config/            the zod schema of the environment, given to @nestjs/config; the LIMITS token
 ├── clock/             the Clock (now() and timers) by its CLOCK token
 ├── errors/            the validation pipe (invalid_message), @WsProtocol(), WsExceptionFilter
 ├── client.gateway.ts  ClientGateway: the one WS gateway class for /ws, every @SubscribeMessage
@@ -20,7 +20,7 @@ src/
 ├── quick-match/       quickMatch, cancelQuickMatch, rematch; pairing across gateways
 ├── play/              inputBatch and the play pushes, forwarded through room-links
 ├── room-links/        RoomLinksService: one outbound ws link per room to its game pod
-├── limits/            @RateLimit, RateLimitGuard, connection limits, client IPs
+├── limits/            @RateLimit, RateLimitGuard, connection limits, client IPs, ClientWsAdapter
 ├── versions/          VersionGuard for /api, the hello version check
 ├── health/            /livez, /readyz (terminus, with the draining check), later /metrics
 └── valkey/            provides the @shura/valkey stores by token (Valkey or in-memory)
@@ -35,5 +35,6 @@ src/
 - `tests/` mirrors `src/`. Tests that run the gateway with a game service and clients go in `tests/integration/`, and helpers (`faultySocket()`, test clients) in `tests/support/`.
 - Integration tests build on `tests/support/online-world.ts` (`onlineWorld()`: both apps, one fake clock from `fake-time.ts`, one in-memory `Stores`, a fixed match seed, and `client(nickname, { through, fetchThrough, clockThrough })`; `stallable-clock.ts` stalls a client's game loop) and `online-games.ts` (`openRoom`, `startMatch`, `expectVerified`…). Every test that plays a match to its end calls `expectVerified`. `raw-client.ts` is a bare socket for messages a real client never sends.
 - The game service comes in through `@shura/game` (a dev dependency), from the source entries its `package.json` `exports` name: the one place an app imports another (design §14). Only tests import it.
-- Per-connection state lives in `sessions/`' `ConnectionsService`, never on the socket. Anything that changes a connection (a message, its close, a room link's delivery, a pub/sub notice) runs in `connections.inTurn(socket, …)`; register work for a closing connection with `connections.onClose`.
+- Limits come from the `LIMITS` token (`config/`, provided by `limits/`), never from `LIMIT_DEFAULTS` directly, so tests set them with `overrideProvider(LIMITS)` (`onlineWorld({ limits })`, which exempts loopback unless told otherwise). A per-IP limit on a route or a socket message is `@RateLimit('<key>')`, with its policy in `RATE_LIMITS`.
+- Per-connection state lives in `sessions/`' `ConnectionsService`, never on the socket. The one exception is `limits/`' `ConnectionLimitsService`, which keeps each socket's limits by socket: `sessions/` imports `limits/` (`@RateLimit` on its route), so `limits/` can't import `sessions/`, and `ClientGateway` wires the two together. Anything that changes a connection (a message, its close, a room link's delivery, a pub/sub notice) runs in `connections.inTurn(socket, …)`; register work for a closing connection with `connections.onClose`.
 - `tests/support/boot.ts` boots the app as `main.ts` does (`configureApp`) on a free port: `boot({ override })` replaces providers, `boot({ imports })` adds test-only modules beside `AppModule`. `tests/architecture.test.ts` holds the architecture checks.

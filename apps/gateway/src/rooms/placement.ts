@@ -2,7 +2,6 @@ import { randomInt } from 'node:crypto';
 import { ENGINE_VERSION } from '@shura/engine';
 import {
   type GatewayToGameData,
-  LIMIT_DEFAULTS,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   type RoomMode,
@@ -54,7 +53,7 @@ export async function claimRoomCode(
 export function createRoomMessage(
   code: string,
   room: Pick<RoomRecord, 'epoch' | 'hostId' | 'quickMatch'> & { readonly mode: RoomMode },
-  maxSpectators: number = LIMIT_DEFAULTS.maxSpectators,
+  maxSpectators: number,
 ): GatewayToGameData<'createRoom'> {
   const { epoch, mode, hostId, quickMatch } = room;
   return {

@@ -1,5 +1,6 @@
 import { hostname } from 'node:os';
 import { z } from 'zod';
+import { addressList, limitVariables } from './limits';
 
 /** The gateway's environment, validated at startup (docs/design.md §14). */
 export const envSchema = z.object({
@@ -16,6 +17,12 @@ export const envSchema = z.object({
   VALKEY_URL: z.string().min(1).default('redis://localhost:6379'),
   /** Prepended to every Valkey key and channel. */
   VALKEY_PREFIX: z.string().default(''),
+  // The abuse limits (design §11), each defaulting to `LIMIT_DEFAULTS` (`limits.ts`).
+  ...limitVariables,
+  /** Addresses and CIDR ranges the per-IP limits don't apply to (design §11). */
+  LIMITS_EXEMPT_IPS: addressList,
+  /** The peers whose `X-Forwarded-For` is believed: the cluster's load balancer (design §11). */
+  TRUSTED_PROXIES: addressList,
 });
 
 export type Env = z.infer<typeof envSchema>;
