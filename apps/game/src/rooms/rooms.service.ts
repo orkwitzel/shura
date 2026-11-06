@@ -83,6 +83,7 @@ export class RoomsService implements OnApplicationShutdown {
       clock: this.clock,
       logger: this.logger.logger.child({ roomCode: code }),
       newMatch: this.newMatch,
+      matchLog: this.stores.matchLog,
       changed: ({ hostId, ...summary }) => {
         this.stores.registry.update(code, { ...summary, hostId }).catch((error: unknown) => {
           this.logger.error({ err: error, roomCode: code }, 'registry update failed');

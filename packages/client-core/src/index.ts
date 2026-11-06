@@ -49,12 +49,14 @@ export {
   CONNECT_PINGS,
   type ConnectionFailure,
   createOnlineSession,
+  type GarbageRouting,
   type OnlineConnection,
   type OnlineRoom,
   type OnlineSession,
   type OnlineSessionOptions,
   type OnlineSessionState,
   PING_EVERY_MS,
+  type RoutingListener,
 } from './online/online-session';
 export {
   type Connect,

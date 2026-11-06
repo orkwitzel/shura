@@ -10,9 +10,11 @@ import {
   type ServerData,
   type ServerMessage,
 } from '@shura/protocol';
+import type { MatchLog } from '@shura/valkey';
 import type { Logger } from 'pino';
 import type { Clock } from '../clock';
 import { Match, type NewMatch, type VerifiedGame } from '../match';
+import { MATCH_LOG_APPEND_MS } from '../match-log';
 import { REFUSALS } from './refusals';
 
 /** Where a room's messages to one session go: the gateway link it attached through. */
@@ -51,6 +53,8 @@ export interface RoomOptions {
   /** The room's own logger, with its `roomCode`. */
   readonly logger: Logger;
   readonly newMatch: NewMatch;
+  /** Where its matches' logs go (design §9.6). */
+  readonly matchLog: MatchLog;
   /** The room's phase, host or counts may have changed: for the registry (design §9.5). */
   readonly changed: (summary: RoomSummary) => void;
   /** The room has emptied. Its service deletes it after `EMPTY_ROOM_MS` unless someone comes. */
@@ -196,12 +200,15 @@ export class Room {
       return;
     }
     const { matchId, seed } = this.#options.newMatch();
-    const { clock, logger } = this.#options;
+    const { clock, logger, matchLog } = this.#options;
     const match = new Match({
       matchId,
       mode: this.mode,
       seed,
       players: players.map(({ id }) => id),
+      epoch: this.epoch,
+      log: matchLog,
+      logger: logger.child({ matchId }),
       output: {
         toPlayer: (id, message) => this.#send(id, message),
         toOthers: (id, message) => {
@@ -227,6 +234,7 @@ export class Room {
         this.#broadcastState();
       }),
       clock.every(ROOM_TICK_MS, () => match.tick()),
+      clock.every(MATCH_LOG_APPEND_MS, () => match.appendLog()),
     );
   }
 
@@ -256,6 +264,8 @@ export class Room {
   #stopMatch(): void {
     for (const stop of this.#stopTimers) stop();
     this.#stopTimers = [];
+    // A match stopped before its end (the room emptied, or closed) deletes its log.
+    this.#match?.stop();
     if (this.#match) this.#lastMatch = this.#match;
     this.#match = null;
   }

@@ -1,7 +1,8 @@
 /// <reference types="node" />
-import { ActionType, ENGINE_VERSION } from '@shura/engine';
+import { type Action, ActionType, ENGINE_VERSION } from '@shura/engine';
 import { PROTOCOL_VERSION } from '@shura/protocol';
 import { describe, expect, test } from 'vitest';
+import versus from '../../../engine/recorded-matches/versus-1v1.json';
 import {
   type Connect,
   createOnlineSession,
@@ -267,6 +268,94 @@ describe('a match', () => {
     const them = online.getState().match?.players.find(({ playerId }) => playerId === 'them');
     expect(them?.engine.frame).toBe(2);
     expect(them?.engine.piecesPlaced).toBe(1);
+  });
+
+  /** Every action of the input batches sent so far, in order. */
+  const batchActions = (sent: readonly Sent[]) =>
+    sent
+      .filter(({ event }) => event === 'inputBatch')
+      .flatMap(({ data }) => (data as { frames: { actions: { type: string }[] }[] }).frames)
+      .flatMap(({ actions }) => actions);
+
+  test('an attack aimed at you is received at your next frame, and only once (design §8.5)', async () => {
+    const { online, say, sent, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3050);
+    const attack = { id: 3, from: 'them', to: 'me', lines: 2, holeSeed: 11 };
+    say('garbageQueued', attack);
+    // Sent again, as after a reconnect, before it was played and after.
+    say('garbageQueued', attack);
+    ticking.advance(50);
+    say('garbageQueued', attack);
+    ticking.advance(50);
+
+    const received = batchActions(sent).filter(({ type }) => type === ActionType.GarbageReceived);
+    // Frames 1–3 went at 3050 ms; the attack arrived after them, so frame 4 receives it.
+    expect(received).toEqual([
+      { frame: 4, type: ActionType.GarbageReceived, id: 3, lines: 2, holeSeed: 11 },
+    ]);
+    expect(online.getState().match?.me?.engine.garbageMeter).toEqual([
+      { id: 3, lines: 2, holeSeed: 11 },
+    ]);
+  });
+
+  test('takes in no attack aimed at someone else', async () => {
+    const { online, say, sent, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3050);
+    say('garbageQueued', { id: 3, from: 'me', to: 'them', lines: 2, holeSeed: 11 });
+    ticking.advance(50);
+    expect(batchActions(sent).some(({ type }) => type === ActionType.GarbageReceived)).toBe(false);
+    expect(online.getState().match?.me?.engine.garbageMeter).toEqual([]);
+  });
+
+  test('accepts the garbage it takes in at its next lock that clears nothing, in the batches', async () => {
+    const { online, say, sent, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3050);
+    say('garbageQueued', { id: 3, from: 'them', to: 'me', lines: 2, holeSeed: 11 });
+    ticking.advance(50);
+    online.act(ActionType.HardDrop, online.now());
+    ticking.advance(50);
+    expect(batchActions(sent).filter(({ type }) => type === ActionType.GarbageAccepted)).toEqual([
+      { frame: 7, type: ActionType.GarbageAccepted, id: 3 },
+    ]);
+  });
+
+  test('passes every routing of the match on, whoever it was aimed at (the attack streak)', async () => {
+    const { online, say } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    const heard: object[] = [];
+    const stop = online.onRoutings((routing) => heard.push(routing));
+    const routing = { id: 1, from: 'them', to: 'cy', lines: 2, holeSeed: 9 };
+    // None outside a match.
+    say('garbageQueued', routing);
+    say('countdown', countdown);
+    say('garbageQueued', routing);
+    say('garbageQueued', { ...routing, id: 2, from: 'cy', to: 'me' });
+    stop();
+    say('garbageQueued', { ...routing, id: 3 });
+    expect(heard).toEqual([routing, { ...routing, id: 2, from: 'cy', to: 'me' }]);
+  });
+
+  test("counts the lines each player's locks send, from their relays (the HUD's lines sent)", async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', { ...countdown, seed: versus.seed });
+    ticking.advance(3050);
+    const theirs = (versus.players[1]?.actions ?? []) as Action[];
+    const frames = Array.from({ length: versus.lastFrame }, (_, at) => ({
+      frame: at + 1,
+      actions: theirs.filter(({ frame }) => frame === at + 1),
+    }));
+    say('relay', { playerId: 'them', frames });
+    ticking.advance(16);
+    // The recorded match's harness passed 44 lines of theirs on to player 0.
+    const them = online.getState().match?.players.find(({ playerId }) => playerId === 'them');
+    expect(them?.linesSent).toBe(44);
   });
 
   test('ends with the placements', async () => {

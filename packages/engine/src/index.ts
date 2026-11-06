@@ -57,6 +57,7 @@ export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } 
 export {
   type HoleSeedsState,
   holeSeeds,
+  nextRandom,
   type Randomizer,
   type SevenBagState,
   sevenBag,
