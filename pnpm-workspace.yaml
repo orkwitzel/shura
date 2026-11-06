@@ -13,7 +13,7 @@ catalog:
   "@nestjs/schematics": 11.1.0
   "@nestjs/terminus": 11.1.1
   "@nestjs/testing": 11.2.8
-  "@nestjs/websockets": 11.2.8
+  "@nestjs/websockets": 12.3.2
   "@swc/cli": 0.7.10
   "@swc/core": 1.16.21
   "@types/node": 26.6.6
