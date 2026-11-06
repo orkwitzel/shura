@@ -50,6 +50,7 @@ export {
   CONNECT_PINGS,
   type ConnectionFailure,
   createOnlineSession,
+  type GarbageRouting,
   type OnlineConnection,
   type OnlineRoom,
   type OnlineSession,
@@ -59,6 +60,7 @@ export {
   type QuickMatchStatus,
   RECONNECT_BACKOFF_MS,
   RECONNECT_QUICK_MS,
+  type RoutingListener,
 } from './online/online-session';
 export {
   type Connect,

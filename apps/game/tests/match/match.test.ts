@@ -26,18 +26,16 @@ function playOnTime(game: TestMatch, plays: Record<string, Plays>, to: number, f
 }
 
 describe('clock enforcement (design §8.4)', () => {
-  test.each([5, CLOCK_LEAD_TOLERANCE])('a batch %i frames ahead is verified', (lead) => {
+  test.each([5, CLOCK_LEAD_TOLERANCE])('a batch %i frames ahead is verified', async (lead) => {
     const game = testMatch(['ada', 'bo']);
     playOnTime(game, { ada: {}, bo: {} }, 30);
     game.send('ada', framesOf(31, 30 + lead));
-    expect(game.sent.at(-1)).toEqual({
-      to: 'ada',
-      message: { event: 'batchAck', data: { seq: 10 } },
-    });
+    await game.logged();
+    expect(game.acks('ada').at(-1)).toBe(10);
     expect(game.outcomes()).toEqual([]);
   });
 
-  test('a batch 7 frames ahead removes the player, out at the batch', () => {
+  test('a batch 7 frames ahead removes the player, out at the batch', async () => {
     const game = testMatch(['ada', 'bo']);
     playOnTime(game, { ada: {}, bo: {} }, 30);
     game.send('ada', framesOf(31, 37));
@@ -45,10 +43,8 @@ describe('clock enforcement (design §8.4)', () => {
       event: 'playerOut',
       data: { playerId: 'ada', reason: 'removed', frame: 31 },
     });
-    expect(game.sent).not.toContainEqual({
-      to: 'ada',
-      message: { event: 'batchAck', data: { seq: 10 } },
-    });
+    await game.logged();
+    expect(game.acks('ada')).not.toContain(10);
   });
 
   test('a batch during the countdown removes the player', () => {

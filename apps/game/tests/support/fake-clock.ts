@@ -14,6 +14,7 @@ interface Timer {
   readonly every?: number;
 }
 
+/** A fake clock starting at `start` (ms since the epoch). */
 export function fakeClock(start: number): FakeClock {
   let time = start;
   let timers: Timer[] = [];

@@ -5,6 +5,7 @@ import {
   type ServerEvent,
   type ServerMessage,
 } from '@shura/protocol';
+import { createMemoryStores } from '@shura/valkey';
 import { pino } from 'pino';
 import { type Deliver, Room, type RoomSummary } from '../../src/rooms/room';
 import { type FakeClock, fakeClock } from './fake-clock';
@@ -86,6 +87,7 @@ export function testRoom({
     clock,
     logger: pino({ level: 'silent' }),
     newMatch: () => ({ matchId: `match-${++matches}`, seed }),
+    matchLog: createMemoryStores().matchLog,
     changed: (latest) => {
       summary = latest;
     },

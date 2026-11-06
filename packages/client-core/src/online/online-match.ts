@@ -1,9 +1,11 @@
 import {
   type Action,
+  ActionType,
   createEngine,
   type Engine,
   type EngineEvent,
   FFA,
+  type GarbageReceivedAction,
   type ModeSettings,
   ONE_VS_ONE,
   type PieceAction,
@@ -143,11 +145,12 @@ interface Game {
  * The loop never pauses (design §8.4): a late wake steps every frame it missed, as the server's
  * clock kept running, and it stops only once your game is over or the match has ended.
  *
+ * An attack the server routes to you (`garbageQueued`) enters your game as a `garbageReceived`
+ * action at your next frame, before its other actions, and your engine accepts garbage as a
+ * client does, its `garbageAccepted` actions going out in the batches (design §8.5).
+ *
  * After a reconnect the session sends `unacknowledged` again, and `restore` takes the games from
  * the server's snapshot (design §8.6, §10.2).
- *
- * Seams for later issues: garbage aimed at you enters `#playFrame` as `garbageReceived` actions
- * (#62).
  */
 export class OnlineMatch {
   readonly #options: OnlineMatchOptions;
@@ -162,6 +165,8 @@ export class OnlineMatch {
   #phase: OnlineMatchPhase;
   #result: ServerData<'matchEnd'> | null = null;
   #roster: readonly RosterEntry[];
+  /** Attacks aimed at you (`garbageReceived`) for your next frame, their frame still to be set. */
+  #incoming: GarbageReceivedAction[] = [];
   /** Atomic actions waiting for their frame, in frame order. */
   #pending: PieceAction[] = [];
   /** Key events waiting for their frame, in frame order. */
@@ -244,6 +249,23 @@ export class OnlineMatch {
     game.linesSent += totalLines(sent);
     this.#dirty = true;
     this.#schedule();
+  }
+
+  /**
+   * `garbageQueued`: an attack aimed at you is received at your next frame (design §8.5, step 3,
+   * ADR 0013), never the current one. Attacks between other players are only for drawing. Coming
+   * back mid-match, the server sends again every attack it hasn't seen you receive, and the ones
+   * you already have are ignored. Says whether the attack is news: `false` only for one aimed at
+   * you that you already have.
+   */
+  receiveGarbage({ to, id, lines, holeSeed }: ServerData<'garbageQueued'>): boolean {
+    if (to !== this.#me?.playerId || this.#over()) return true;
+    const had =
+      this.#me.engine.state.receivedGarbageIds.includes(id) ||
+      this.#incoming.some((action) => action.id === id);
+    if (had) return false;
+    this.#incoming.push({ frame: 0, type: ActionType.GarbageReceived, id, lines, holeSeed });
+    return true;
   }
 
   /**
@@ -351,8 +373,9 @@ export class OnlineMatch {
   };
 
   /**
-   * Plays one frame: the input engine's, and from frame 1 your engine's, with the actions the
-   * input engine makes in it, accepting garbage as a client does (design §8.5).
+   * Plays one frame: the input engine's, and from frame 1 your engine's, with the attacks received
+   * since the last frame and the actions the input engine makes in it, accepting garbage as a
+   * client does (design §8.5).
    */
   #playFrame(frame: number): void {
     this.#frame = frame;
@@ -367,9 +390,13 @@ export class OnlineMatch {
     while (this.#pending[due]?.frame === frame) due++;
     const moves = this.#pending.splice(0, due);
     for (const type of emitted) moves.push({ frame, type });
-    const { events, accepted, sent } = engine.step(frame, moves, { acceptGarbage: true });
+    const received = this.#incoming.map((action) => ({ ...action, frame }));
+    this.#incoming = [];
+    const { events, accepted, sent } = engine.step(frame, [...received, ...moves], {
+      acceptGarbage: true,
+    });
     if (this.#me) this.#me.linesSent += totalLines(sent);
-    const actions: Action[] = [...moves, ...accepted];
+    const actions: Action[] = [...received, ...moves, ...accepted];
     this.#unsent.push({ frame, actions });
     this.#unheardActions.push(...moves);
     this.#unheardEvents.push(...events);
