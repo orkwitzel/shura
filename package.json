@@ -12,7 +12,7 @@
     "dev:game2": "PORT=8082 pnpm --filter @shura/game dev",
     "dev:bot": "turbo run build --filter=@shura/bot^... --output-logs=errors-only && pnpm --filter @shura/bot serve",
     "bot": "turbo run build --filter=@shura/bot^... --output-logs=errors-only && pnpm --silent --filter @shura/bot bot",
-    "cli": "turbo run build --filter=shura^... --output-logs=errors-only && pnpm --filter shura dev",
+    "cli": "turbo run build --filter=shura^... --output-logs=errors-only && pnpm --filter shura start",
     "check": "biome check && turbo run typecheck test",
     "build": "turbo run build",
     "test": "turbo run test",

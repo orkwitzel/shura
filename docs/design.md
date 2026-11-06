@@ -750,7 +750,7 @@ pnpm bot        join K7QX --count 5 · quick · leave K7QX · list: asks the bot
 pnpm check      Biome + typecheck + test across the repo (the same command CI runs)
 ```
 
-Each package's `dev` is `tsdown --watch --no-clean` (it doesn't empty `dist/` under a consumer that already loaded it). Each service runs `nest build --watch` beside `node --watch --enable-source-maps dist/main.js`. `node --watch` restarts on any file the service loaded, so an edit to the service or to a package (once its `tsdown --watch` has rebuilt `dist/`) restarts it.
+The CLI has no `dev` script, so `turbo dev` leaves it out: it needs a terminal of its own, so `pnpm cli` runs its `start` script. Each package's `dev` is `tsdown --watch --no-clean` (it doesn't empty `dist/` under a consumer that already loaded it). Each service runs `nest build --watch` beside `node --watch --enable-source-maps dist/main.js`. `node --watch` restarts on any file the service loaded, so an edit to the service or to a package (once its `tsdown --watch` has rebuilt `dist/`) restarts it.
 
 The gateway's `dev` script sets `LIMITS_EXEMPT_IPS=127.0.0.1,::1` unless it's already set (as does `.env.example`, which nothing loads), so the per-IP limits (§11) don't block a laptop running several clients and bots. Every limit's variable passes through `turbo dev`. Integration tests do the same (`onlineWorld()` exempts loopback); the limits' own tests trust loopback as a proxy and give each client its address in `X-Forwarded-For`.
 
