@@ -10,6 +10,7 @@ export {
 export {
   type Action,
   ActionType,
+  atSpawn,
   canMove,
   createEngine,
   currentGravity,
@@ -22,6 +23,7 @@ export {
   type ReadonlyEngineState,
   restoreEngine,
   type SentGarbage,
+  SPAWN_ROW,
   type StepOptions,
   type StepResult,
 } from './engine';

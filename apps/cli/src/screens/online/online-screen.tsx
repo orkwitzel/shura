@@ -1,6 +1,7 @@
 import {
   type Connect,
   createOnlineSession,
+  errorText,
   type Fetch,
   handlingFrames,
   type OnlineSessionState,
@@ -123,21 +124,24 @@ export function OnlineScreen({
   });
 
   if (connection.status === 'connecting') return <Notice text={`Connecting to ${server}…`} />;
-  if (connection.status === 'failed') return <Notice text={connection.message} back />;
+  if (connection.status === 'failed') {
+    return <Notice text={errorText(connection.reason, connection.message)} back />;
+  }
+  const error = state.error && errorText(state.error.code, state.error.message);
   // The match stays up until its room is back in the lobby: the results line shows there.
   if (match && (match.phase !== 'ended' || room?.phase !== 'lobby')) {
     return (
       <MatchView match={match} names={state.names} look={look} ghost={ghost} ping={state.ping} />
     );
   }
-  if (!room) return <Notice text={state.error?.message ?? 'Joining the room…'} back />;
+  if (!room) return <Notice text={error ?? 'Joining the room…'} back />;
   return (
     <LobbyView
       room={room}
       sessionId={state.sessionId}
       ping={state.ping}
       last={match}
-      error={state.error?.message ?? null}
+      error={error}
     />
   );
 }

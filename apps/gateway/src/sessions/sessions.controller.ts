@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import type { Session } from '@shura/protocol';
+import { RateLimit } from '../limits';
 import { CreateSessionDto } from './sessions.dto';
 import { SessionsService } from './sessions.service';
 
@@ -9,6 +10,7 @@ export class SessionsController {
   constructor(private readonly sessions: SessionsService) {}
 
   @Post()
+  @RateLimit('sessions')
   create(@Body() body: CreateSessionDto): Promise<Session> {
     return this.sessions.create(body);
   }

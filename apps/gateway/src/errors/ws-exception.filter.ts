@@ -8,9 +8,10 @@ import {
 import { WsException } from '@nestjs/websockets';
 import { type ErrorBody, errorBody, isErrorBody } from '@shura/protocol';
 import { WebSocket } from 'ws';
+import { DroppedMessageException } from './dropped-message.exception';
 
-/** The `ErrorBody` an exception carries, or `undefined` for an unexpected one. */
-const bodyOf = (exception: unknown): ErrorBody | undefined => {
+/** The `ErrorBody` an exception carries (`WsException` or `HttpException`), or `undefined`. */
+export const errorBodyOf = (exception: unknown): ErrorBody | undefined => {
   const payload =
     exception instanceof WsException
       ? exception.getError()
@@ -23,14 +24,16 @@ const bodyOf = (exception: unknown): ErrorBody | undefined => {
 /**
  * Sends a WS handler's error to its socket as `exception{ code, message }` (docs/design.md §8.7).
  * Nest's own WS filter emits on the socket object, which a raw `ws` socket never sends. An
- * exception without a code from `ERRORS` is logged and sent as `internal_error`.
+ * exception without a code from `ERRORS` is logged and sent as `internal_error`, and a
+ * `DroppedMessageException` sends nothing.
  */
 @Catch()
 export class WsExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(WsExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    let body = bodyOf(exception);
+    if (exception instanceof DroppedMessageException) return;
+    let body = errorBodyOf(exception);
     if (body === undefined) {
       this.logger.error(exception);
       body = errorBody('internal_error');

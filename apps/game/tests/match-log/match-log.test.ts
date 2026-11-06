@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { matchLogEntrySchema, matchLogStartSchema } from '../../src/match-log';
 import { lockstepMatch, recordedPlayers } from '../support/lockstep';
 import { RECORDED_LAST_FRAME, RECORDED_SEED } from '../support/recorded-1v1';
-import { framesOf, settle, testMatch } from '../support/test-match';
+import { framesOf, settle, testMatch, timeOf } from '../support/test-match';
 
 /** A match log whose appends each wait to be let through or failed, oldest first. */
 function gatedLog() {
@@ -100,7 +100,8 @@ describe('the match log', () => {
 
   test('a batch sent again is acknowledged again once it is in the log, and not before', async () => {
     const { log, gate } = gatedLog();
-    const { match, send, resend, acks } = testMatch(['a', 'b'], { log });
+    const { match, clock, send, resend, acks } = testMatch(['a', 'b'], '1v1', { log });
+    clock.advanceTo(timeOf(3));
     send('a', framesOf(1, 3));
     resend('a', 0, framesOf(1, 3));
     match.appendLog();
@@ -161,7 +162,8 @@ describe('the match log', () => {
 
   test('a match its room stops before the end deletes its log', async () => {
     const stores = createMemoryStores();
-    const { match, send } = testMatch(['a', 'b'], { log: stores.matchLog });
+    const { match, clock, send } = testMatch(['a', 'b'], '1v1', { log: stores.matchLog });
+    clock.advanceTo(timeOf(3));
     send('a', framesOf(1, 3));
     match.appendLog();
     await settle();

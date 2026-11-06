@@ -24,7 +24,20 @@
         "POD_ID",
         "POD_IP",
         "VALKEY_URL",
-        "VALKEY_PREFIX"
+        "VALKEY_PREFIX",
+        "MAX_PAYLOAD_BYTES",
+        "INVALID_MESSAGES_BEFORE_DISCONNECT",
+        "MESSAGES_PER_SECOND",
+        "MESSAGE_BURST",
+        "CONNECTIONS_PER_IP",
+        "NEW_CONNECTIONS_PER_IP_PER_MINUTE",
+        "ROOMS_PER_IP_PER_MINUTE",
+        "SESSIONS_PER_IP_PER_MINUTE",
+        "FAILED_JOINS_PER_IP_PER_MINUTE",
+        "MAX_SPECTATORS",
+        "QUICK_MATCH_COOLDOWN_MS",
+        "LIMITS_EXEMPT_IPS",
+        "TRUSTED_PROXIES"
       ]
     }
   }

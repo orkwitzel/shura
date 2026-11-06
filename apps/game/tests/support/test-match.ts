@@ -32,7 +32,7 @@ export function framesOf(from: number, to: number, dropEvery?: number): FrameAct
   return frames;
 }
 
-/** A message the match sent, and who to. */
+/** A message the match sent, and who to: a player, everyone but a player, or the room. */
 export interface Sent {
   /** A player's id, `not <id>` for everyone but them, or `room`. */
   readonly to: string;
@@ -40,7 +40,6 @@ export interface Sent {
 }
 
 export interface TestMatchOptions {
-  readonly mode?: RoomMode;
   readonly seed?: number;
   /** The match log. A fresh in-memory one by default. */
   readonly log?: MatchLog;
@@ -68,7 +67,8 @@ export interface TestMatch {
 
 export function testMatch(
   players: readonly string[],
-  { mode = '1v1', seed = 42, log = createMemoryStores().matchLog }: TestMatchOptions = {},
+  mode: RoomMode = '1v1',
+  { seed = 42, log = createMemoryStores().matchLog }: TestMatchOptions = {},
 ): TestMatch {
   const clock = fakeClock(STARTED);
   const sent: Sent[] = [];
@@ -78,6 +78,8 @@ export function testMatch(
     mode,
     seed,
     players,
+    clock,
+    startAt: START_AT,
     epoch: 1,
     log,
     logger: pino({ level: 'silent' }),

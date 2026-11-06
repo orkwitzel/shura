@@ -4,6 +4,7 @@ import { errorBody, roomModeSchema } from '@shura/protocol';
 import type { MatchedNotice, RoomRecord, Stores } from '@shura/valkey';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { WebSocket } from 'ws';
+import { type GatewayLimits, LIMITS } from '../config';
 import { claimRoomCode, createRoomMessage, placeRoom, REFUSE, RoomsService } from '../rooms';
 import { type Connection, type ConnectionSession, ConnectionsService } from '../sessions';
 import { STORES } from '../valkey';
@@ -31,6 +32,7 @@ export class QuickMatchService {
 
   constructor(
     @Inject(STORES) private readonly stores: Stores,
+    @Inject(LIMITS) private readonly limits: GatewayLimits,
     private readonly connections: ConnectionsService,
     private readonly rooms: RoomsService,
     @InjectPinoLogger(QuickMatchService.name) private readonly logger: PinoLogger,
@@ -115,7 +117,7 @@ export class QuickMatchService {
       connection,
       code,
       room,
-      createRoomMessage(code, { ...room, mode: '1v1' }),
+      createRoomMessage(code, { ...room, mode: '1v1' }, this.limits.maxSpectators),
     );
     await this.stores.matchQueue.notifyMatched({
       sessionId: partnerId,
@@ -145,7 +147,7 @@ export class QuickMatchService {
       connection,
       roomCode,
       room,
-      createRoomMessage(roomCode, { ...room, mode: mode.data }),
+      createRoomMessage(roomCode, { ...room, mode: mode.data }, this.limits.maxSpectators),
     );
   }
 

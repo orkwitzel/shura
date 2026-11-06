@@ -20,7 +20,7 @@ import { pino } from 'pino';
 import { MATCH_SETTINGS, Match } from '../../src/match/match';
 import { fakeClock } from './fake-clock';
 import { RECORDED_PIECE_ACTIONS, RECORDED_SEED } from './recorded-1v1';
-import { STARTED, settle, timeOf } from './test-match';
+import { START_AT, STARTED, settle, timeOf } from './test-match';
 
 /** One player of a lockstep match, and how their client behaves. */
 export interface SimPlayer {
@@ -118,13 +118,15 @@ export function lockstepMatch({
   const clients = players.map((player, index) => new SimClient(player, mode, seed, index));
   const declaredOut = new Set<string>();
   let frame = 0;
-  // The server's clock, moved to each frame's time as it's played (for clock enforcement).
+  // The server's clock, moved to each frame's time as it's played: every batch is on time.
   const clock = fakeClock(STARTED);
   const match: Match = new Match({
     matchId: 'match-1',
     mode,
     seed,
     players: players.map(({ id }) => id),
+    clock,
+    startAt: START_AT,
     epoch: 1,
     log,
     logger: pino({ level: 'silent' }),

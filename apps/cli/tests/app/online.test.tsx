@@ -156,3 +156,23 @@ test('a room that does not exist says so, and Esc goes back to the menu', async 
   await waitABit();
   expect(frame()).toContain('Single player');
 });
+
+test('a limit refusal reads in plain words (design §11)', async () => {
+  const server = fakeServer({
+    reply: (message) =>
+      message.event === 'createRoom' ? [exception('room_limit', 'room_limit')] : undefined,
+  });
+  const { frame } = await online(server);
+  expect(frame()).toContain('Too many rooms created. Try again in a minute.');
+});
+
+test('a connection refused at the door says why in plain words', async () => {
+  const server = fakeServer({
+    reply: (message) =>
+      message.event === 'hello'
+        ? [exception('too_many_connections', 'too_many_connections')]
+        : undefined,
+  });
+  const { frame } = await online(server);
+  expect(frame()).toContain('Too many connections from your network. Try again in a minute.');
+});

@@ -1,7 +1,7 @@
 import { ENGINE_VERSION } from '@shura/engine';
 import { PROTOCOL_VERSION, type ServerMessage } from '@shura/protocol';
 import { WebSocket } from 'ws';
-import { postJson } from './api';
+import { postJson, VERSION_HEADERS } from './api';
 
 /**
  * A bare client of the gateway over a real socket: it sends whatever the test says, valid or
@@ -14,9 +14,14 @@ export interface RawClient {
   readonly received: ServerMessage[];
   /** Whether the gateway closed the connection. */
   readonly closed: boolean;
+  /** The close code, once closed (1009 for a message over `maxPayload`). */
+  readonly closeCode: number | null;
   /** Sends `message` as JSON, or a string as it is. */
   send(message: object | string): void;
-  /** Creates a session over `POST /api/sessions` and says a valid `hello` with its token. */
+  /**
+   * Creates a session over `POST /api/sessions` (with the client's headers) and says a valid
+   * `hello` with its token.
+   */
   hello(nickname?: string): Promise<void>;
   /** The `exception` codes received, in order. */
   exceptions(): string[];
@@ -30,10 +35,10 @@ export async function rawClient(
 ): Promise<RawClient> {
   const socket = new WebSocket(`${serverUrl.replace(/^http/, 'ws')}/ws`, { headers });
   const received: ServerMessage[] = [];
-  let closed = false;
+  let closeCode: number | null = null;
   socket.on('message', (data) => received.push(JSON.parse(String(data)) as ServerMessage));
-  socket.on('close', () => {
-    closed = true;
+  socket.on('close', (code) => {
+    closeCode = code;
   });
   await new Promise<void>((resolve, reject) => {
     socket.once('open', resolve);
@@ -42,11 +47,18 @@ export async function rawClient(
   const client: RawClient = {
     received,
     get closed() {
-      return closed;
+      return closeCode !== null;
+    },
+    get closeCode() {
+      return closeCode;
     },
     send: (message) => socket.send(typeof message === 'string' ? message : JSON.stringify(message)),
     async hello(nickname = 'Ada') {
-      const res = await postJson(`${serverUrl}/api/sessions`, { nickname });
+      const res = await postJson(
+        `${serverUrl}/api/sessions`,
+        { nickname },
+        { ...VERSION_HEADERS, ...headers },
+      );
       const { sessionToken } = (await res.json()) as { sessionToken: string };
       client.send({
         event: 'hello',

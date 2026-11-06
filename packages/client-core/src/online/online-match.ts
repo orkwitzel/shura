@@ -21,6 +21,7 @@ import {
 } from '@shura/protocol';
 import type { InputEngine, KeyEvent } from '../input/input-engine';
 import type { Clock } from '../shared/clock';
+import { placeOf } from '../view/places';
 
 /** The engine settings of each room mode (design §4): an FFA plays by 1v1's rules. */
 export const MATCH_SETTINGS: Readonly<Record<RoomMode, ModeSettings>> = {
@@ -58,6 +59,14 @@ export interface OnlinePlayerGame {
   readonly linesSent: number;
 }
 
+/** A player in the match's roster: who they are, and once out, how, when and their place. */
+export interface RosterEntry {
+  readonly playerId: string;
+  readonly out: PlayerOut | null;
+  /** Their place so far (`placeOf`), and the server's once the match has ended: `null` while in. */
+  readonly place: number | null;
+}
+
 /**
  * Where a match is: counting down to Go, playing, or ended (`matchEnd`). Being out yourself is
  * `out` on your own game: the match plays on around you.
@@ -77,6 +86,12 @@ export interface OnlineMatchState {
   readonly players: readonly OnlinePlayerGame[];
   /** Your own game: the one of `players` that is yours, or `null` if you watch. */
   readonly me: OnlinePlayerGame | null;
+  /**
+   * Every player in index order, with how they went out and their place. It is a new array only
+   * when someone goes out or the match ends, so a UI that shows names and places can select it
+   * without re-rendering every frame.
+   */
+  readonly roster: readonly RosterEntry[];
   /** The placements and stats, once it has ended. */
   readonly result: ServerData<'matchEnd'> | null;
 }
@@ -147,6 +162,7 @@ export class OnlineMatch {
   #dirty = false;
   #phase: OnlineMatchPhase;
   #result: ServerData<'matchEnd'> | null = null;
+  #roster: readonly RosterEntry[];
   /** Attacks aimed at you (`garbageReceived`) for your next frame, their frame still to be set. */
   #incoming: GarbageReceivedAction[] = [];
   /** Atomic actions waiting for their frame, in frame order. */
@@ -174,6 +190,7 @@ export class OnlineMatch {
         linesSent: 0,
       }));
     this.#me = this.#games.find((game) => game.playerId === playerId);
+    this.#roster = this.#rosterNow();
     // A countdown that arrived late starts at the frame its time has reached.
     this.#frame = Math.min(frameAt(clock.now() - options.start), 0);
     this.#phase = this.#frame < 0 ? 'countdown' : 'playing';
@@ -255,6 +272,7 @@ export class OnlineMatch {
     const game = this.#games.find((other) => other.playerId === playerId);
     if (!game) return;
     game.out = { reason, frame };
+    this.#roster = this.#rosterNow();
     if (game === this.#me) {
       this.stop();
       this.#unsent = [];
@@ -267,6 +285,7 @@ export class OnlineMatch {
   end(result: ServerData<'matchEnd'>): void {
     this.#result = result;
     this.#phase = 'ended';
+    this.#roster = this.#rosterNow();
     this.stop();
     this.#changed();
   }
@@ -296,8 +315,18 @@ export class OnlineMatch {
       playerId: this.#me?.playerId ?? null,
       players,
       me: players.find(({ playerId }) => playerId === this.#me?.playerId) ?? null,
+      roster: this.#roster,
       result: this.#result,
     };
+  }
+
+  #rosterNow(): readonly RosterEntry[] {
+    const match = { players: this.#games, result: this.#result };
+    return this.#games.map(({ playerId, out }) => ({
+      playerId,
+      out,
+      place: placeOf(match, playerId),
+    }));
   }
 
   /** Wakes the loop soon, unless a wake is already waiting. */

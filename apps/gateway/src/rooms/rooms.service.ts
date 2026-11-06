@@ -10,6 +10,7 @@ import {
 import type { RoomRecord, Stores } from '@shura/valkey';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { WebSocket } from 'ws';
+import { type GatewayLimits, LIMITS } from '../config';
 import { RoomLinksService, type RoomMember, type RoomPlace } from '../room-links';
 import { type Connection, type ConnectionSession, ConnectionsService } from '../sessions';
 import { STORES } from '../valkey';
@@ -37,6 +38,7 @@ export class RoomsService {
 
   constructor(
     @Inject(STORES) private readonly stores: Stores,
+    @Inject(LIMITS) private readonly limits: GatewayLimits,
     private readonly connections: ConnectionsService,
     private readonly links: RoomLinksService,
     @InjectPinoLogger(RoomsService.name) private readonly logger: PinoLogger,
@@ -81,7 +83,12 @@ export class RoomsService {
       const code = await claimRoomCode(this.stores.registry, room);
       if (code === undefined) throw REFUSE.noRoomCode();
       this.logger.info({ sessionId: session.id, roomCode: code, mode }, 'room created');
-      await this.#enter(connection, code, room, createRoomMessage(code, { ...room, mode }));
+      await this.#enter(
+        connection,
+        code,
+        room,
+        createRoomMessage(code, { ...room, mode }, this.limits.maxSpectators),
+      );
     });
   }
 
