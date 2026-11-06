@@ -4,6 +4,15 @@ import type { RoomMode } from './messages/fields';
 // (docs/design.md §8, §10, §11). Durations in frames are game time (60 frames a second); durations
 // in ms are on the server's clock.
 
+/** Game frames a second (design §5.1): game time is counted in frames of 1/60 s. */
+export const FRAMES_PER_SECOND = 60;
+
+/**
+ * The frame that `ms` after frame 0's start falls in: the server's expected frame (design §8.4)
+ * and a client's match loop agree on it. Negative before frame 0, in the countdown.
+ */
+export const frameAt = (ms: number): number => Math.floor((ms * FRAMES_PER_SECOND) / 1000);
+
 /** How many frames ahead of the expected frame a batch may run (design §8.4): 6, 100 ms. */
 export const CLOCK_LEAD_TOLERANCE = 6;
 

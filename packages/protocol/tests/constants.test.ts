@@ -5,6 +5,8 @@ import {
   CLOCK_LEAD_TOLERANCE,
   COUNTDOWN_MS,
   EMPTY_ROOM_MS,
+  FRAMES_PER_SECOND,
+  frameAt,
   GARBAGE_ACK_TIMEOUT,
   LAG_OUT_MS,
   LIMIT_DEFAULTS,
@@ -51,4 +53,15 @@ test('the limit defaults are the design’s (§11)', () => {
     failedJoinsPerIpPerMinute: 10,
     quickMatchCooldownMs: 3000,
   });
+});
+
+test('frameAt is the frame a time since frame 0 falls in, on the 60 fps game clock (§8.4)', () => {
+  expect(FRAMES_PER_SECOND).toBe(60);
+  expect(frameAt(0)).toBe(0);
+  expect(frameAt(16)).toBe(0);
+  expect(frameAt(17)).toBe(1);
+  expect(frameAt(1000)).toBe(60);
+  // Before frame 0, in the countdown, frames count down from -1.
+  expect(frameAt(-1)).toBe(-1);
+  expect(frameAt(-3000)).toBe(-180);
 });

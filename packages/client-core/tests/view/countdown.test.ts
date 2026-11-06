@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countdownLabel, createSoloSession } from '../../src/index';
+import { countdownLabel, createSoloSession, matchCountdownLabel } from '../../src/index';
 import { fakeClock } from '../support/fake-clock';
 
 /** The countdown before Go: 1.5 s. */
@@ -59,5 +59,22 @@ describe('the countdown label (design §13.1, Countdown)', () => {
     clock.run(COUNTDOWN_MS);
     expect(label()).toBe('GO');
     session.pause();
+  });
+});
+
+describe('matchCountdownLabel (online)', () => {
+  const me = (frame: number) => ({ engine: { frame } }) as never;
+
+  it('counts 3, 2, 1 a second each, then GO for the first 0.5 s from frame 0', () => {
+    expect(matchCountdownLabel({ phase: 'countdown', countdown: 180, me: me(0) })).toBe('3');
+    expect(matchCountdownLabel({ phase: 'countdown', countdown: 120, me: me(0) })).toBe('2');
+    expect(matchCountdownLabel({ phase: 'countdown', countdown: 61, me: me(0) })).toBe('2');
+    expect(matchCountdownLabel({ phase: 'countdown', countdown: 1, me: me(0) })).toBe('1');
+    expect(matchCountdownLabel({ phase: 'playing', countdown: 0, me: me(29) })).toBe('GO');
+    expect(matchCountdownLabel({ phase: 'playing', countdown: 0, me: me(30) })).toBeNull();
+  });
+
+  it('shows nothing to someone watching', () => {
+    expect(matchCountdownLabel({ phase: 'countdown', countdown: 120, me: null })).toBeNull();
   });
 });

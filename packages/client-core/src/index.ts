@@ -26,6 +26,44 @@ export {
   type KeyEvent,
 } from './input/input-engine';
 export {
+  type Api,
+  type ApiOptions,
+  createApi,
+  type Fetch,
+  type FetchResponse,
+  socketUrl,
+} from './online/api';
+export { ClockSync, PING_SAMPLES, type PingSample } from './online/clock-sync';
+export { isOnlineError, OnlineError } from './online/online-error';
+export {
+  type BatchFrame,
+  type InputBatch,
+  MATCH_SETTINGS,
+  type OnlineMatchPhase,
+  type OnlineMatchState,
+  type OnlinePlayerGame,
+  type PlayerOut,
+  totalLines,
+} from './online/online-match';
+export {
+  CONNECT_PINGS,
+  type ConnectionFailure,
+  createOnlineSession,
+  type OnlineConnection,
+  type OnlineRoom,
+  type OnlineSession,
+  type OnlineSessionOptions,
+  type OnlineSessionState,
+  PING_EVERY_MS,
+} from './online/online-session';
+export {
+  type Connect,
+  type OnlineSocket,
+  type SocketHandlers,
+  type StandardWebSocket,
+  webSocketConnect,
+} from './online/online-socket';
+export {
   createSettingsStore,
   defaultSettings,
   type Effects,
@@ -59,7 +97,7 @@ export {
   parseVersioned,
   type VersionedFormat,
 } from './settings/versioned';
-export type { Clock } from './shared/clock';
+export type { Clock, TimerClock } from './shared/clock';
 export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './shared/frames';
 export type { AppStores, Store } from './shared/store';
 export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './solo/modes';
@@ -101,5 +139,5 @@ export {
   lockCallouts,
   onCallouts,
 } from './view/callouts';
-export { countdownLabel } from './view/countdown';
+export { countdownLabel, matchCountdownLabel } from './view/countdown';
 export { formatFrames, formatHeadline, formatScore } from './view/format';
