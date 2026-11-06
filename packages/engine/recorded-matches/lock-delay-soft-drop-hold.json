@@ -1,6 +1,6 @@
 {
   "description": "43 pieces placed by a greedy column bot with 11 holds: 15 hard dropped and 28 soft dropped onto the stack and locked by the lock delay. 12 of those restart it with moves on the stack, and 8 of them use all 15 restarts and keep moving without restarting it. 4 line clears, ending in a block out.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 123,
   "mode": "sprint",
   "settings": {
@@ -9,7 +9,7 @@
   "lastFrame": 2809,
   "players": [
     {
-      "expectedHash": "a363a7c98c30abea",
+      "expectedHash": "f556ae343b1f10b0",
       "actions": [
         { "frame": 1, "type": "moveLeft" },
         { "frame": 2, "type": "moveLeft" },
