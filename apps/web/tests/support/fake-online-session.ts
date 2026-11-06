@@ -1,8 +1,10 @@
 import type {
   ConnectionFailure,
+  GarbageRouting,
   OnlineRoom,
   OnlineSession,
   OnlineSessionState,
+  RoutingListener,
   SessionEventListener,
 } from '@shura/client-core';
 import type { EngineEvent } from '@shura/engine';
@@ -42,6 +44,8 @@ export interface FakeOnlineSession extends OnlineSession {
   fail(reason: ConnectionFailure, message?: string): void;
   /** Your own game's engine events, to its `onEvents` listeners, inside `act`. */
   emitEvents(...events: EngineEvent[]): void;
+  /** A garbage routing, to its `onRoutings` listeners, inside `act`. */
+  emitRouting(routing: GarbageRouting): void;
 }
 
 const INITIAL: OnlineSessionState = {
@@ -74,6 +78,7 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
   };
   const set = (change: Partial<OnlineSessionState>) => act(() => store.setState(withNames(change)));
   const eventListeners = new Set<SessionEventListener>();
+  const routingListeners = new Set<RoutingListener>();
   /** A `vi.fn()` that adds a listener to `listeners`, returning its removal. */
   const listen = <L>(listeners: Set<L>) =>
     vi.fn((listener: L) => {
@@ -100,6 +105,7 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     setInput: vi.fn(),
     onEvents: listen(eventListeners),
     onActions: vi.fn(() => () => {}),
+    onRoutings: listen(routingListeners),
     close: vi.fn(() => store.setState({ connection: { status: 'closed' } })),
   };
   return {
@@ -126,6 +132,10 @@ export function fakeOnlineSession(options: OpenOnlineSessionOptions): FakeOnline
     emitEvents: (...events) =>
       act(() => {
         for (const listener of eventListeners) listener(events);
+      }),
+    emitRouting: (routing) =>
+      act(() => {
+        for (const listener of routingListeners) listener(routing);
       }),
   };
 }
