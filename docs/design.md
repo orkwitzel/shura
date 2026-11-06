@@ -404,7 +404,7 @@ Accessed only through `packages/valkey` interfaces, using `iovalkey`. Initial ke
 
 | Key | Type | Content | TTL |
 |---|---|---|---|
-| `room:{code}` | hash | pod address, epoch, mode (which fixes the settings, §4), phase, host | deleted with the room |
+| `room:{code}` | hash | pod address, epoch, mode (which fixes the settings, §4), phase, host, whether it's a quick-match room, and how many are seated and spectating (for `GET /api/rooms/:code`; the game pod updates them) | deleted with the room |
 | `qm:1v1` | list | waiting session ids, oldest first | n/a |
 | `qm:cooldown:{sessionId}` | string | set while a session that left the queue waits to rejoin it | the requeue cooldown (3 s) |
 | `qm:matched` | pub/sub channel | `{ sessionId, partnerId, roomCode }`: tells the waiting player's gateway that a pair formed | n/a |

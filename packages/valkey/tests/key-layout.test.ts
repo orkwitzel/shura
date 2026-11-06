@@ -35,6 +35,8 @@ describe.skipIf(!url)('the Valkey key layout', () => {
       mode: 'ffa',
       phase: 'lobby',
       hostId: 'a',
+      seated: 1,
+      spectators: 0,
     });
     expect(await expectKey('room:K7QX', 'hash')).toBe(-1);
     expect(await raw.hgetall(`${prefix}room:K7QX`)).toEqual({
@@ -43,6 +45,8 @@ describe.skipIf(!url)('the Valkey key layout', () => {
       mode: 'ffa',
       phase: 'lobby',
       hostId: 'a',
+      seated: '1',
+      spectators: '0',
     });
   });
 
