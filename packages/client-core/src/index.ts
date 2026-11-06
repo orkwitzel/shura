@@ -43,6 +43,7 @@ export {
   type OnlineMatchState,
   type OnlinePlayerGame,
   type PlayerOut,
+  type RosterEntry,
   totalLines,
 } from './online/online-match';
 export {
@@ -141,3 +142,4 @@ export {
 } from './view/callouts';
 export { countdownLabel, matchCountdownLabel } from './view/countdown';
 export { formatFrames, formatHeadline, formatScore } from './view/format';
+export { type PlacedMatch, placeOf } from './view/places';
