@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { resetFakePixi } from './fake-pixi';
 import { installMatchMedia, resetMatchMedia } from './match-media';
@@ -23,6 +23,9 @@ vi.mock(
 // Tests that only read files run in the node environment (`@vitest-environment node`), with no
 // window to set up.
 if (typeof window !== 'undefined') {
+  // A test's first visit to a lazy route compiles that route's modules first, which can take
+  // over Testing Library's 1 s default on a cold CI runner.
+  configure({ asyncUtilTimeout: 4_000 });
   installMatchMedia();
   // Vitest runs without globals, so Testing Library can't clean up after each test on its own.
   afterEach(() => {
