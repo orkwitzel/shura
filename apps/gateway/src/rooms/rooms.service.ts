@@ -18,7 +18,10 @@ import { REFUSE, roomNotFound } from './refusals';
 import type { CreateRoomDto, JoinRoomDto } from './rooms.dto';
 
 /** The room messages a client sends on to its room's pod as they are. */
-type RoomEvent = 'leaveRoom' | 'ready' | 'startMatch' | 'inputBatch';
+type RoomEvent = 'leaveRoom' | 'ready' | 'startMatch' | 'rematch' | 'inputBatch';
+
+/** Runs as a connection enters a room, by any way, in its turn. */
+export type EnterListener = (connection: Connection) => Promise<void> | void;
 
 /**
  * Rooms on the gateway (design §9.1, §10.1): creating one on the least-loaded game pod (§9.2),
@@ -30,6 +33,7 @@ type RoomEvent = 'leaveRoom' | 'ready' | 'startMatch' | 'inputBatch';
 export class RoomsService {
   /** Each connection's place in its room's link. */
   readonly #members = new WeakMap<Connection, RoomMember>();
+  readonly #enterListeners: EnterListener[] = [];
 
   constructor(
     @Inject(STORES) private readonly stores: Stores,
@@ -109,6 +113,25 @@ export class RoomsService {
   }
 
   /**
+   * Puts the connection in the room `code` at `place`: `createRoom` first if `create` says so (a
+   * pod ignores it for a room it has), then `attach`. Only in the connection's turn: for features
+   * that open rooms of their own (`quick-match/`).
+   */
+  enter(
+    connection: Connection,
+    code: string,
+    place: RoomPlace,
+    create?: GatewayToGameData<'createRoom'>,
+  ): Promise<void> {
+    return this.#enter(connection, code, place, create);
+  }
+
+  /** Runs `listener` whenever a connection enters a room, before it does. */
+  onEnter(listener: EnterListener): void {
+    this.#enterListeners.push(listener);
+  }
+
+  /**
    * A room message on to the room's pod, as it is (`not_in_room` outside a room). For the
    * features whose messages the pod alone handles (`play/`).
    */
@@ -139,6 +162,7 @@ export class RoomsService {
     create?: GatewayToGameData<'createRoom'>,
   ): Promise<void> {
     const session = this.#session(connection);
+    for (const listener of this.#enterListeners) await listener(connection);
     const member = this.#memberOf(connection, session);
     connection.roomCode = code;
     this.links.enter(
@@ -172,10 +196,13 @@ export class RoomsService {
     if (!member) {
       member = {
         sessionId: session.id,
-        deliver: (event, data) =>
+        deliver: (event, data) => {
           this.connections.send(connection, { event, data } as Parameters<
             ConnectionsService['send']
-          >[1]),
+          >[1]);
+          // A quick-match room broke up (design §9.4): the pod has already taken the session out.
+          if (event === 'opponentLeft') this.#brokenUp(connection);
+        },
         lost: (code) => {
           this.connections
             .inTurn(connection.socket, (current) => {
@@ -192,6 +219,16 @@ export class RoomsService {
       this.#members.set(connection, member);
     }
     return member;
+  }
+
+  /** Off the link of a room the pod took the connection out of, in the connection's turn. */
+  #brokenUp(connection: Connection): void {
+    const code = connection.roomCode;
+    this.connections
+      .inTurn(connection.socket, async (current) => {
+        if (current.roomCode === code) await this.#exit(current, { detach: false });
+      })
+      .catch((error: unknown) => this.logger.warn({ err: error }, 'leaving a broken-up room'));
   }
 
   #session(connection: Connection): ConnectionSession {

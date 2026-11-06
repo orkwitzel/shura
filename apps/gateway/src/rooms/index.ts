@@ -1,3 +1,5 @@
+export { claimRoomCode, createRoomMessage, placeRoom } from './placement';
+export { REFUSE } from './refusals';
 export {
   CreateRoomDto,
   JoinRoomDto,
@@ -6,4 +8,4 @@ export {
   StartMatchDto,
 } from './rooms.dto';
 export { RoomsModule } from './rooms.module';
-export { RoomsService } from './rooms.service';
+export { type EnterListener, RoomsService } from './rooms.service';

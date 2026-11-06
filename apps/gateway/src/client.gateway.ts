@@ -11,6 +11,7 @@ import { LIMIT_DEFAULTS } from '@shura/protocol';
 import type { WebSocket } from 'ws';
 import { WsProtocol } from './errors';
 import { InputBatchDto, PlayService } from './play';
+import { QuickMatchService } from './quick-match';
 import { CreateRoomDto, JoinRoomDto, ReadyDto, RoomsService } from './rooms';
 import { ConnectionsService, HelloDto, PingDto, SessionGuard, SessionsService } from './sessions';
 
@@ -30,6 +31,7 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly sessions: SessionsService,
     private readonly rooms: RoomsService,
     private readonly play: PlayService,
+    private readonly quickMatching: QuickMatchService,
   ) {}
 
   handleConnection(socket: WebSocket): void {
@@ -78,6 +80,24 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @UseGuards(SessionGuard)
   startMatch(@ConnectedSocket() socket: WebSocket) {
     return this.rooms.startMatch(socket);
+  }
+
+  @SubscribeMessage('quickMatch')
+  @UseGuards(SessionGuard)
+  quickMatch(@ConnectedSocket() socket: WebSocket) {
+    return this.quickMatching.quickMatch(socket);
+  }
+
+  @SubscribeMessage('cancelQuickMatch')
+  @UseGuards(SessionGuard)
+  cancelQuickMatch(@ConnectedSocket() socket: WebSocket) {
+    return this.quickMatching.cancelQuickMatch(socket);
+  }
+
+  @SubscribeMessage('rematch')
+  @UseGuards(SessionGuard)
+  rematch(@ConnectedSocket() socket: WebSocket) {
+    return this.quickMatching.rematch(socket);
   }
 
   @SubscribeMessage('inputBatch')
