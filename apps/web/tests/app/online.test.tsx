@@ -3,7 +3,7 @@ import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { AppRouter } from '@/app/router';
-import { Toasts } from '@/lib/toasts';
+import { Notices } from '@/lib/notices';
 import { fakeApi } from '../support/fake-api';
 import { fakeOnline, lobby, seated, watching } from '../support/fake-online-session';
 import { renderWithStores } from '../support/render-with-stores';
@@ -23,7 +23,7 @@ function onlineApp(path = '/online', { named = true, rooms = ROOMS } = {}) {
   const app = renderWithStores(
     <>
       <AppRouter />
-      <Toasts />
+      <Notices />
     </>,
     { path, online: online.open, api, ...(named && { stored: NAMED }) },
   );
@@ -369,7 +369,7 @@ describe('the lobby, in the app', () => {
     expect(session.startMatch).not.toHaveBeenCalled();
   });
 
-  test('the server’s errors show as toasts, in plain words', async () => {
+  test('the server’s errors show as notices, in plain words', async () => {
     const { online } = onlineApp();
     const session = online.session();
     session.welcome();

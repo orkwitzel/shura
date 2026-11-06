@@ -21,7 +21,7 @@ export function OnlinePage({ session }: { readonly session: OnlineSession }) {
   const [searchingSince, setSearchingSince] = useState<number | null>(null);
   const [leftSeen, setLeftSeen] = useState(false);
 
-  // A refusal (the cooldown after cancelling, say) ends the wait; its toast says why.
+  // A refusal (the cooldown after cancelling, say) ends the wait; its notice says why.
   useEffect(
     () =>
       session.subscribe((state, before) => {

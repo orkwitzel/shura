@@ -174,6 +174,10 @@ _Avoid_: attack animation, projectile
 A short on-screen label for a notable lock, worked out from engine events: "T-SPIN DOUBLE", "BACK-TO-BACK", "COMBO 3", "PERFECT CLEAR".
 _Avoid_: popup, toast, announcement
 
+**Notice**:
+A short message across the top of the web client's screen about the room or the server, gone after a few seconds: a join, a leave, a new host, an error in plain words. The web draws them with Sonner's toasts; the CLI prints them as lines under the seats.
+_Avoid_: toast (outside the code that wraps Sonner), popup, alert (for all of them: an alert is a notice's tone)
+
 **Effect**:
 A visual overlay driven by engine events, such as particles on a line clear or a hard-drop trail. Effects never delay play.
 _Avoid_: animation (for the setting), juice, VFX (in code)

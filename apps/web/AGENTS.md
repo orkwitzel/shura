@@ -27,7 +27,7 @@ src/
 │                  how screens' own keys listen through react-hotkeys-hook), pixi/, audio/,
 │                  raf-clock, online/ (online-clock: worker-timers in a hidden tab;
 │                  open-online-session: fetch and the WebSocket; server-api: the API client;
-│                  session-token: sessionStorage), clipboard, toasts (Sonner), local-storage
+│                  session-token: sessionStorage), clipboard, notices (Sonner's toasts), local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
 ├── config/        fixed values: default-bindings, routes, online
 ├── utils/         small pure helpers, created when one is needed

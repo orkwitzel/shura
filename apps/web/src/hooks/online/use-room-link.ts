@@ -5,7 +5,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useLocation } from 'wouter';
 import { UNKNOWN_ROOM } from '@/config/online';
 import { ROUTES, roomCodeIn, roomPath } from '@/config/routes';
-import { showToast } from '@/lib/toasts';
+import { showNotice } from '@/lib/notices';
 
 /**
  * Checks the room a room's route names (design §13.2, Links) with `useRoomLookup`, before the
@@ -34,7 +34,7 @@ export function useRoomLink(session: OnlineSession | null): RoomLookup {
 
   useEffect(() => {
     if (!unknown) return;
-    showToast(UNKNOWN_ROOM, 'alert', 'unknown-room');
+    showNotice(UNKNOWN_ROOM, 'alert', 'unknown-room');
     navigate(ROUTES.online, { replace: true });
   }, [unknown, navigate]);
 

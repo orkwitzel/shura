@@ -5,7 +5,7 @@ import { useLocation } from 'wouter';
 import { useStore } from 'zustand';
 import { UNKNOWN_ROOM } from '@/config/online';
 import { ROUTES, roomCodeIn, roomPath } from '@/config/routes';
-import { showToast } from '@/lib/toasts';
+import { showNotice } from '@/lib/notices';
 import { opponentLeftResults } from '@/utils/match-on';
 
 /**
@@ -21,7 +21,7 @@ import { opponentLeftResults } from '@/utils/match-on';
  *   `link` (the route's `useRoomLink`) has found the room. A session that comes back in another
  *   room than the route's leaves it for the route's.
  *
- * The server's other errors after the welcome show as toasts, in `errorText`'s words. A join the
+ * The server's other errors after the welcome show as notices, in `errorText`'s words. A join the
  * server refuses (the room went away since the lookup, or is full) goes back to `/online`.
  */
 export function useRoomAddress(session: OnlineSession, link: RoomLookup): void {
@@ -79,7 +79,7 @@ export function useRoomAddress(session: OnlineSession, link: RoomLookup): void {
         const { error } = state;
         if (!error || error === previous.error) return;
         if (error.code === 'room_not_found' && !state.room) {
-          showToast(UNKNOWN_ROOM, 'alert', 'unknown-room');
+          showNotice(UNKNOWN_ROOM, 'alert', 'unknown-room');
           navigate(ROUTES.online, { replace: true });
           return;
         }
@@ -88,7 +88,7 @@ export function useRoomAddress(session: OnlineSession, link: RoomLookup): void {
         // §10.2): its `roomState` is on the way, or here.
         const restored = !state.room || state.room.code === joined.current;
         if (error.code === 'wrong_phase' && restored) return;
-        showToast(errorText(error.code, error.message), 'alert');
+        showNotice(errorText(error.code, error.message), 'alert');
         // A link's join refused: there's no room to wait on here.
         if (!state.room && asked.current !== null) {
           asked.current = null;
