@@ -124,7 +124,7 @@ export function LobbyView({ session, server, clock, active, onLeave }: LobbyView
         ? 'Enter start'
         : 'Enter start (when another player is ready)'
       : role.kind === 'player'
-        ? 'R ready'
+        ? 'R/Enter ready'
         : null,
     role.kind === 'spectator' ? 'S take a seat' : 'S spectate',
     'N nickname',

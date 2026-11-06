@@ -163,7 +163,7 @@ describe("a player's keys", () => {
 
   it('R or Enter toggles ready', async () => {
     const { frame, type, session } = await lobby(room);
-    expect(frame()).toContain('R ready');
+    expect(frame()).toContain('R/Enter ready');
     await type(KEYS.letter('r'));
     expect(session.setReady).toHaveBeenLastCalledWith(true);
     session.set({ room: { ...room, players: room.players.map((p) => ({ ...p, ready: true })) } });
