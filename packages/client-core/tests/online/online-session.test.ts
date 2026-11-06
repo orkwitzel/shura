@@ -341,4 +341,41 @@ describe('a match', () => {
     say('matchEnd', result);
     expect(online.getState().match).toMatchObject({ phase: 'ended', result });
   });
+
+  test("the roster has each player's out and place so far, then the server's places", async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX', { mode: 'ffa' }));
+    say('countdown', {
+      ...countdown,
+      players: [...countdown.players, { id: 'third', index: 2 }],
+    });
+    ticking.advance(3050);
+    const roster = online.getState().match?.roster;
+    expect(roster).toEqual([
+      { playerId: 'me', out: null, place: null },
+      { playerId: 'them', out: null, place: null },
+      { playerId: 'third', out: null, place: null },
+    ]);
+    // Frames played change the games, not the roster.
+    ticking.advance(50);
+    expect(online.getState().match?.roster).toBe(roster);
+
+    say('playerOut', { playerId: 'third', reason: 'laggedOut', frame: 90 });
+    say('playerOut', { playerId: 'them', reason: 'toppedOut', frame: 120 });
+    expect(online.getState().match?.roster).toEqual([
+      { playerId: 'me', out: null, place: null },
+      { playerId: 'them', out: { reason: 'toppedOut', frame: 120 }, place: 2 },
+      { playerId: 'third', out: { reason: 'laggedOut', frame: 90 }, place: 3 },
+    ]);
+
+    say('matchEnd', {
+      placements: [
+        { playerId: 'me', place: 1 },
+        { playerId: 'them', place: 2, reason: 'toppedOut', frame: 120 },
+        { playerId: 'third', place: 3, reason: 'laggedOut', frame: 90 },
+      ],
+      stats: [],
+    });
+    expect(online.getState().match?.roster.map(({ place }) => place)).toEqual([1, 2, 3]);
+  });
 });

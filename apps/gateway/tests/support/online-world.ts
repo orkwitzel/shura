@@ -7,6 +7,7 @@ import {
   createOnlineSession,
   type Fetch,
   type OnlineSession,
+  type TimerClock,
   webSocketConnect,
 } from '@shura/client-core';
 // The one place an app imports another (design §14): the gateway's integration tests run the
@@ -72,6 +73,8 @@ export interface ClientOptions {
   readonly through?: (connect: Connect) => Connect;
   /** Wraps the client's `fetch`: to fail or delay its HTTP calls. */
   readonly fetchThrough?: (fetch: Fetch) => Fetch;
+  /** Wraps the client's clock: to stall its game loop (`stallableClock()`). */
+  readonly clockThrough?: (clock: TimerClock) => TimerClock;
 }
 
 export interface OnlineWorldOptions {
@@ -200,12 +203,12 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     game,
     serverUrl,
     rooms: game.get(GameRooms),
-    client(nickname, { kind, through, fetchThrough } = {}) {
+    client(nickname, { kind, through, fetchThrough, clockThrough } = {}) {
       const session = createOnlineSession({
         serverUrl,
         connect: counted(through ? through(realConnect) : realConnect),
         fetch: countedFetch(fetchThrough ? fetchThrough(realFetch) : realFetch),
-        clock: time,
+        clock: clockThrough ? clockThrough(time) : time,
         nickname,
         clientVersion: 'test',
         ...(kind && { kind }),

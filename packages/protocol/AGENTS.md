@@ -17,6 +17,7 @@ src/
 │   ├── server.ts         gateway → client (serverMessages)
 │   └── internal.ts       gateway ⇄ game pod, over the per-room link
 ├── http/                 the /api bodies and the version header names
+├── match/                rules the server and the clients both work out: placeAmong (places by frame)
 └── names/                what players type: nicknames (with the blocklist file) and room codes
 scripts/record-shape.ts   re-records tests/support/protocol-shape.json
 ```
