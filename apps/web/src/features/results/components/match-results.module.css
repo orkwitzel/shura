@@ -115,6 +115,15 @@
   border: 2px solid currentColor;
 }
 
+/* A player's kind, dim, as the lobby's seats have it. */
+.kind {
+  margin-left: var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
 @keyframes slide {
   from {
     transform: translateX(-24px);

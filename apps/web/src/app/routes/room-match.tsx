@@ -1,4 +1,5 @@
 import {
+  kindOf,
   lobbyRole,
   matchCountdownLabel,
   nicknameOf,
@@ -61,6 +62,7 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
   // Your quick-match opponent left mid-match: you're out of the room, with only *Leave*.
   const opponentLeft = useStore(session, opponentLeftResults);
   const roomCode = useStore(session, (state) => state.room?.code ?? '');
+  const room = useStore(session, (state) => state.room);
   // The server marks you ready once you've asked for the rematch (design §9.4).
   const rematchAsked = useStore(session, ({ room, sessionId }) => {
     const role = room ? lobbyRole(room, sessionId) : null;
@@ -141,6 +143,7 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
           result={result}
           you={me}
           name={(playerId) => nicknameOf(names, playerId)}
+          kind={(playerId) => kindOf(room, playerId)}
           roomCode={roomCode}
           quickMatch={quickMatch}
           opponentLeft={opponentLeft}

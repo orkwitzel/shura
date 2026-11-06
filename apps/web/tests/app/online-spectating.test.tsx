@@ -246,6 +246,9 @@ describe('the results (design §13.2, Results)', () => {
     expect(rows[1]).toHaveTextContent('Or');
     expect(rows[1]).toHaveAttribute('data-you');
     expect(rows[2]).toHaveTextContent('Bo');
+    // Each player's kind, from the room, as the lobby tags them.
+    expect(within(rows[1] as HTMLElement).getByText('guest')).toBeInTheDocument();
+    expect(within(rows[2] as HTMLElement).getByText('guest')).toBeInTheDocument();
     await userEvent.keyboard('{Enter}');
     expect(results()).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Your board' })).not.toBeInTheDocument();

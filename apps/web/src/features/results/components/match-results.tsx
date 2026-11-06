@@ -1,5 +1,5 @@
 import { matchResultRows, ordinal, RESULTS_MS } from '@shura/client-core';
-import type { ServerData } from '@shura/protocol';
+import type { PlayerKind, ServerData } from '@shura/protocol';
 import { useEffect, useRef } from 'react';
 import { useCountdown } from 'usehooks-ts';
 import { Dialog } from '@/components/ui/dialog';
@@ -13,6 +13,8 @@ export interface MatchResultsProps {
   readonly you: string | null;
   /** A player's nickname. */
   readonly name: (playerId: string) => string;
+  /** A player's kind, `guest` or `bot`, for a dim tag as the lobby has (`null`: not known). */
+  readonly kind?: (playerId: string) => PlayerKind | null;
   readonly roomCode: string;
   /** A quick-match room has no lobby: *Rematch* and *Leave* instead (design §9.4). */
   readonly quickMatch: boolean;
@@ -51,14 +53,16 @@ function useResultsTimer(running: boolean, onDone: () => void): number {
  * A match's results, over its boards (design §13.2, Results): your place as the title (or
  * *Results*, for a spectator), who won and the room, then every player by place, those who went
  * out at the same frame sharing one, with their lines sent, attack per minute and pieces per
- * second, your row highlighted. Enter, or 10 s, goes back to the lobby. In a quick-match room
- * *Rematch* (Enter) and *Leave* (Esc) instead, and once you've asked for the rematch it waits for
- * your opponent; if your opponent left mid-match, "Opponent left." and only *Leave*.
+ * second, your row highlighted and each player's kind (`guest` or `bot`) in a dim tag. Enter, or
+ * 10 s, goes back to the lobby. In a quick-match room *Rematch* (Enter) and *Leave* (Esc)
+ * instead, and once you've asked for the rematch it waits for your opponent; if your opponent left
+ * mid-match, "Opponent left." and only *Leave*.
  */
 export function MatchResults({
   result,
   you,
   name,
+  kind = () => null,
   roomCode,
   quickMatch,
   opponentLeft = false,
@@ -135,6 +139,7 @@ export function MatchResults({
               <td className={styles.name}>
                 <bdi>{name(playerId)}</bdi>
                 {yours && <span className={styles.tag}>you</span>}
+                {kind(playerId) && <span className={styles.kind}>{kind(playerId)}</span>}
               </td>
               <td>{linesSent}</td>
               <td>{apm.toFixed(1)}</td>
