@@ -1,9 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import type { INestApplication, Type } from '@nestjs/common';
-import { WsAdapter } from '@nestjs/platform-ws';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { WebSocket } from 'ws';
 import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/configure-app';
 
 export interface Booted {
   readonly app: INestApplication;
@@ -14,20 +14,22 @@ export interface Booted {
 }
 
 export interface BootOptions {
-  /** The module to run, `AppModule` by default. */
-  readonly module?: Type;
+  /** Test-only modules (fixtures) to run alongside `AppModule`. */
+  readonly imports?: readonly Type[];
   /** Replaces providers (`overrideProvider(CLOCK)` and so on) before the app is built. */
   readonly override?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
 }
 
-/** Boots the game service as `main.ts` does, on a free port. */
+/** Boots the game service as `main.ts` does (`configureApp`), on a free port. */
 export const boot = async ({
-  module = AppModule,
+  imports = [],
   override = (builder) => builder,
 }: BootOptions = {}): Promise<Booted> => {
-  const moduleRef = await override(Test.createTestingModule({ imports: [module] })).compile();
-  const app = moduleRef.createNestApplication({ logger: false });
-  app.useWebSocketAdapter(new WsAdapter(app, { maxConcurrentMessages: 1 }));
+  const moduleRef = await override(
+    Test.createTestingModule({ imports: [AppModule, ...imports] }),
+  ).compile();
+  const app = moduleRef.createNestApplication({ bufferLogs: true });
+  configureApp(app);
   await app.listen(0);
   const { port } = app.getHttpServer().address() as AddressInfo;
   return { app, http: `http://localhost:${port}`, ws: `ws://localhost:${port}` };

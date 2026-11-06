@@ -6,4 +6,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   oxc: false,
   plugins: [swc.vite({ swcrc: true, configFile: '.swcrc', module: { type: 'es6' } })],
+  // Tests boot the app with its real logger (`configureApp`): keep it quiet.
+  test: { env: { LOG_LEVEL: 'silent' } },
 });

@@ -11,10 +11,6 @@ export class DrainingIndicator implements BeforeApplicationShutdown {
 
   constructor(private readonly health: HealthIndicatorService) {}
 
-  get isDraining(): boolean {
-    return this.draining;
-  }
-
   /** Marks the pod as draining. It never stops draining. */
   drain(): void {
     this.draining = true;

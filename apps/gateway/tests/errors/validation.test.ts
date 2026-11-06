@@ -6,7 +6,7 @@ import { EchoModule } from '../support/fixtures/echo';
 let booted: Booted;
 
 beforeAll(async () => {
-  booted = await boot({ module: EchoModule });
+  booted = await boot({ imports: [EchoModule] });
 });
 afterAll(async () => {
   await booted.app.close();
@@ -35,14 +35,14 @@ test('an invalid request body is rejected with invalid_message', async () => {
 });
 
 test('a valid message passes', async () => {
-  const socket = await connect(`${booted.ws}/ws`);
+  const socket = await connect(`${booted.ws}/echo`);
   socket.send(JSON.stringify({ event: 'echo', data: { id: 1 } }));
   expect(await nextMessage(socket)).toEqual({ event: 'echo', data: { id: 1 } });
   socket.close();
 });
 
 test('an invalid message is answered with exception{ invalid_message }', async () => {
-  const socket = await connect(`${booted.ws}/ws`);
+  const socket = await connect(`${booted.ws}/echo`);
   socket.send(JSON.stringify({ event: 'echo', data: { id: 'one' } }));
   expect(await nextMessage(socket)).toEqual({
     event: 'exception',

@@ -1,11 +1,12 @@
 import { Body, Controller, Injectable, Module, Post } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
 import { MessageBody, SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { ValidationPipe, WsProtocol } from '../../../src/errors';
+import { WsProtocol } from '../../../src/errors';
 
 // A route and a WS handler taking a DTO, to test validation and error mapping on both transports.
+// Booted alongside AppModule (`boot({ imports: [EchoModule] })`), so the app's global pipe applies.
+// Its socket is `/echo`, apart from the app's own WS gateway class.
 
 class EchoDto extends createZodDto(z.object({ id: z.number().int() })) {}
 
@@ -26,7 +27,7 @@ class EchoController {
   }
 }
 
-@WebSocketGateway({ path: '/room-links' })
+@WebSocketGateway({ path: '/echo' })
 @WsProtocol()
 class EchoGateway {
   constructor(private readonly service: EchoService) {}
@@ -39,6 +40,6 @@ class EchoGateway {
 
 @Module({
   controllers: [EchoController],
-  providers: [{ provide: APP_PIPE, useClass: ValidationPipe }, EchoService, EchoGateway],
+  providers: [EchoService, EchoGateway],
 })
 export class EchoModule {}

@@ -1,1 +1,1 @@
-export { type Env, envSchema, validateEnv } from './config.schema';
+export { type Env, validateEnv } from './config.schema';
