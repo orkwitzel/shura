@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { countdownLabel, createSoloSession } from '../src/index';
-import { fakeClock } from './support/fake-clock';
+import { countdownLabel, createSoloSession } from '../../src/index';
+import { fakeClock } from '../support/fake-clock';
 
 /** The countdown before Go: 1.5 s. */
 const COUNTDOWN_MS = 1_500;

@@ -1,8 +1,8 @@
 import { TSpin } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { createSoloSession, isBackToBack, trackBackToBack } from '../src/index';
-import { lockEvent } from './support/engine-events';
-import { fakeClock } from './support/fake-clock';
+import { createSoloSession, isBackToBack, trackBackToBack } from '../../src/index';
+import { lockEvent } from '../support/engine-events';
+import { fakeClock } from '../support/fake-clock';
 
 describe('a back-to-back', () => {
   it('is a difficult clear made while the status was already on', () => {

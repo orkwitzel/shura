@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { personalBestLine, personalBestSummary } from '../src/index';
-import { personalBest as best, RUN } from './support/records';
+import { personalBestLine, personalBestSummary } from '../../src/index';
+import { personalBest as best, RUN } from '../support/records';
 
 describe('the personal best line', () => {
   it('celebrates a new personal best, the first one too', () => {

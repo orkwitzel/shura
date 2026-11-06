@@ -8,7 +8,7 @@ import {
   ULTRA,
 } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { hasEnded, SOLO_PRESETS, type SoloMode, soloResult, timeLeft } from '../src/index';
+import { hasEnded, SOLO_PRESETS, type SoloMode, soloResult, timeLeft } from '../../src/index';
 import {
   MARATHON_ACTIONS,
   MARATHON_FINISH,
@@ -19,7 +19,7 @@ import {
   ULTRA_ACTIONS,
   ULTRA_SCORE,
   ULTRA_SEED,
-} from './support/recorded-games';
+} from '../support/recorded-games';
 
 /** A game of `mode` from `seed`, played with a recorded action log until it ends. */
 function played(mode: SoloMode, seed: number, actions: readonly PieceAction[]) {

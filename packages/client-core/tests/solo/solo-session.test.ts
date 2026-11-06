@@ -1,7 +1,7 @@
 import { ActionType, createEngine, type EngineEvent } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { createSoloSession, SOLO_PRESETS, type SoloMode } from '../src/index';
-import { fakeClock } from './support/fake-clock';
+import { createSoloSession, SOLO_PRESETS, type SoloMode } from '../../src/index';
+import { fakeClock } from '../support/fake-clock';
 import {
   MARATHON_ACTIONS,
   MARATHON_FINISH,
@@ -13,7 +13,7 @@ import {
   ULTRA_ACTIONS,
   ULTRA_SCORE,
   ULTRA_SEED,
-} from './support/recorded-games';
+} from '../support/recorded-games';
 
 /** The countdown before Go: 90 frames, 1.5 s. */
 const COUNTDOWN_MS = 1_500;

@@ -1,6 +1,6 @@
 import type { StoreApi } from 'zustand/vanilla';
-import type { RecordsStore } from './records';
-import type { SettingsStore } from './settings';
+import type { SettingsStore } from '../settings/settings';
+import type { RecordsStore } from '../solo/records';
 
 /**
  * A read-only Zustand store (design §13.1, ADR 0012): what UIs read, through the hooks in

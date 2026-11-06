@@ -7,19 +7,19 @@ import {
   type ReadonlyEngineState,
 } from '@shura/engine';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { Clock } from './clock';
-import { framesToMs, msToFrames } from './frames';
-import { DEFAULT_HANDLING, type Handling } from './handling';
+import { DEFAULT_HANDLING, type Handling } from '../input/handling';
 import {
   type AutoShift,
   createInputEngine,
   type InputEngine,
   type InputSettings,
   type KeyEvent,
-} from './input-engine';
+} from '../input/input-engine';
+import type { Clock } from '../shared/clock';
+import { framesToMs, msToFrames } from '../shared/frames';
+import type { Store } from '../shared/store';
 import { SOLO_PRESETS, type SoloMode } from './modes';
 import { hasEnded } from './solo-result';
-import type { Store } from './store';
 
 /** The countdown before Go: frames −90 to −1 (design §13.1). */
 const COUNTDOWN_FRAMES = 90;

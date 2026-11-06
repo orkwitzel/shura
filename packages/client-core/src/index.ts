@@ -1,6 +1,5 @@
 // Shared client logic for web and CLI (docs/design.md §13.1).
-export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './actions';
-export { type BackToBackTracker, isBackToBack, trackBackToBack } from './back-to-back';
+export { ACTION_LABELS, type Direction, PIECE_ACTIONS } from './input/actions';
 export {
   type Bindings,
   type RebindChange,
@@ -8,18 +7,7 @@ export {
   rebind,
   rebindChange,
   unbind,
-} from './bindings';
-export {
-  type Callout,
-  type CalloutKind,
-  type CalloutListener,
-  lockCallouts,
-  onCallouts,
-} from './callouts';
-export type { Clock } from './clock';
-export { countdownLabel } from './countdown';
-export { formatFrames, formatHeadline, formatScore } from './format';
-export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './frames';
+} from './input/bindings';
 export {
   DEFAULT_HANDLING,
   DEFAULT_HANDLING_SETTINGS,
@@ -29,28 +17,14 @@ export {
   handlingFrames,
   handlingSteps,
   stepHandling,
-} from './handling';
+} from './input/handling';
 export {
   type AutoShift,
   createInputEngine,
   type InputEngine,
   type InputSettings,
   type KeyEvent,
-} from './input-engine';
-export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './modes';
-export { personalBestLine, personalBestSummary } from './personal-best';
-export {
-  createRecordsStore,
-  type GameRun,
-  type PersonalBest,
-  type PersonalBestOutcome,
-  RECORDS_VERSION,
-  type Records,
-  type RecordsStore,
-  type RecordsStoreOptions,
-  type RunStats,
-  replayPersonalBest,
-} from './records';
+} from './input/input-engine';
 export {
   createSettingsStore,
   defaultSettings,
@@ -60,26 +34,8 @@ export {
   type SettingsChange,
   type SettingsStore,
   type SettingsStoreOptions,
-} from './settings';
-export {
-  hasEnded,
-  headlineOf,
-  type SoloHeadline,
-  type SoloResult,
-  soloResult,
-  timeLeft,
-} from './solo-result';
-export {
-  type AppliedActionsListener,
-  createSoloSession,
-  type SessionEventListener,
-  type SoloPhase,
-  type SoloSession,
-  type SoloSessionOptions,
-  type SoloSessionState,
-} from './solo-session';
-export { errorMessage, type Storage, type StoredKind } from './storage';
-export type { AppStores, Store } from './store';
+} from './settings/settings';
+export { errorMessage, type Storage, type StoredKind } from './settings/storage';
 export {
   type Ansi16,
   type ArtRect,
@@ -94,7 +50,7 @@ export {
   type ThemeId,
   type TranslucentColor,
   type WebColors,
-} from './themes';
+} from './settings/themes';
 export {
   type Loaded,
   loadStored,
@@ -102,4 +58,48 @@ export {
   type Parsed,
   parseVersioned,
   type VersionedFormat,
-} from './versioned';
+} from './settings/versioned';
+export type { Clock } from './shared/clock';
+export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './shared/frames';
+export type { AppStores, Store } from './shared/store';
+export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './solo/modes';
+export { personalBestLine, personalBestSummary } from './solo/personal-best';
+export {
+  createRecordsStore,
+  type GameRun,
+  type PersonalBest,
+  type PersonalBestOutcome,
+  RECORDS_VERSION,
+  type Records,
+  type RecordsStore,
+  type RecordsStoreOptions,
+  type RunStats,
+  replayPersonalBest,
+} from './solo/records';
+export {
+  hasEnded,
+  headlineOf,
+  type SoloHeadline,
+  type SoloResult,
+  soloResult,
+  timeLeft,
+} from './solo/solo-result';
+export {
+  type AppliedActionsListener,
+  createSoloSession,
+  type SessionEventListener,
+  type SoloPhase,
+  type SoloSession,
+  type SoloSessionOptions,
+  type SoloSessionState,
+} from './solo/solo-session';
+export { type BackToBackTracker, isBackToBack, trackBackToBack } from './view/back-to-back';
+export {
+  type Callout,
+  type CalloutKind,
+  type CalloutListener,
+  lockCallouts,
+  onCallouts,
+} from './view/callouts';
+export { countdownLabel } from './view/countdown';
+export { formatFrames, formatHeadline, formatScore } from './view/format';

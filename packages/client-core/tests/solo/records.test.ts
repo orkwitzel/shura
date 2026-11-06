@@ -11,8 +11,8 @@ import {
   type GameRun,
   RECORDS_VERSION,
   replayPersonalBest,
-} from '../src/index';
-import { memoryStorage } from './support/memory-storage';
+} from '../../src/index';
+import { memoryStorage } from '../support/memory-storage';
 import {
   MARATHON_ACTIONS,
   MARATHON_SEED,
@@ -21,7 +21,7 @@ import {
   SPRINT_SEED,
   ULTRA_ACTIONS,
   ULTRA_SEED,
-} from './support/recorded-games';
+} from '../support/recorded-games';
 
 const DATE = new Date('2026-10-31T12:00:00.000Z');
 

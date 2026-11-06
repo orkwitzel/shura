@@ -1,8 +1,8 @@
 import { type LockEvent, TSpin } from '@shura/engine';
 import { describe, expect, it } from 'vitest';
-import { type Callout, createSoloSession, lockCallouts, onCallouts } from '../src/index';
-import { fakeEngineEvents, lockEvent } from './support/engine-events';
-import { fakeClock } from './support/fake-clock';
+import { type Callout, createSoloSession, lockCallouts, onCallouts } from '../../src/index';
+import { fakeEngineEvents, lockEvent } from '../support/engine-events';
+import { fakeClock } from '../support/fake-clock';
 
 const lock = lockEvent;
 

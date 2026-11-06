@@ -1,11 +1,15 @@
 import type { PieceActionType } from '@shura/engine';
 import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { PIECE_ACTIONS } from './actions';
-import { type Bindings, sharedKeys } from './bindings';
-import { DEFAULT_HANDLING_SETTINGS, HANDLING_RANGES, type HandlingSettings } from './handling';
+import { PIECE_ACTIONS } from '../input/actions';
+import { type Bindings, sharedKeys } from '../input/bindings';
+import {
+  DEFAULT_HANDLING_SETTINGS,
+  HANDLING_RANGES,
+  type HandlingSettings,
+} from '../input/handling';
+import type { Store } from '../shared/store';
 import { errorMessage, type Storage } from './storage';
-import type { Store } from './store';
 import { SKINS, type SkinId, THEMES, type ThemeId } from './themes';
 import { loadStored, type Migration, type VersionedFormat } from './versioned';
 

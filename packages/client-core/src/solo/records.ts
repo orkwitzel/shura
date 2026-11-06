@@ -6,13 +6,13 @@ import {
 } from '@shura/engine';
 import { z } from 'zod';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { PIECE_ACTIONS } from './actions';
+import { PIECE_ACTIONS } from '../input/actions';
+import { errorMessage, type Storage } from '../settings/storage';
+import { loadStored, type Migration, type VersionedFormat } from '../settings/versioned';
+import type { Store } from '../shared/store';
 import { SOLO_PRESETS, type SoloMode } from './modes';
 import { hasEnded, type SoloResult, soloResult } from './solo-result';
 import type { SoloSessionState } from './solo-session';
-import { errorMessage, type Storage } from './storage';
-import type { Store } from './store';
-import { loadStored, type Migration, type VersionedFormat } from './versioned';
 
 /** The records format's version. Raise it, with a migration, when the format changes. */
 export const RECORDS_VERSION = 1;

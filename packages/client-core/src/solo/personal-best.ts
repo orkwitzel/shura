@@ -1,5 +1,5 @@
-import { formatHeadline, formatScore } from './format';
-import { framesToMs } from './frames';
+import { framesToMs } from '../shared/frames';
+import { formatHeadline, formatScore } from '../view/format';
 import type { SoloMode } from './modes';
 import type { PersonalBest, PersonalBestOutcome } from './records';
 import { headlineOf } from './solo-result';

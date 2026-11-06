@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
-import { errorMessage, loadStored, parseVersioned, type VersionedFormat } from '../src/index';
-import { memoryStorage } from './support/memory-storage';
+import { errorMessage, loadStored, parseVersioned, type VersionedFormat } from '../../src/index';
+import { memoryStorage } from '../support/memory-storage';
 
 /**
  * A format at version 3 that has changed twice: version 1 had `speed`, version 2 renamed it

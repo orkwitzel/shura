@@ -10,11 +10,11 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import { personalBestLine } from './personal-best';
-import type { Records, RecordsStore } from './records';
-import type { Settings, SettingsStore } from './settings';
-import type { SoloSession, SoloSessionState } from './solo-session';
-import type { AppStores } from './store';
+import type { Settings, SettingsStore } from './settings/settings';
+import type { AppStores } from './shared/store';
+import { personalBestLine } from './solo/personal-best';
+import type { Records, RecordsStore } from './solo/records';
+import type { SoloSession, SoloSessionState } from './solo/solo-session';
 
 /**
  * A session's whole state, re-rendering after each change: the board's view, which changes every

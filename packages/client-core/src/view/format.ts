@@ -1,5 +1,5 @@
-import { framesToMs } from './frames';
-import type { SoloHeadline } from './solo-result';
+import { framesToMs } from '../shared/frames';
+import type { SoloHeadline } from '../solo/solo-result';
 
 /** A time in frames as `m:ss.mmm`, to the nearest millisecond (design §13.1). */
 export function formatFrames(frames: number): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatFrames, formatHeadline, formatScore, framesToMs, msToFrames } from '../src/index';
+import { formatFrames, formatHeadline, formatScore, framesToMs, msToFrames } from '../../src/index';
 
 describe('frames and milliseconds', () => {
   it('convert at 60 frames a second', () => {

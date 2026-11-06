@@ -1,4 +1,4 @@
-import type { Storage, StoredKind } from '../../src/storage';
+import type { Storage, StoredKind } from '../../src/settings/storage';
 
 /** A storage in memory, with its texts and set-aside texts open to the test. */
 export interface MemoryStorage extends Storage {

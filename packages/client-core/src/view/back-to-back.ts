@@ -1,5 +1,5 @@
 import { type LockEvent, TSpin } from '@shura/engine';
-import type { SoloSession } from './solo-session';
+import type { SoloSession } from '../solo/solo-session';
 
 /** A clear that chains back-to-back: a Tetris, or a T-spin or mini that clears lines (§3). */
 function isDifficult({ lines, tSpin }: LockEvent['clear']): boolean {

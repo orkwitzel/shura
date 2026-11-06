@@ -1,4 +1,4 @@
-import type { SoloSessionState } from './solo-session';
+import type { SoloSessionState } from '../solo/solo-session';
 
 /** Frames per countdown step: 0.5 s (design §13.1). */
 const STEP_FRAMES = 30;

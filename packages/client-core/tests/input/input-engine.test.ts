@@ -14,8 +14,8 @@ import {
   DEFAULT_HANDLING,
   type KeyEvent,
   type SoloSessionOptions,
-} from '../src/index';
-import { fakeClock } from './support/fake-clock';
+} from '../../src/index';
+import { fakeClock } from '../support/fake-clock';
 
 /** The countdown before Go: 90 frames, 1.5 s. */
 const COUNTDOWN_MS = 1_500;

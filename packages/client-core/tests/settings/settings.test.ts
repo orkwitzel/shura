@@ -12,8 +12,8 @@ import {
   SETTINGS_VERSION,
   stepHandling,
   unbind,
-} from '../src/index';
-import { memoryStorage } from './support/memory-storage';
+} from '../../src/index';
+import { memoryStorage } from '../support/memory-storage';
 
 /** A platform's default bindings, as the CLI's or the web's would be. */
 const BINDINGS: Bindings = {

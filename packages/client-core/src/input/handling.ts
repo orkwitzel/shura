@@ -1,5 +1,5 @@
+import { framesToMs, msToFrames } from '../shared/frames';
 import type { Direction } from './actions';
-import { framesToMs, msToFrames } from './frames';
 
 /** Handling as people set it, in milliseconds (design §7.2). The input engine counts frames. */
 export interface HandlingSettings {

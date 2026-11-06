@@ -1,6 +1,6 @@
 import { type LockEvent, TSpin } from '@shura/engine';
+import type { SoloSession } from '../solo/solo-session';
 import { isBackToBack, trackBackToBack } from './back-to-back';
-import type { SoloSession } from './solo-session';
 
 /** What a callout tells: the clear, a back-to-back, the combo or a perfect clear. */
 export type CalloutKind = 'clear' | 'backToBack' | 'combo' | 'perfectClear';

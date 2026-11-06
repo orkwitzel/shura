@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { type CanvasDrawing, SKINS, THEMES } from '../src/index';
+import { type CanvasDrawing, SKINS, THEMES } from '../../src/index';
 
 /**
  * Paints a skin's canvas drawing onto an 8×8 grid of art pixels, each named by the last shade
