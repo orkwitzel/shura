@@ -3,7 +3,11 @@ import { z } from 'zod';
 
 /** The game service's environment, validated at startup (docs/design.md §14). */
 export const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  /**
+   * `development` (set by the `dev` script) pretty-prints the logs with `pino-pretty`, a dev
+   * dependency the images don't ship. Anything else logs JSON.
+   */
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8081),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** The pod's name in its logs (design §12). */

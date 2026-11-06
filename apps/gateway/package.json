@@ -7,7 +7,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "nest build && concurrently --kill-others --names build,run \"nest build --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
+    "dev": "nest build && concurrently --kill-others --names build,run \"nest build --watch --preserveWatchOutput\" \"NODE_ENV=${NODE_ENV:-development} node --watch --enable-source-maps dist/main.js\"",
     "build": "nest build",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc",

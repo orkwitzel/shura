@@ -14,7 +14,8 @@
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["PORT", "LOG_LEVEL", "NODE_ENV", "POD_ID"]
     }
   }
 }
