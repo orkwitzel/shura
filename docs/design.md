@@ -50,7 +50,7 @@ deploy/         (later) Kubernetes manifests
 Dependency rules:
 
 - `engine` depends on nothing in the workspace.
-- `protocol` may import `engine` types.
+- `protocol` may import `engine` (its action and state types, and the `ActionType` names).
 - Apps depend on packages. Packages never depend on apps.
 - `gateway` and `game` communicate only through `protocol` messages and Valkey.
 - Internal packages are **built with tsdown** into `dist/` (one bundled `.js` and `.d.ts` per entry point), and their `exports` point there. Every consumer runs the same compiled output. See [ADR 0015](adr/0015-internal-packages-built-with-tsdown.md), which supersedes ADR 0010.
@@ -339,9 +339,12 @@ More may move to HTTP later. Anything that changes a room stays on the socket fo
 - `batchAck{ seq }`, `relay{ playerId, frames }`, `garbageQueued{ id, from, to, lines, holeSeed }`
 - `playerOut{ playerId, reason, frame }` (`reason`: `toppedOut`, `laggedOut`, `removed` or `left`), `matchEnd{ placements: [{ playerId, place, reason?, frame? }], stats: [{ playerId, linesSent, apm, pps }] }`
 
-**Errors.** One table, `ERRORS` in `packages/protocol`, lists every error `code` with its default text and HTTP status. On the socket an error is `exception{ code, message }`; over HTTP it's a `{ code, message }` body with the code's status (thrown as `HttpException`). Socket handlers throw `WsException({ code, message })`. The filter that `@WsProtocol()` puts on every WS gateway class also sends an `HttpException` carrying an `ERRORS` body as `exception`, so the validation pipe's `invalid_message` (one exception for both transports) reads the same on either. Any other exception, one with no `ERRORS` code, is logged and sent as `exception{ code: 'internal_error' }`. Clients match on `code` on both, through one error type in client-core. Codes clients show in plain words include `version_mismatch`, `session_required`, `invalid_message`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit` and `not_host`.
+**Errors.** One table, `ERRORS` in `packages/protocol`, lists every error `code` with its default text and HTTP status. On the socket an error is `exception{ code, message }`; over HTTP it's a `{ code, message }` body with the code's status (thrown as `HttpException`). Socket handlers throw `WsException({ code, message })`. The filter that `@WsProtocol()` puts on every WS gateway class also sends an `HttpException` carrying an `ERRORS` body as `exception`, so the validation pipe's `invalid_message` (one exception for both transports) reads the same on either. Any other exception, one with no `ERRORS` code, is logged and sent as `exception{ code: 'internal_error' }`. Clients match on `code` on both, through one error type in client-core. The schemas take any string as `code`, so a code added later still reaches older clients, which show its `message`. Codes clients show in plain words include `version_mismatch`, `session_required`, `invalid_message`, `room_not_found`, `room_full` (only for a full spectator list), `nickname_invalid`, `rate_limited`, `too_many_connections`, `room_limit` and `not_host`.
 
-**Gateway ⇄ game (internal):** the room-scoped messages above, wrapped with `{roomCode, epoch, sessionId}`, plus `createRoom`, `attach`, `detach`, `drain`.
+**Gateway ⇄ game (internal):** `{ event, data }` too. The room-scoped messages above travel under their own event, with `{ roomCode, epoch, sessionId }` added to their `data`:
+
+- gateway → game: `setNickname`, `leaveRoom`, `ready`, `startMatch`, `spectate`, `takeSeat`, `rematch` and `inputBatch`, plus `createRoom{ roomCode, epoch, mode, hostId?, maxSpectators? }` (no `hostId` for a quick-match room), `attach{ roomCode, epoch, sessionId, nickname, kind }` (a session joins or comes back) and `detach{ roomCode, epoch, sessionId }` (its socket closed);
+- game → gateway: a message for one session's client (`roomState`, `opponentLeft`, `countdown`, `snapshot`, `batchAck`, `relay`, `garbageQueued`, `playerOut`, `matchEnd`, `exception`), which the gateway sends on without the scope, plus `drain`.
 
 ---
 

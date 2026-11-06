@@ -1,0 +1,367 @@
+{
+  "protocolVersion": 1,
+  "groups": {
+    "action": {
+      "garbageAccepted": {
+        "frame": "number:safeint",
+        "id": "number:safeint"
+      },
+      "garbageReceived": {
+        "frame": "number:safeint",
+        "id": "number:safeint",
+        "lines": "number:safeint",
+        "holeSeed": "number:uint32"
+      },
+      "hardDrop": {
+        "frame": "number:safeint"
+      },
+      "hold": {
+        "frame": "number:safeint"
+      },
+      "moveLeft": {
+        "frame": "number:safeint"
+      },
+      "moveRight": {
+        "frame": "number:safeint"
+      },
+      "rotate180": {
+        "frame": "number:safeint"
+      },
+      "rotateCCW": {
+        "frame": "number:safeint"
+      },
+      "rotateCW": {
+        "frame": "number:safeint"
+      },
+      "softDrop": {
+        "frame": "number:safeint"
+      }
+    },
+    "clientToGateway": {
+      "cancelQuickMatch": {},
+      "createRoom": {
+        "mode": "enum(1v1|ffa)"
+      },
+      "hello": {
+        "protocolVersion": "number:safeint",
+        "engineVersion": "number:safeint",
+        "clientVersion": "string",
+        "sessionToken": "string",
+        "kind": "enum(guest|bot)?"
+      },
+      "inputBatch": {
+        "seq": "number:safeint",
+        "frames": "array",
+        "frames[]": "object",
+        "frames[].frame": "number:safeint",
+        "frames[].actions": "array",
+        "frames[].actions[]": "oneOf"
+      },
+      "joinRoom": {
+        "code": "string"
+      },
+      "leaveRoom": {},
+      "ping": {
+        "id": "number:safeint"
+      },
+      "quickMatch": {},
+      "ready": {
+        "ready": "boolean"
+      },
+      "rematch": {},
+      "setNickname": {
+        "nickname": "string"
+      },
+      "spectate": {},
+      "startMatch": {},
+      "takeSeat": {}
+    },
+    "gameToGateway": {
+      "batchAck": {
+        "seq": "number:safeint",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "countdown": {
+        "startAt": "number",
+        "seed": "number:uint32",
+        "matchId": "string",
+        "players": "array",
+        "players[]": "object",
+        "players[].id": "string",
+        "players[].index": "number:safeint",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "drain": {},
+      "exception": {
+        "code": "string",
+        "message": "string",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "garbageQueued": {
+        "id": "number:safeint",
+        "from": "string",
+        "to": "string",
+        "lines": "number:safeint",
+        "holeSeed": "number:uint32",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "matchEnd": {
+        "placements": "array",
+        "placements[]": "object",
+        "placements[].playerId": "string",
+        "placements[].place": "number:safeint",
+        "placements[].reason": "enum(toppedOut|laggedOut|removed|left)?",
+        "placements[].frame": "number:safeint?",
+        "stats": "array",
+        "stats[]": "object",
+        "stats[].playerId": "string",
+        "stats[].linesSent": "number:safeint",
+        "stats[].apm": "number",
+        "stats[].pps": "number",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "opponentLeft": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "playerOut": {
+        "playerId": "string",
+        "reason": "enum(toppedOut|laggedOut|removed|left)",
+        "frame": "number:safeint",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "relay": {
+        "playerId": "string",
+        "frames": "array",
+        "frames[]": "object",
+        "frames[].frame": "number:safeint",
+        "frames[].actions": "array",
+        "frames[].actions[]": "oneOf",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "roomState": {
+        "code": "string",
+        "mode": "enum(1v1|ffa)",
+        "hostId": "string?",
+        "phase": "enum(lobby|countdown|playing|results)",
+        "players": "array",
+        "players[]": "object",
+        "players[].id": "string",
+        "players[].nickname": "string",
+        "players[].kind": "enum(guest|bot)",
+        "players[].seat": "number:safeint",
+        "players[].ready": "boolean",
+        "players[].lastPlace": "number:safeint?",
+        "spectators": "array",
+        "spectators[]": "object",
+        "spectators[].id": "string",
+        "spectators[].nickname": "string",
+        "spectators[].kind": "enum(guest|bot)",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "snapshot": {
+        "players": "array",
+        "players[]": "object",
+        "players[].playerId": "string",
+        "players[].frame": "number:safeint",
+        "players[].state": "custom",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      }
+    },
+    "gatewayToClient": {
+      "batchAck": {
+        "seq": "number:safeint"
+      },
+      "countdown": {
+        "startAt": "number",
+        "seed": "number:uint32",
+        "matchId": "string",
+        "players": "array",
+        "players[]": "object",
+        "players[].id": "string",
+        "players[].index": "number:safeint"
+      },
+      "exception": {
+        "code": "string",
+        "message": "string"
+      },
+      "garbageQueued": {
+        "id": "number:safeint",
+        "from": "string",
+        "to": "string",
+        "lines": "number:safeint",
+        "holeSeed": "number:uint32"
+      },
+      "matchEnd": {
+        "placements": "array",
+        "placements[]": "object",
+        "placements[].playerId": "string",
+        "placements[].place": "number:safeint",
+        "placements[].reason": "enum(toppedOut|laggedOut|removed|left)?",
+        "placements[].frame": "number:safeint?",
+        "stats": "array",
+        "stats[]": "object",
+        "stats[].playerId": "string",
+        "stats[].linesSent": "number:safeint",
+        "stats[].apm": "number",
+        "stats[].pps": "number"
+      },
+      "opponentLeft": {},
+      "playerOut": {
+        "playerId": "string",
+        "reason": "enum(toppedOut|laggedOut|removed|left)",
+        "frame": "number:safeint"
+      },
+      "pong": {
+        "id": "number:safeint",
+        "serverTime": "number"
+      },
+      "quickMatchCancelled": {},
+      "quickMatchQueued": {},
+      "relay": {
+        "playerId": "string",
+        "frames": "array",
+        "frames[]": "object",
+        "frames[].frame": "number:safeint",
+        "frames[].actions": "array",
+        "frames[].actions[]": "oneOf"
+      },
+      "roomState": {
+        "code": "string",
+        "mode": "enum(1v1|ffa)",
+        "hostId": "string?",
+        "phase": "enum(lobby|countdown|playing|results)",
+        "players": "array",
+        "players[]": "object",
+        "players[].id": "string",
+        "players[].nickname": "string",
+        "players[].kind": "enum(guest|bot)",
+        "players[].seat": "number:safeint",
+        "players[].ready": "boolean",
+        "players[].lastPlace": "number:safeint?",
+        "spectators": "array",
+        "spectators[]": "object",
+        "spectators[].id": "string",
+        "spectators[].nickname": "string",
+        "spectators[].kind": "enum(guest|bot)"
+      },
+      "snapshot": {
+        "players": "array",
+        "players[]": "object",
+        "players[].playerId": "string",
+        "players[].frame": "number:safeint",
+        "players[].state": "custom"
+      },
+      "welcome": {
+        "sessionId": "string",
+        "serverTime": "number"
+      }
+    },
+    "gatewayToGame": {
+      "attach": {
+        "nickname": "string",
+        "kind": "enum(guest|bot)",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "createRoom": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "mode": "enum(1v1|ffa)",
+        "hostId": "string?",
+        "maxSpectators": "number:safeint?"
+      },
+      "detach": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "inputBatch": {
+        "seq": "number:safeint",
+        "frames": "array",
+        "frames[]": "object",
+        "frames[].frame": "number:safeint",
+        "frames[].actions": "array",
+        "frames[].actions[]": "oneOf",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "leaveRoom": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "ready": {
+        "ready": "boolean",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "rematch": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "setNickname": {
+        "nickname": "string",
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "spectate": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "startMatch": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      },
+      "takeSeat": {
+        "roomCode": "string",
+        "epoch": "number:safeint",
+        "sessionId": "string"
+      }
+    },
+    "http": {
+      "createSessionRequest": {
+        "nickname": "string",
+        "sessionToken": "string?"
+      },
+      "roomInfo": {
+        "code": "string",
+        "mode": "enum(1v1|ffa)",
+        "seats": "number:safeint",
+        "seated": "number:safeint",
+        "spectators": "number:safeint"
+      },
+      "session": {
+        "sessionId": "string",
+        "sessionToken": "string",
+        "nickname": "string"
+      }
+    }
+  }
+}
