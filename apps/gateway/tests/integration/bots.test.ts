@@ -29,7 +29,6 @@ async function until(check: () => boolean, what: string, steps = 200): Promise<v
 const seats = (session: OnlineSession) =>
   session.getState().room?.players.map(({ nickname, kind, ready }) => [nickname, kind, ready]);
 
-// FFA needs 8 seats (#64) and FFA garbage routing (#62): until both land, a 1v1 (ticket #61).
 test('a bot and a scripted client play a 1v1 to matchEnd, and the server verified both', async () => {
   world = await onlineWorld();
   const { time } = world;
@@ -88,6 +87,83 @@ test('a bot and a scripted client play a 1v1 to matchEnd, and the server verifie
   expect(host.getState().room?.phase).toBe('lobby');
   await until(() => host.getState().room?.players[1]?.ready === true, 'the bot readied again');
 });
+
+test('three bots and a scripted host play an FFA to matchEnd, garbage flying, all verified', async () => {
+  world = await onlineWorld();
+  const { time } = world;
+  const host = world.client('Host');
+  await connected(world, host);
+  host.createRoom('ffa');
+  await until(() => host.getState().room !== null, 'the room was created');
+  const code = host.getState().room?.code ?? '';
+
+  // The bots join and ready up on their own. They play three times as fast as `casual`, and
+  // sloppier, so the match ends in game minutes rather than tens of them.
+  const sessions = ['Ada', 'Turing', 'Hopper'].map((name) => world.client(name, { kind: 'bot' }));
+  const hasty = {
+    ...BOT_PROFILES.casual,
+    thinkMs: { min: 80, max: 230 },
+    pps: 3,
+    bestOf: 6,
+  };
+  sessions.forEach((session, index) => {
+    bots.push(
+      startBot({
+        session,
+        clock: time,
+        profile: hasty,
+        seed: index + 1,
+        target: { room: code },
+      }),
+    );
+  });
+  await until(
+    () =>
+      seats(host)?.length === 4 &&
+      (host
+        .getState()
+        .room?.players.slice(1)
+        .every(({ ready }) => ready) ??
+        false),
+    'the bots readied up',
+  );
+  expect(seats(host)).toEqual([
+    ['Host', 'guest', false],
+    ['Ada', 'bot', true],
+    ['Turing', 'bot', true],
+    ['Hopper', 'bot', true],
+  ]);
+
+  const attacks: string[] = [];
+  host.onRoutings(({ from, to }) => attacks.push(`${from}>${to}`));
+  host.startMatch();
+  await time.settle();
+  // The host hard-drops every few steps and tops out; the bots play on, attacking each other.
+  let step = 0;
+  await until(
+    () => {
+      if (host.getState().match?.phase === 'playing' && step++ % 3 === 0) {
+        host.act(ActionType.HardDrop, time.now());
+      }
+      return sessions.every((session) => session.getState().match?.result != null);
+    },
+    'the match ended',
+    20 * 60 * 15,
+  );
+
+  const result = host.getState().match?.result;
+  expect(result?.placements).toHaveLength(4);
+  expect(result?.placements[0]?.playerId).not.toBe(host.getState().sessionId);
+  for (const session of sessions) expect(session.getState().match?.result).toEqual(result);
+  // FFA garbage went between the bots, never back at its sender.
+  expect(attacks.length).toBeGreaterThan(5);
+  expect(attacks.every((attack) => attack.split('>')[0] !== attack.split('>')[1])).toBe(true);
+  // Every bot placed its pieces through the input engine, and the server verified every game.
+  expectVerified(world, code, [host, ...sessions]);
+  for (const session of sessions) {
+    expect(ownGame(session).engine.piecesPlaced).toBeGreaterThan(30);
+  }
+}, 180_000);
 
 test('a bot sent to a room that does not exist stops, and closes its session', async () => {
   world = await onlineWorld();

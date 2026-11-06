@@ -181,6 +181,21 @@ describe('GARBAGE_ACK_TIMEOUT', () => {
     expect(lockstep.match.verifiedGames()[1]?.frame).toBe(deadline);
   });
 
+  test('the attacks a player has not received yet are what they get again on coming back', async () => {
+    const [first, second] = recordedPlayers();
+    const stalling: SimPlayer = { ...(second as SimPlayer), receive: () => null };
+    const lockstep = lockstepMatch({ players: [first as SimPlayer, stalling] });
+    await lockstep.play(1000);
+
+    const toP1 = lockstep.messages('garbageQueued').filter(({ to }) => to === 'p1');
+    expect(toP1.length).toBeGreaterThan(0);
+    expect(lockstep.match.unreceivedGarbage('p1')).toEqual(
+      toP1.map((data) => ({ event: 'garbageQueued', data })),
+    );
+    // p0 received every attack p1 sent, so has none to get again.
+    expect(lockstep.match.unreceivedGarbage('p0')).toEqual([]);
+  });
+
   test('a client that receives and accepts every attack in time is never lagged out', async () => {
     const lockstep = lockstepMatch({ players: recordedPlayers() });
     await lockstep.play(RECORDED_LAST_FRAME);

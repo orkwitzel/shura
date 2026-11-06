@@ -418,6 +418,8 @@ describe('a match', () => {
     say('countdown', countdown);
     say('garbageQueued', routing);
     say('garbageQueued', { ...routing, id: 2, from: 'cy', to: 'me' });
+    // Sent again after a reconnect: already yours, so no new routing.
+    say('garbageQueued', { ...routing, id: 2, from: 'cy', to: 'me' });
     stop();
     say('garbageQueued', { ...routing, id: 3 });
     expect(heard).toEqual([routing, { ...routing, id: 2, from: 'cy', to: 'me' }]);

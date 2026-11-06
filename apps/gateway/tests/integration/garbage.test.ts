@@ -68,13 +68,13 @@ const ADA_MOVES: readonly PieceAction[] = [
 /**
  * Ada and Bo in a 1v1 from the recorded 1v1's seed, counting down, with their moves queued at
  * their frames: Bo plays player 1's and Ada player 0's until she gives up. Their clears send
- * garbage both ways. `boThrough` wraps Bo's connection.
+ * garbage both ways. `boOptions` are Bo's client options (his line, say).
  */
-async function scriptedMatch(boThrough?: ClientOptions['through']) {
+async function scriptedMatch(boOptions?: ClientOptions) {
   world = await onlineWorld({ seed: RECORDED_SEED });
   const { time } = world;
   const ada = world.client('Ada');
-  const bo = world.client('Bo', boThrough && { through: boThrough });
+  const bo = world.client('Bo', boOptions);
   const code = await openRoom(world, '1v1', ada, bo);
   bo.setReady(true);
   await time.settle();
@@ -144,7 +144,7 @@ test('a 1v1 where both players send garbage plays to matchEnd, verified exactly,
 test('the victim clears lines between the server sending an attack and its client receiving it, and no one is removed (ADR 0013)', async () => {
   const socket = faultySocket();
   const receipts = sentReceipts(socket.through);
-  const { ada, bo, code } = await scriptedMatch(receipts.through);
+  const { ada, bo, code } = await scriptedMatch({ through: receipts.through });
   const boId = () => bo.getState().sessionId;
   const isQueued = (
     message: LineMessage,
@@ -171,6 +171,43 @@ test('the victim clears lines between the server sending an attack and its clien
   // Bo received the attack only once his own clear had been made: it wasn't cancelled by it.
   const receivedAt = receipts.received.find(({ id }) => id === attack.data.id)?.frame ?? 0;
   expect(receivedAt).toBeGreaterThan(counter);
+  const result = ada.getState().match?.result;
+  expect(result?.placements.map(({ reason }) => reason).filter(Boolean)).toEqual(['toppedOut']);
+  expectVerified(world, code, [ada, bo]);
+});
+
+test('an attack sent while its target is away reaches them when they come back (design §8.6)', async () => {
+  const line = faultySocket();
+  const { ada, bo, code } = await scriptedMatch(line);
+  const { time } = world;
+  // Ada hears every routing of the match, Bo's included, as it's sent.
+  const routed: { to: string; at: number }[] = [];
+  ada.onRoutings(({ to }) => routed.push({ to, at: time.now() }));
+
+  // Bo's line is down for 2 s out of every 4 once attacks fly (well inside the 3 s window), until
+  // an attack is routed to him while he's away.
+  const away: { from: number; until: number }[] = [];
+  const hitWhileAway = () =>
+    routed.some(
+      ({ to, at }) =>
+        to === bo.getState().sessionId && away.some(({ from, until }) => at > from && at < until),
+    );
+  let droppedAt: number | null = null;
+  for (let step = 0; !ada.getState().match?.result && step < 4800; step++) {
+    if (routed.length > 0 && step % 80 === 0 && droppedAt === null && !hitWhileAway()) {
+      line.drop();
+      droppedAt = time.now();
+    }
+    if (step % 80 === 40 && droppedAt !== null) {
+      line.restore();
+      away.push({ from: droppedAt, until: time.now() });
+      droppedAt = null;
+    }
+    await time.advance(STEP_MS);
+  }
+
+  expect(hitWhileAway()).toBe(true);
+  // Nobody was lagged out or removed: Bo took the attack in, and the match ended on a top-out.
   const result = ada.getState().match?.result;
   expect(result?.placements.map(({ reason }) => reason).filter(Boolean)).toEqual(['toppedOut']);
   expectVerified(world, code, [ada, bo]);
