@@ -6,7 +6,7 @@ import { Panel } from '@/components/panel';
 import { roomPath } from '@/config/routes';
 import { Lobby } from '@/features/lobby/components/lobby';
 import { NicknameDialog } from '@/features/nickname/components/nickname-dialog';
-import { playingMatch } from '@/utils/playing-match';
+import { matchOn } from '@/utils/playing-match';
 import styles from './room-page.module.css';
 
 // The match brings Pixi, so it loads apart, when a match first starts.
@@ -20,18 +20,23 @@ export interface RoomPageProps {
 
 /**
  * A room at `/r/:code` (design §13.2, Online): "Joining room…" until the room is the session's,
- * then its lobby while it's in one, and the match screen while a match you play in is on, out or
- * not. N in the lobby asks for a new nickname, which goes to the room and to the settings. A
- * quick-match room has no lobby (§9.4), and a match you don't play in shows as in progress.
+ * then its lobby while it's in one, and the match screen while a match is on, played or
+ * spectated, and once it ends, with the results over it until they're done with: the room is back
+ * in its lobby by then (§10.1). N in the lobby asks for a new nickname, which goes to the room and
+ * to the settings. A quick-match room has no lobby (§9.4): its results stay until the rematch
+ * starts or you leave.
  */
 export function RoomPage({ session, code }: RoomPageProps) {
   const room = useStore(session, (state) => state.room);
-  const playing = useStore(session, playingMatch);
+  const on = useStore(session, matchOn);
   const matchId = useStore(session, (state) => state.match?.matchId ?? null);
+  const ended = useStore(session, (state) => state.match?.result != null);
   // Your nickname as the room has it, after a rename too.
   const nickname = useStore(session, (state) => state.nickname ?? '');
   const settings = useSettingsStore();
   const [renaming, setRenaming] = useState(false);
+  /** The match whose results the player is done with. */
+  const [seen, setSeen] = useState<string | null>(null);
 
   if (!room || room.code !== code.toUpperCase()) {
     return (
@@ -54,10 +59,10 @@ export function RoomPage({ session, code }: RoomPageProps) {
       </Panel>
     </main>
   );
-  if (playing && matchId !== null) {
+  if (matchId !== null && (on || (ended && seen !== matchId))) {
     return (
       <Suspense fallback={waiting}>
-        <RoomMatch key={matchId} session={session} />
+        <RoomMatch key={matchId} session={session} onResultsDone={() => setSeen(matchId)} />
       </Suspense>
     );
   }
