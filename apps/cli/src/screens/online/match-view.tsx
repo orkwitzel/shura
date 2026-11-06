@@ -2,6 +2,7 @@ import {
   type Clock,
   MODE_NAMES,
   matchCountdownLabel,
+  nicknameOf,
   type OnlineMatchState,
   type OnlinePlayerGame,
   type OnlineSession,
@@ -9,6 +10,7 @@ import {
   ordinal,
   PIECE_ACTIONS,
   piecesPerSecond,
+  rosterEntryOf,
   totalLines,
 } from '@shura/client-core';
 import { useSettings } from '@shura/client-core/react';
@@ -121,7 +123,7 @@ function Name({ name, flashing, you = false }: { name: string; flashing: boolean
 
 /** The place of the player `playerId` so far, from the match's roster. */
 function placeIn(match: OnlineMatchState, playerId: string): number | null {
-  return match.roster.find((entry) => entry.playerId === playerId)?.place ?? null;
+  return rosterEntryOf(match, playerId)?.place ?? null;
 }
 
 /** A player's place and how they went out, as lines over their board. */
@@ -193,7 +195,7 @@ function OpponentList({
         return (
           <Box key={game.playerId}>
             <Box width={14}>
-              <Name name={nameOf(names, game.playerId)} flashing={flashes.has(game.playerId)} />
+              <Name name={nicknameOf(names, game.playerId)} flashing={flashes.has(game.playerId)} />
             </Box>
             {game.out ? (
               <Text dimColor>
@@ -219,10 +221,6 @@ function stackHeight({ board }: OnlinePlayerGame['engine']): number {
     if (board[row]?.some((cell) => cell !== null)) return row + 1;
   }
   return 0;
-}
-
-function nameOf(names: ReadonlyMap<string, string>, id: string): string {
-  return names.get(id) ?? 'player';
 }
 
 /** Opponents' boards in a grid of `columns`, or a list if `fits` is false. */
@@ -256,7 +254,7 @@ function Opponents({
               match={match}
               game={game}
               look={look}
-              name={nameOf(names, game.playerId)}
+              name={nicknameOf(names, game.playerId)}
               flashing={flashes.has(game.playerId)}
             />
           ))}
@@ -422,7 +420,7 @@ export function MatchView({
       <Box flexDirection="row">
         <Box flexDirection="column" width={HUD_WIDTH}>
           <Text wrap="truncate">
-            <Name name={nameOf(names, me.playerId)} flashing={flashes.has(me.playerId)} you />
+            <Name name={nicknameOf(names, me.playerId)} flashing={flashes.has(me.playerId)} you />
           </Text>
           {reconnecting ? <Text color="yellow">Reconnecting…</Text> : <Text> </Text>}
           <Box flexDirection="column" marginBottom={1}>

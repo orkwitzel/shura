@@ -1,4 +1,10 @@
-import { lobbyRole, matchCountdownLabel, type OnlineSession } from '@shura/client-core';
+import {
+  lobbyRole,
+  matchCountdownLabel,
+  nicknameOf,
+  type OnlineSession,
+  rosterEntryOf,
+} from '@shura/client-core';
 import { useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { MatchCanvas } from '@/features/board/components/match-canvas';
@@ -10,7 +16,7 @@ import { MatchMenu } from '@/features/match/components/match-menu';
 import { OutLabel } from '@/features/match/components/out-label';
 import { PlayerName } from '@/features/match/components/player-name';
 import { SpectatingBanner } from '@/features/match/components/spectating-banner';
-import { youOutText } from '@/features/match/utils/out-text';
+import { spectatingText } from '@/features/match/utils/out-text';
 import { MatchResults } from '@/features/results/components/match-results';
 import { useSound } from '@/features/sound/hooks/use-sound';
 import { useGameKeys } from '@/hooks/use-game-keys';
@@ -20,9 +26,6 @@ import styles from './room-match.module.css';
 
 /** The CSS pixels the boards leave clear across the top, for the spectating banner. */
 const SPECTATING_BANNER_SPACE = 104;
-
-/** What the spectating banner says to someone watching a match they don't play in. */
-const WATCHING_TEXT = 'you take a seat at the next lobby';
 
 export interface RoomMatchProps {
   /** The online session, in a match it plays in or spectates, or one just ended. */
@@ -91,13 +94,9 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
     setMenuOpen(false);
     session.leaveRoom();
   };
-  const entryOf = (playerId: string) => roster.find((entry) => entry.playerId === playerId);
-  const outLabel = (playerId: string) => {
-    const entry = entryOf(playerId);
-    return entry?.out && <OutLabel place={entry.place} reason={entry.out.reason} />;
-  };
-  const banner =
-    result !== null ? null : me === null ? WATCHING_TEXT : myOut && youOutText(myOut.reason);
+  const entryOf = (playerId: string) => rosterEntryOf({ roster }, playerId);
+  const outLabel = (playerId: string) => <OutLabel entry={entryOf(playerId)} />;
+  const banner = spectatingText({ playing: me !== null, out: myOut, ended: result !== null });
   // "Reconnecting…" shows once (design §13.2): over your HUD if you have a board, else in the
   // spectating banner, else (a spectator at the results) across the top.
   const reconnectingAt = !reconnecting ? null : me !== null ? 'hud' : banner ? 'banner' : 'top';
@@ -109,7 +108,7 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
         top={banner ? SPECTATING_BANNER_SPACE : 0}
         name={(playerId: string) => (
           <PlayerName
-            name={names.get(playerId) ?? '?'}
+            name={nicknameOf(names, playerId)}
             you={playerId === me}
             out={entryOf(playerId)?.out != null}
           />
@@ -141,7 +140,7 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
         <MatchResults
           result={result}
           you={me}
-          name={(playerId) => names.get(playerId) ?? '?'}
+          name={(playerId) => nicknameOf(names, playerId)}
           roomCode={roomCode}
           quickMatch={quickMatch}
           opponentLeft={opponentLeft}
