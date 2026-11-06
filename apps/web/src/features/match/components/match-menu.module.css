@@ -1,0 +1,33 @@
+/* The reminder that nothing stopped: a blinking pixel and a label, in the accent colour. */
+.note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.note::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--color-piece-z);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  animation: blink 800ms steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note::before {
+    animation: none;
+  }
+}

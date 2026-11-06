@@ -18,7 +18,7 @@ afterEach(() => {
 function setup(effects?: Effects) {
   const session = createSoloSession({ mode: 'sprint', clock: fakeClock(0), seed: 3 });
   const { emit } = fakeEngineEvents(session);
-  renderWithStores(<Callouts session={session} />, {
+  renderWithStores(<Callouts game={session} />, {
     stored: { settings: effects === undefined ? { version: 1 } : { version: 1, effects } },
   });
   return { session, emit };
@@ -79,7 +79,7 @@ describe('callouts', () => {
   test('stop when unmounted', () => {
     const session = createSoloSession({ mode: 'sprint', clock: fakeClock(0), seed: 3 });
     const { emit } = fakeEngineEvents(session);
-    const { unmount } = renderWithStores(<Callouts session={session} />);
+    const { unmount } = renderWithStores(<Callouts game={session} />);
     unmount();
     expect(() => emit(lockEvent({ lines: 4 }))).not.toThrow();
   });

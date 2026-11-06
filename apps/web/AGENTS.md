@@ -11,14 +11,16 @@ src/
 │   │              <ClientCoreProvider>), router.tsx, online-routes.tsx (online play's routes
 │   │              over one online session)
 │   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page,
-│                  online-page, room-page
+│                  online-page, room-page (with room-match, its match screen, loaded apart)
 ├── features/      one folder per capability: board/ (with effects/), callouts/, hud/, countdown/,
 │                  game-menu/, results/, personal-bests/, settings/, sound/, connection/,
-│                  online-menu/, nickname/, lobby/
+│                  online-menu/, nickname/, lobby/, match/ (the online menu, names, out
+│                  labels, the spectating banner)
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
 │                  backdrop, the "needs a keyboard" screen, the ping chip
-├── hooks/         shared hooks: use-solo-session, use-online-session, use-room-link,
-│                  use-room-address, use-theme, use-reduced-motion
+├── hooks/         shared hooks: use-solo-session, use-game-keys (a game's keys from the window),
+│                  use-online-session, use-room-link, use-room-address, use-theme,
+│                  use-reduced-motion
 ├── lib/           browser APIs and libraries set up for Shura: keyboard/ (with screen-hotkeys,
 │                  how screens' own keys listen through react-hotkeys-hook), pixi/, audio/,
 │                  raf-clock, online-clock (worker-timers in a hidden tab), open-online-session
@@ -65,12 +67,13 @@ Pixi code is kept thin and isn't unit-tested (design §13.2). Logic goes in `uti
 
 ```text
 features/board/
-├── components/board-canvas.tsx
-├── utils/layout-board.ts, cell-size.ts
-├── pixi/board-painter.ts
+├── components/board-canvas.tsx, match-canvas.tsx
+├── utils/layout-board.ts, cell-size.ts, layout-opponents.ts, meter-flash.ts,
+│         match-frame.ts (a match's frame: which boards to paint again, and what)
+├── pixi/board-painter.ts, match-painter.ts
 └── effects/
-    ├── utils/effects-for-events.ts, effect-frame.ts
-    └── pixi/effects-painter.ts
+    ├── utils/effects-for-events.ts, effect-frame.ts, streaks-for-routings.ts, streak-frame.ts
+    └── pixi/effects-painter.ts, streak-painter.ts
 ```
 
 ## Where shared code goes
@@ -97,7 +100,7 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
   - `hooks/use-room-link.ts` checks a room's route with client-core's `useRoomLookup` (over `lib/server-api`, which `app/provider.tsx` gives `<ClientCoreProvider>`), and sends an unknown code to `/online`.
   - `hooks/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room once the lookup has found it.
   - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Every server error shown goes through client-core's `errorText`.
-  - Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`) and a fake server for the lookups (`renderWithStores({ api })`, `tests/support/fake-api.ts`, client-core's real API client over a fake `fetch`).
+  - Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`) and a fake server for the lookups (`renderWithStores({ api })`, `tests/support/fake-api.ts`, client-core's real API client over a fake `fetch`). Match tests use a real session over a server the test plays (`tests/support/scripted-server.ts`, on the online clock over the fake browser of `fake-browser.ts`).
 - **UI state.** State that only one feature uses goes in that feature's `stores/`.
 
 ## Names

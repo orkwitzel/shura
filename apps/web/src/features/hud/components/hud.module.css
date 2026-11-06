@@ -31,3 +31,10 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-piece-i);
 }
+
+/* The match HUD: its chips, then the ping chip under them. */
+.match {
+  display: grid;
+  gap: calc(var(--cell-size, 32px) * 0.35);
+  justify-items: start;
+}

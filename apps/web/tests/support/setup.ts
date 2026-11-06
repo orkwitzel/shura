@@ -15,6 +15,10 @@ vi.mock(
   '@/features/board/effects/pixi/effects-painter',
   async () => (await import('./fake-pixi')).effectsPainterModule,
 );
+vi.mock(
+  '@/features/board/effects/pixi/streak-painter',
+  async () => (await import('./fake-pixi')).streakPainterModule,
+);
 
 // Tests that only read files run in the node environment (`@vitest-environment node`), with no
 // window to set up.

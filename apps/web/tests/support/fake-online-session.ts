@@ -1,13 +1,16 @@
 import type {
   ConnectionFailure,
   GarbageRouting,
+  OnlineMatchState,
+  OnlinePlayerGame,
   OnlineRoom,
   OnlineSession,
   OnlineSessionState,
   RoutingListener,
   SessionEventListener,
 } from '@shura/client-core';
-import type { EngineEvent } from '@shura/engine';
+import { placeOf } from '@shura/client-core';
+import { createEngine, type EngineEvent, ONE_VS_ONE } from '@shura/engine';
 import type { ErrorCode, ServerData } from '@shura/protocol';
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -190,5 +193,51 @@ export function lobby(more: Partial<OnlineRoom> = {}): OnlineRoom {
     players: [seated('me', 0)],
     spectators: [],
     ...more,
+  };
+}
+
+/** A player's game in a match: a fresh 1v1 engine at their index, as it is after `change`. */
+export function playerGame(
+  playerId: string,
+  index: number,
+  change: Partial<OnlinePlayerGame> = {},
+): OnlinePlayerGame {
+  return {
+    playerId,
+    index,
+    engine: createEngine(ONE_VS_ONE, 7, index).state,
+    out: null,
+    linesSent: 0,
+    ...change,
+  };
+}
+
+/**
+ * A match you (`me`) play, under way: by default a 1v1 against `bo`. Pass `players` for others (an
+ * FFA's), and `change` for the rest.
+ */
+export function matchState(
+  players: readonly OnlinePlayerGame[] = [playerGame('me', 0), playerGame('bo', 1)],
+  change: Partial<Omit<OnlineMatchState, 'me' | 'roster'>> = {},
+): OnlineMatchState {
+  const fields = {
+    matchId: 'm1',
+    seed: 7,
+    mode: players.length > 2 ? 'ffa' : '1v1',
+    phase: 'playing',
+    countdown: 0,
+    playerId: 'me',
+    players,
+    result: null,
+    ...change,
+  } as const;
+  return {
+    ...fields,
+    me: players.find(({ playerId }) => playerId === fields.playerId) ?? null,
+    roster: players.map(({ playerId, out }) => ({
+      playerId,
+      out,
+      place: placeOf(fields, playerId),
+    })),
   };
 }

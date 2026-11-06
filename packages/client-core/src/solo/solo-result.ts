@@ -1,5 +1,5 @@
 import type { ReadonlyEngineState } from '@shura/engine';
-import { FRAMES_PER_SECOND } from '../shared/frames';
+import { piecesPerSecond } from '../view/stats';
 import type { SoloMode } from './modes';
 import type { SoloSessionState } from './solo-session';
 
@@ -62,7 +62,7 @@ export function soloResult({
     score,
     lines: linesCleared,
     pieces: piecesPlaced,
-    piecesPerSecond: frame === 0 ? 0 : (piecesPlaced * FRAMES_PER_SECOND) / frame,
+    piecesPerSecond: piecesPerSecond(engine),
     level,
     frames: frame,
   };

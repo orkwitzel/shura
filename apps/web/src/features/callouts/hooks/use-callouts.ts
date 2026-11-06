@@ -1,4 +1,4 @@
-import { type Callout, onCallouts, type SoloSession } from '@shura/client-core';
+import { type Callout, type GameEvents, onCallouts } from '@shura/client-core';
 import { useEffect, useState } from 'react';
 
 /** How long a lock's callouts stay on show, unless a newer lock's take their place. */
@@ -14,18 +14,19 @@ export interface ShownCallouts {
 }
 
 /**
- * The callouts of `session`'s latest lock that earned any (design §13.1, Callouts), for 2 s or
- * until a newer lock's take their place; `null` when none are on show.
+ * The callouts of `game`'s latest lock that earned any (design §13.1, Callouts), for 2 s or until
+ * a newer lock's take their place; `null` when none are on show. `game` is a single-player session,
+ * or your own game's events in an online match.
  */
-export function useCallouts(session: SoloSession): ShownCallouts | null {
+export function useCallouts(game: GameEvents): ShownCallouts | null {
   const [shown, setShown] = useState<ShownCallouts | null>(null);
 
   useEffect(
     () =>
-      onCallouts(session, (callouts, lock) =>
+      onCallouts(game, (callouts, lock) =>
         setShown((last) => ({ id: (last?.id ?? 0) + 1, callouts, combo: lock.combo })),
       ),
-    [session],
+    [game],
   );
 
   const id = shown?.id;

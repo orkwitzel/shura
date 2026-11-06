@@ -80,3 +80,13 @@ Run `pnpm dev` (Valkey, the gateway, the game service and the web), and `pnpm de
 - [ ] The ping chip in the lobby's corner is green on localhost. With Chrome's DevTools network throttling, it turns yellow, then red.
 - [ ] Nicknames in Hebrew (`שירה`) display correctly in the seats and in toasts.
 - [ ] Going back to the main menu closes the connection: the gateway logs the session leaving, and the other tab sees a "left" toast. In development (Strict Mode), entering *Play online* makes one `POST /api/sessions`, not two.
+
+## Online: the match (M4)
+
+- [ ] **A tab and 2 bots play an FFA.** *Create room* → *FFA*, then `pnpm bot join XXXX --count 2`, and start. "Match starting…" shows for a moment while the match screen loads, then the countdown (3, 2, 1, GO, a second each). Your board is on the left with its HUD (Sent, PPS, Alive 3/3, the ping chip); the bots' small boards are on the right, with their names over them and no hold or preview.
+- [ ] Clearing lines sends garbage: a streak of pixels flies from your well to a bot's meter and bursts there, and Sent counts up. A bot's attack lands in your meter as a segment that blinks red for 0.6 s. With Effects *Off* no streak flies and no segment blinks; under *Reduced* the streaks still fly.
+- [ ] A bot that tops out greys, with its place and "topped out". Topping out yourself greys your board, and a banner says "You topped out · watching the rest" with *Leave* (Esc).
+- [ ] Esc or P opens the menu ("The match goes on"); the bots' boards keep moving under it, and so does your piece. Clicking outside the window opens it too. *Leave match* (Q) goes back to *Play online*, and the bots' boards show you as left.
+- [ ] **A hidden tab.** Mid-match, switch to another tab for 5 s, then come back: your board kept playing (your piece fell and locked under gravity), the server didn't lag you out, and the menu is open.
+- [ ] **A 1v1 at 1600×900** (DevTools' device toolbar): both full boards at 32 px cells; at 1280×720, both at 24 px.
+- [ ] With DevTools' offline mode for a moment mid-match, "Reconnecting…" shows over the HUD (not across the top), and the match plays on once back.

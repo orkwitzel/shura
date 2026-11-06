@@ -1,6 +1,5 @@
 import {
   type Clock,
-  FRAMES_PER_SECOND,
   MODE_NAMES,
   matchCountdownLabel,
   type OnlineMatchState,
@@ -9,10 +8,11 @@ import {
   OUT_WORDS,
   ordinal,
   PIECE_ACTIONS,
+  piecesPerSecond,
   totalLines,
 } from '@shura/client-core';
 import { useSettings } from '@shura/client-core/react';
-import { type ReadonlyEngineState, VISIBLE_ROWS } from '@shura/engine';
+import { VISIBLE_ROWS } from '@shura/engine';
 import { Box, Text } from 'ink';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
@@ -101,14 +101,6 @@ function useAttackFlashes(session: OnlineSession, clock: Pick<Clock, 'now'>): Re
   const flashing = new Set<string>();
   for (const [playerId, end] of until.current) if (now < end) flashing.add(playerId);
   return flashing;
-}
-
-/** Pieces per second: the pieces a game has locked over the seconds its frames make. */
-function piecesPerSecond({
-  piecesPlaced,
-  frame,
-}: Pick<ReadonlyEngineState, 'piecesPlaced' | 'frame'>): number {
-  return frame > 0 ? (piecesPlaced * FRAMES_PER_SECOND) / frame : 0;
 }
 
 /** A name, flashing (inverted, in red) while an attack lands on it. */

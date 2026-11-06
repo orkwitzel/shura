@@ -137,7 +137,12 @@ export {
   type SoloSessionOptions,
   type SoloSessionState,
 } from './solo/solo-session';
-export { type BackToBackTracker, isBackToBack, trackBackToBack } from './view/back-to-back';
+export {
+  type BackToBackTracker,
+  type GameEvents,
+  isBackToBack,
+  trackBackToBack,
+} from './view/back-to-back';
 export {
   type Callout,
   type CalloutKind,
@@ -171,3 +176,4 @@ export {
   type RoomChange,
   roomChanges,
 } from './view/room';
+export { piecesPerSecond } from './view/stats';
