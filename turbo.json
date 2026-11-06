@@ -17,7 +17,15 @@
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["PORT", "LOG_LEVEL", "NODE_ENV", "POD_ID"]
+      "passThroughEnv": [
+        "PORT",
+        "LOG_LEVEL",
+        "NODE_ENV",
+        "POD_ID",
+        "POD_IP",
+        "VALKEY_URL",
+        "VALKEY_PREFIX"
+      ]
     }
   }
 }

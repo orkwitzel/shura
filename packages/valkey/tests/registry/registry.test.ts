@@ -8,6 +8,8 @@ const ROOM: RoomRecord = {
   mode: '1v1',
   phase: 'lobby',
   hostId: 'session-a',
+  seated: 1,
+  spectators: 0,
 };
 
 describeStores('Registry', (harness) => {
@@ -39,11 +41,21 @@ describeStores('Registry', (harness) => {
     expect(results.filter(Boolean)).toHaveLength(1);
   });
 
-  test('a quick-match room has no host', async () => {
+  test('a quick-match room has no host, and says it is one', async () => {
     const { registry } = harness().stores;
-    const { hostId: _, ...quickMatch } = ROOM;
+    const { hostId: _, ...hostless } = ROOM;
+    const quickMatch: RoomRecord = { ...hostless, quickMatch: true };
     await registry.create('QM22', quickMatch);
     expect(await registry.get('QM22')).toEqual(quickMatch);
+  });
+
+  test('the counts of seated players and spectators change', async () => {
+    const { stores, peer } = harness();
+    await stores.registry.create('K7QX', ROOM);
+    expect(await stores.registry.update('K7QX', { seated: 2, spectators: 3 })).toBe(true);
+    expect(await peer().registry.get('K7QX')).toEqual({ ...ROOM, seated: 2, spectators: 3 });
+    await stores.registry.update('K7QX', { spectators: 0 });
+    expect(await peer().registry.get('K7QX')).toEqual({ ...ROOM, seated: 2, spectators: 0 });
   });
 
   test('the phase and host change, and the host can be cleared', async () => {

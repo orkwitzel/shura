@@ -3,6 +3,14 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "exports": {
+    "./app.module": "./src/app.module.ts",
+    "./configure-app": "./src/configure-app.ts",
+    "./clock": "./src/clock/index.ts",
+    "./match": "./src/match/index.ts",
+    "./rooms": "./src/rooms/index.ts",
+    "./valkey": "./src/valkey/index.ts"
+  },
   "files": [
     "dist"
   ],
@@ -23,6 +31,8 @@
     "@nestjs/websockets": "catalog:",
     "@shura/engine": "workspace:*",
     "@shura/protocol": "workspace:*",
+    "@shura/valkey": "workspace:*",
+    "bufferutil": "4.1.0",
     "nestjs-pino": "catalog:",
     "nestjs-zod": "catalog:",
     "pino": "catalog:",

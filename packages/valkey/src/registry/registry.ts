@@ -10,12 +10,26 @@ export interface RoomRecord {
   phase: string;
   /** The host's session id. Quick-match rooms have none. */
   hostId?: string;
+  /**
+   * Set on a quick-match room (design §9.4). A hosted room can be hostless for a moment, so a
+   * missing `hostId` doesn't say which kind a room is.
+   */
+  quickMatch?: true;
+  /** How many seats are taken (`GET /api/rooms/:code`, design §8.7). */
+  seated: number;
+  /** How many spectators the room has. */
+  spectators: number;
 }
 
-/** The fields of a room that change during its life. `hostId: null` clears the host. */
+/**
+ * The fields of a room that change during its life, as its game pod reports them. `hostId: null`
+ * clears the host.
+ */
 export interface RoomUpdate {
   phase?: string;
   hostId?: string | null;
+  seated?: number;
+  spectators?: number;
 }
 
 /** The shared record of which game pod owns each room, keyed by room code (design §9.2). */
@@ -23,7 +37,7 @@ export interface Registry {
   /** Records a new room. Returns false, changing nothing, if the code is already in use. */
   create(code: string, room: RoomRecord): Promise<boolean>;
   get(code: string): Promise<RoomRecord | undefined>;
-  /** Changes a room's phase or host. Returns false if there is no such room. */
+  /** Changes a room's phase, host or counts. Returns false if there is no such room. */
   update(code: string, update: RoomUpdate): Promise<boolean>;
   /**
    * Gives the room to another game pod, incrementing its epoch, in one atomic step (phase-2

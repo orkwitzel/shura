@@ -13,10 +13,12 @@ export function createMemoryRegistry(): Registry {
       const room = rooms.get(code);
       return room && { ...room };
     },
-    async update(code, { phase, hostId }) {
+    async update(code, { phase, hostId, seated, spectators }) {
       const room = rooms.get(code);
       if (!room) return false;
       if (phase !== undefined) room.phase = phase;
+      if (seated !== undefined) room.seated = seated;
+      if (spectators !== undefined) room.spectators = spectators;
       if (hostId === null) delete room.hostId;
       else if (hostId !== undefined) room.hostId = hostId;
       return true;

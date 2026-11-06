@@ -50,6 +50,11 @@ export const serverMessages = {
     mode: roomModeSchema,
     /** Quick-match rooms have no host. */
     hostId: idSchema.optional(),
+    /**
+     * Set on a quick-match room (design §9.4). A hosted room can be without a host for a moment
+     * (everyone left), so a missing `hostId` doesn't say which kind a room is: this does.
+     */
+    quickMatch: z.literal(true).optional(),
     phase: roomPhaseSchema,
     players: z.array(seatedPlayer),
     spectators: z.array(spectator),

@@ -1,5 +1,6 @@
 import { ERRORS } from '@shura/protocol';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import { postJson } from '../support/api';
 import { type Booted, boot, connect, nextMessage } from '../support/boot';
 import { EchoModule } from '../support/fixtures/echo';
 
@@ -12,12 +13,7 @@ afterAll(async () => {
   await booted.app.close();
 });
 
-const post = (body: unknown) =>
-  fetch(`${booted.http}/api/echo`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+const post = (body: unknown) => postJson(`${booted.http}/api/echo`, body);
 
 test('a valid request body passes', async () => {
   const res = await post({ id: 1 });

@@ -7,5 +7,9 @@ export default defineConfig({
   oxc: false,
   plugins: [swc.vite({ swcrc: true, configFile: '.swcrc', module: { type: 'es6' } })],
   // Tests boot the app with its real logger (`configureApp`): keep it quiet.
-  test: { env: { LOG_LEVEL: 'silent' } },
+  test: {
+    env: { LOG_LEVEL: 'silent' },
+    // Integration tests play whole matches over real sockets.
+    testTimeout: 30_000,
+  },
 });

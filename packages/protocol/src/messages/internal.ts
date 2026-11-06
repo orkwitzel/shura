@@ -30,6 +30,8 @@ export const gatewayToGameMessages = {
     mode: roomModeSchema,
     /** The session that created the room. Quick-match rooms have none. */
     hostId: idSchema.optional(),
+    /** A quick-match room (design §9.4): no host, and it starts on its own. */
+    quickMatch: z.literal(true).optional(),
     /** The most spectators the room holds, from the gateway's limits (design §11). */
     maxSpectators: countSchema.optional(),
   }),

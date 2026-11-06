@@ -1,14 +1,18 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import { suggestNickname } from '@shura/protocol';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
+import pkg from '../../package.json' with { type: 'json' };
 import { terminalClock } from '../platform/clock';
 import { fileStorage, storagePaths } from '../platform/file-storage';
 import { captureHeader, createCaptureFile } from '../platform/input/capture';
 import type { InputChoice } from '../platform/input/input-adapter';
 import { detectColorMode } from '../platform/terminal/color-mode';
-import { App } from './app';
+import { nodeConnect } from '../platform/web-socket';
+import { App, type OnlineOptions } from './app';
 import type { PlayOptions } from './commands';
+import { serverUrl } from './server-url';
 import { exitMessages, openStores } from './stores';
 
 /**
@@ -80,10 +84,30 @@ export async function runApp(options: PlayOptions): Promise<number> {
       )
     : undefined;
   const input = { choice: options.input, ...(capture && { debug: { capture } }) };
+  const clock = terminalClock();
+  const settings = stores.settings.getState();
+  // `--name` is for this run only; the nickname prompt (#67) replaces the suggestion.
+  const online: OnlineOptions | undefined = options.online && {
+    start: options.online,
+    server: serverUrl({
+      flag: options.server,
+      env: process.env.SHURA_SERVER,
+      config: settings.server,
+    }),
+    nickname: options.name ?? settings.nickname ?? suggestNickname(),
+    clientVersion: pkg.version,
+    connect: nodeConnect,
+    clock,
+  };
+  let exit = { code: 0, message: '' };
   const app = startTerminalApp(
     <App
       {...(options.mode && { mode: options.mode })}
-      clock={terminalClock()}
+      {...(online && { online })}
+      onExit={(code, message) => {
+        exit = { code, message };
+      }}
+      clock={clock}
       colors={colors}
       input={input}
       {...stores}
@@ -95,5 +119,6 @@ export async function runApp(options: PlayOptions): Promise<number> {
   if (capture) console.log(`Input capture written to ${capture.path}`);
   // The game drew on the alternate screen, so the full messages go where they stay readable.
   for (const message of exitMessages(stores)) console.error(message);
-  return 0;
+  if (exit.message) console.error(exit.message);
+  return exit.code;
 }

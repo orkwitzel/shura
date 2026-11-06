@@ -12,6 +12,10 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   /** The pod's name in its logs (design §12). */
   POD_ID: z.string().min(1).default(hostname()),
+  /** The Valkey that holds the shared state (design §9.5). */
+  VALKEY_URL: z.string().min(1).default('redis://localhost:6379'),
+  /** Prepended to every Valkey key and channel. */
+  VALKEY_PREFIX: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

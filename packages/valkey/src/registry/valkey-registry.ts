@@ -13,7 +13,8 @@ redis.call('HSET', KEYS[1], unpack(ARGV))
 return 1
 `,
   },
-  // ARGV: the new phase or '', then 'keep', 'clear' or 'set' for the host, then the new host.
+  // ARGV: the new phase or '', then 'keep', 'clear' or 'set' for the host, then the new host, then
+  // the seated and spectator counts or ''.
   registryUpdate: {
     numberOfKeys: 1,
     lua: `
@@ -21,6 +22,8 @@ if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
 if ARGV[1] ~= '' then redis.call('HSET', KEYS[1], 'phase', ARGV[1]) end
 if ARGV[2] == 'clear' then redis.call('HDEL', KEYS[1], 'hostId') end
 if ARGV[2] == 'set' then redis.call('HSET', KEYS[1], 'hostId', ARGV[3]) end
+if ARGV[4] ~= '' then redis.call('HSET', KEYS[1], 'seated', ARGV[4]) end
+if ARGV[5] ~= '' then redis.call('HSET', KEYS[1], 'spectators', ARGV[5]) end
 return 1
 `,
   },
@@ -44,6 +47,8 @@ declare module 'iovalkey' {
       phase: string,
       host: 'keep' | 'clear' | 'set',
       hostId: string,
+      seated: string,
+      spectators: string,
     ): Result<0 | 1, Context>;
     registryReassign(room: RedisKey, podAddress: string): Result<ScriptReply, Context>;
   }
@@ -59,16 +64,29 @@ function toFields(room: RoomRecord): string[] {
     room.mode,
     'phase',
     room.phase,
+    'seated',
+    String(room.seated),
+    'spectators',
+    String(room.spectators),
   ];
   if (room.hostId !== undefined) fields.push('hostId', room.hostId);
+  if (room.quickMatch) fields.push('quickMatch', '1');
   return fields;
 }
 
 function toRoom(hash: Record<string, string>): RoomRecord | undefined {
-  const { podAddress, epoch, mode, phase, hostId } = hash;
+  const { podAddress, epoch, mode, phase, hostId, quickMatch, seated, spectators } = hash;
   if (podAddress === undefined || mode === undefined || phase === undefined) return undefined;
-  const room: RoomRecord = { podAddress, epoch: Number(epoch), mode, phase };
+  const room: RoomRecord = {
+    podAddress,
+    epoch: Number(epoch),
+    mode,
+    phase,
+    seated: Number(seated ?? 0),
+    spectators: Number(spectators ?? 0),
+  };
   if (hostId !== undefined) room.hostId = hostId;
+  if (quickMatch !== undefined) room.quickMatch = true;
   return room;
 }
 
@@ -82,9 +100,17 @@ export function createValkeyRegistry(client: Redis, keys: ValkeyKeys): Registry 
     async get(code) {
       return toRoom(await client.hgetall(keys.room(code)));
     },
-    async update(code, { phase, hostId }) {
+    async update(code, { phase, hostId, seated, spectators }) {
       const host = hostId === null ? 'clear' : hostId === undefined ? 'keep' : 'set';
-      return (await client.registryUpdate(keys.room(code), phase ?? '', host, hostId ?? '')) === 1;
+      const reply = await client.registryUpdate(
+        keys.room(code),
+        phase ?? '',
+        host,
+        hostId ?? '',
+        seated === undefined ? '' : String(seated),
+        spectators === undefined ? '' : String(spectators),
+      );
+      return reply === 1;
     },
     async reassign(code, podAddress) {
       return toRoom(pairs(await client.registryReassign(keys.room(code), podAddress)));

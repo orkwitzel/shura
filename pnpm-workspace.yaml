@@ -50,6 +50,8 @@ catalogs:
 # Dependencies allowed to run install scripts (pnpm blocks all others).
 allowBuilds:
   "@swc/core": true
+  # ws's native frame masking, for the gateway and the game service (design §8.2).
+  bufferutil: true
   esbuild: true
   lefthook: true
 
