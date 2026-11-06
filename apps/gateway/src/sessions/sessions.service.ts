@@ -6,6 +6,7 @@ import type { Stores } from '@shura/valkey';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { WebSocket } from 'ws';
 import { CLOCK, type Clock } from '../clock';
+import { IpLimitsService } from '../limits';
 import { STORES } from '../valkey';
 import { versionsMatch } from '../versions';
 import { type ConnectionSession, ConnectionsService } from './connections.service';
@@ -21,19 +22,22 @@ export class SessionsService {
     @Inject(STORES) private readonly stores: Stores,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly connections: ConnectionsService,
+    private readonly ips: IpLimitsService,
     @InjectPinoLogger(SessionsService.name) private readonly logger: PinoLogger,
   ) {}
 
   /**
-   * `POST /api/sessions`: the session a still-valid token names, as it was, or a new one with a
-   * random id and token and the nickname as the server normalizes it (`nickname_invalid` if it
-   * can't be used).
+   * `POST /api/sessions` from `ip`: the session a still-valid token names, as it was, or a new one
+   * with a random id and token and the nickname as the server normalizes it (`nickname_invalid` if
+   * it can't be used). Only a new one counts toward the `sessions` per-IP limit (design §11).
    */
-  async create({ nickname, sessionToken }: CreateSessionDto): Promise<Session> {
+  async create({ nickname, sessionToken }: CreateSessionDto, ip: string): Promise<Session> {
     if (sessionToken !== undefined) {
       const known = await this.stores.sessions.get(sessionToken);
       if (known) return { sessionId: known.sessionId, sessionToken, nickname: known.nickname };
     }
+    const refusal = await this.ips.check('sessions', ip);
+    if (refusal) throw new HttpException(refusal, ERRORS[refusal.code].status);
     const checked = validateNickname(nickname);
     if (!checked.ok) {
       throw new HttpException(

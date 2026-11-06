@@ -63,11 +63,11 @@ const lookup = (code: string, ip: string) =>
     headers: { ...VERSION_HEADERS, 'x-forwarded-for': ip },
   });
 
-const postSession = (ip: string) =>
+const postSession = (ip: string, sessionToken?: string) =>
   fetch(`${world.serverUrl}/api/sessions`, {
     method: 'POST',
     headers: { ...VERSION_HEADERS, 'content-type': 'application/json', 'x-forwarded-for': ip },
-    body: JSON.stringify({ nickname: 'Ada' }),
+    body: JSON.stringify({ nickname: 'Ada', sessionToken }),
   });
 
 describe('per connection', () => {
@@ -270,6 +270,20 @@ describe('per IP', () => {
     expect(refused.status).toBe(429);
     expect(await refused.json()).toMatchObject({ code: 'rate_limited' });
     expect((await postSession('198.51.100.2')).status).toBe(201);
+  });
+
+  test('resuming with a live token isn’t counted toward POST /api/sessions; an unknown token is', async () => {
+    world = await behindProxy({ sessionsPerIpPerMinute: 2 });
+    const { sessionToken } = (await (await postSession('198.51.100.1')).json()) as {
+      sessionToken: string;
+    };
+    for (let i = 0; i < 20; i++) {
+      expect((await postSession('198.51.100.1', sessionToken)).status).toBe(201);
+    }
+    expect((await postSession('198.51.100.1', 'no-such-token')).status).toBe(201);
+    expect((await postSession('198.51.100.1', 'no-such-token')).status).toBe(429);
+    // Still resumed at the limit.
+    expect((await postSession('198.51.100.1', sessionToken)).status).toBe(201);
   });
 });
 
