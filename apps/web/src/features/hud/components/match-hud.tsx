@@ -1,6 +1,7 @@
 import { type OnlineSession, type OnlineSessionState, piecesPerSecond } from '@shura/client-core';
 import { useStore } from 'zustand';
 import { PingChip } from '@/components/ping-chip';
+import { Stat } from '@/components/stat';
 import styles from './hud.module.css';
 
 export interface MatchHudProps {
@@ -20,15 +21,6 @@ const stillIn = ({ match }: OnlineSessionState): string | null => {
   return `${roster.filter(({ out }) => out === null).length}/${roster.length}`;
 };
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.stat}>
-      <dt className={styles.label}>{label}</dt>
-      <dd className={styles.value}>{value}</dd>
-    </div>
-  );
-}
-
 /**
  * The HUD under your hold in an online match (design §13.2, Match): the garbage lines you've sent,
  * your pieces per second, the players still in (in an FFA), and your ping.
@@ -41,9 +33,9 @@ export function MatchHud({ session }: MatchHudProps) {
   return (
     <div className={styles.match}>
       <dl className={styles.hud}>
-        <Stat label="Sent" value={String(sent)} />
-        <Stat label="PPS" value={pps} />
-        {alive !== null && <Stat label="Alive" value={alive} />}
+        <Stat look="hud" label="Sent" value={String(sent)} />
+        <Stat look="hud" label="PPS" value={pps} />
+        {alive !== null && <Stat look="hud" label="Alive" value={alive} />}
       </dl>
       <PingChip ping={ping} />
     </div>

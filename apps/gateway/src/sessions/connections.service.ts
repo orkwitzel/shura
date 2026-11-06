@@ -4,6 +4,7 @@ import { type ErrorBody, errorBody, type PlayerKind, type ServerMessage } from '
 import type { SessionRecord } from '@shura/valkey';
 import PQueue from 'p-queue';
 import { WebSocket } from 'ws';
+import type { RoomMember } from '../room-links';
 
 /** Who a connection is, once its `hello` has been accepted (design §10.2). */
 export interface ConnectionSession {
@@ -21,8 +22,24 @@ export interface Connection {
   session: ConnectionSession | null;
   /** The room it's in, whose traffic goes over that room's link (`RoomLinksService`). */
   roomCode: string | null;
+  /**
+   * Its member of its rooms' links (`rooms/`): what the pods' messages for it reach. Made on its
+   * first room and kept, so a link always knows it as the same member.
+   */
+  roomMember: RoomMember | null;
+  /** While it waits for a quick match (`quick-match/`): stops listening for its pairing notice. */
+  stopWaiting: (() => Promise<void>) | null;
   /** Whether the socket has closed. Work still queued for it should do nothing visible. */
   closed: boolean;
+}
+
+/**
+ * The session of a connection whose `hello` succeeded: every message past `SessionGuard`'s, so a
+ * missing one is a bug.
+ */
+export function sessionOf(connection: Connection): ConnectionSession {
+  if (!connection.session) throw new Error('a session message before hello');
+  return connection.session;
 }
 
 /** Runs as a connection closes, in its turn after every message before the close. */
@@ -55,7 +72,14 @@ export class ConnectionsService {
   /** A client's socket opened. */
   open(socket: WebSocket): void {
     this.#connections.set(socket, {
-      connection: { socket, session: null, roomCode: null, closed: false },
+      connection: {
+        socket,
+        session: null,
+        roomCode: null,
+        roomMember: null,
+        stopWaiting: null,
+        closed: false,
+      },
       queue: new PQueue({ concurrency: 1 }),
     });
   }

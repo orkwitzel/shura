@@ -176,4 +176,5 @@ export {
   type RoomChange,
   roomChanges,
 } from './view/room';
+export { kindOf, nicknameOf, rosterEntryOf, UNKNOWN_NICKNAME } from './view/roster';
 export { piecesPerSecond } from './view/stats';

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { Lobby } from '@/features/lobby/components/lobby';
 import { isolate } from '@/features/lobby/utils/room-change-text';
-import { Toasts } from '@/lib/toasts';
+import { Notices } from '@/lib/notices';
 import { fakeOnlineSession, lobby, seated, watching } from '../../../support/fake-online-session';
 
 const LINK = 'http://shura.test/r/K7QX';
@@ -16,7 +16,7 @@ function show(room = lobby(), me = 'me') {
   const view = render(
     <>
       <Lobby session={session} link={LINK} onChangeNickname={onChangeNickname} />
-      <Toasts />
+      <Notices />
     </>,
   );
   return { session, onChangeNickname, view };
@@ -150,7 +150,7 @@ describe('Lobby', () => {
     expect(await screen.findByText('Link copied')).toBeInTheDocument();
   });
 
-  test('shows toasts for joins, leaves and host changes', async () => {
+  test('shows notices for joins, leaves and host changes', async () => {
     const { session } = show(lobby({ hostId: 'mira', players: [mira(), seated('me', 0)] }));
     session.room(
       lobby({

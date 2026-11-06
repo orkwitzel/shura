@@ -24,6 +24,17 @@
   color: var(--color-muted);
 }
 
+/* Your quick-match opponent left: said in the accent, like a callout. */
+.left {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--text-button);
+  font-weight: 700;
+  color: var(--color-accent);
+  text-shadow: 2px 2px 0 var(--color-shadow);
+}
+
 .table {
   width: 100%;
   border-collapse: separate;
@@ -102,6 +113,15 @@
   text-transform: uppercase;
   vertical-align: middle;
   border: 2px solid currentColor;
+}
+
+/* A player's kind, dim, as the lobby's seats have it. */
+.kind {
+  margin-left: var(--space-2);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
 
 @keyframes slide {

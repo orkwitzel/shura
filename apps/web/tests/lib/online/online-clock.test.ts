@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createOnlineClock, HIDDEN_WAKE_MS } from '@/lib/online-clock';
-import { fakeBrowser } from '../support/fake-browser';
-import { scriptedServer } from '../support/scripted-server';
+import { createOnlineClock, HIDDEN_WAKE_MS } from '@/lib/online/online-clock';
+import { fakeBrowser } from '../../support/fake-browser';
+import { scriptedServer } from '../../support/scripted-server';
 
 describe('the online clock (design §8.4: an online game never pauses)', () => {
   test('wakes the loop at the next animation frame while the tab is visible', () => {

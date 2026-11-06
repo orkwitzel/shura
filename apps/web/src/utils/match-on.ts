@@ -10,9 +10,9 @@ export function matchOn({ room, match }: OnlineSessionState): boolean {
 }
 
 /**
- * Whether you play in the match on in your room, out or not (design §13.2, Match): its
- * "Reconnecting…" shows over your HUD. Watching one you don't play in is spectating.
+ * Whether your quick-match opponent left a match that has its results, breaking the room up
+ * (design §9.4): you're out of the room, and the results still show, with only *Leave*.
  */
-export function playingMatch(state: OnlineSessionState): boolean {
-  return matchOn(state) && state.match?.playerId !== null;
+export function opponentLeftResults({ room, quickMatch, match }: OnlineSessionState): boolean {
+  return room === null && quickMatch === 'opponentLeft' && match?.result != null;
 }

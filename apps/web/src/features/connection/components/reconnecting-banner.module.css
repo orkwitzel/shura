@@ -30,6 +30,14 @@
   transform: rotate(-2deg);
 }
 
+/* In another banner, as the spectating one: in its row, tilted like a sticker. */
+.inline {
+  flex: none;
+  font-size: var(--text-button);
+  box-shadow: none;
+  transform: rotate(-2deg);
+}
+
 .cell {
   width: 10px;
   height: 10px;

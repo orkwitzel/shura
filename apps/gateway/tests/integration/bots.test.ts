@@ -163,6 +163,17 @@ test('three bots and a scripted host play an FFA to matchEnd, garbage flying, al
   for (const session of sessions) {
     expect(ownGame(session).engine.piecesPlaced).toBeGreaterThan(30);
   }
+
+  // Back in the lobby, every bot readies up again for the next match, the ones out first too.
+  expect(host.getState().room?.phase).toBe('lobby');
+  await until(
+    () =>
+      host
+        .getState()
+        .room?.players.slice(1)
+        .every(({ ready }) => ready) ?? false,
+    'the bots readied again',
+  );
 }, 180_000);
 
 test('a bot sent to a room that does not exist stops, and closes its session', async () => {

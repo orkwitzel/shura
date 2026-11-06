@@ -6,6 +6,7 @@ import {
   soloResult,
 } from '@shura/client-core';
 import { useSession } from '@shura/client-core/react';
+import { Stat } from '@/components/stat';
 import { Dialog } from '@/components/ui/dialog';
 import { type MenuItem, MenuList } from '@/components/ui/menu-list';
 import { MODE_NAMES } from '@/config/modes';
@@ -20,15 +21,6 @@ export interface ResultsProps {
 }
 
 /** A label and its value. */
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.stat}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
-}
-
 /**
  * The results, over the board once a game has ended (design §13.1, Single-player session): "Finished"
  * or "Game over", the mode's headline (Sprint's time, or the score), the personal best line, then
@@ -60,15 +52,15 @@ export function Results({ session, personalBest, onBack }: ResultsProps) {
             {personalBest}
           </p>
           <dl className={styles.stats}>
-            <Stat label="Lines" value={String(result.lines)} />
-            <Stat label="Pieces" value={String(result.pieces)} />
-            <Stat label="PPS" value={result.piecesPerSecond.toFixed(2)} />
+            <Stat look="row" label="Lines" value={String(result.lines)} />
+            <Stat look="row" label="Pieces" value={String(result.pieces)} />
+            <Stat look="row" label="PPS" value={result.piecesPerSecond.toFixed(2)} />
             {timed ? (
-              <Stat label="Score" value={formatScore(result.score)} />
+              <Stat look="row" label="Score" value={formatScore(result.score)} />
             ) : (
-              <Stat label="Time" value={formatFrames(result.frames)} />
+              <Stat look="row" label="Time" value={formatFrames(result.frames)} />
             )}
-            <Stat label="Level" value={String(result.level)} />
+            <Stat look="row" label="Level" value={String(result.level)} />
           </dl>
           <MenuList label="Results" items={items} initial="back" autoFocus />
         </>

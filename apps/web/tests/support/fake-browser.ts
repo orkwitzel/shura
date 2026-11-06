@@ -1,4 +1,4 @@
-import type { ClockPlatform } from '@/lib/online-clock';
+import type { ClockPlatform } from '@/lib/online/online-clock';
 
 /**
  * A browser the test runs by hand: animation frames and worker timers fire only when it says, and

@@ -33,9 +33,12 @@ type RateLimitPolicy = {
   readonly refusal: ErrorBody;
 } & ({ readonly kind: 'bucket' } | { readonly kind: 'failures'; readonly counts: string });
 
-/** The per-IP limits of design §11 that guard routes and socket messages, by `@RateLimit` key. */
+/**
+ * The per-IP limits of design §11 that guard routes and socket messages, by `@RateLimit` key.
+ * `sessions` has no decorator: `SessionsService` checks it, since only a new session counts.
+ */
 export const RATE_LIMITS = {
-  /** `POST /api/sessions`. */
+  /** `POST /api/sessions` that makes a new session (a resume with a live token isn't counted). */
   sessions: {
     kind: 'bucket',
     name: 'sessions',

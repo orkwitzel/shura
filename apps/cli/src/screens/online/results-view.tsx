@@ -1,6 +1,7 @@
 import {
   lobbyRole,
   matchResultRows,
+  nicknameOf,
   type OnlineSession,
   ordinal,
   RESULTS_MS,
@@ -69,7 +70,7 @@ export function ResultsView({ session, names, clock, active, onBack, onLeave }: 
 
   const result = match?.result;
   if (!result) return null;
-  const nameOf = (id: string) => names.get(id) ?? 'player';
+  const nameOf = (id: string) => nicknameOf(names, id);
   const { rows, mine, winners } = matchResultRows(result, sessionId);
   const opponent = match.players.find(({ playerId }) => playerId !== sessionId);
   const keys = opponentLeft

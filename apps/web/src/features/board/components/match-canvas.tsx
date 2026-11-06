@@ -18,7 +18,7 @@ import { streaksForRoutings } from '../effects/utils/streaks-for-routings';
 import { useViewport } from '../hooks/use-viewport';
 import { createMatchPainter } from '../pixi/match-painter';
 import type { Viewport } from '../utils/cell-size';
-import { boardRegions, type Rect } from '../utils/layout-board';
+import { boardRegions, type Rect, rectStyle } from '../utils/layout-board';
 import { layoutOpponents, MATCH_CELLS, NAME_ROWS } from '../utils/layout-opponents';
 import { type BoardKey, boardsOf, type MatchLook, matchFrame, wellOf } from '../utils/match-frame';
 import type { MeterFlash } from '../utils/meter-flash';
@@ -57,13 +57,6 @@ const sizeOf = ({ width, height }: Viewport, resolution: number): PixiSize => ({
   width,
   height,
   resolution,
-});
-
-const place = ({ x, y, width, height }: Rect): CSSProperties => ({
-  left: x,
-  top: y,
-  width,
-  height,
 });
 
 /**
@@ -136,7 +129,7 @@ export function MatchCanvas({
         // The layout changes with the window, and as a banner comes and goes.
         if (drawnLook?.layout !== current.layout) {
           placed = boardsOf(current.layout, own, opponents);
-          painter.place(placed);
+          painter.arrange(placed);
         }
         const frame = matchFrame({ match, look: current, boards: placed, keys, flashes, now });
         painter.paint(frame.paints);
@@ -189,7 +182,7 @@ export function MatchCanvas({
         const box = MATCH_CELLS[kind];
         /** A box's label, in the cell above its frame. */
         const labelOf = (rect: Rect): CSSProperties =>
-          place({ ...rect, y: rect.y - cellSize, height: cellSize * 0.8 });
+          rectStyle({ ...rect, y: rect.y - cellSize, height: cellSize * 0.8 });
         return (
           <section
             key={playerId}
@@ -210,7 +203,7 @@ export function MatchCanvas({
           >
             <div
               className={styles.name}
-              style={place({
+              style={rectStyle({
                 x: well.x,
                 y: -rows * cellSize,
                 width: well.width,
@@ -230,11 +223,11 @@ export function MatchCanvas({
               </>
             )}
             {kind === 'own' && regions && aside !== undefined && (
-              <div className={styles.aside} style={place(regions.aside)}>
+              <div className={styles.aside} style={rectStyle(regions.aside)}>
                 {aside}
               </div>
             )}
-            <div className={styles.overlay} style={place(well)}>
+            <div className={styles.overlay} style={rectStyle(well)}>
               {kind === 'own' ? overlay : opponentOverlay?.(playerId)}
             </div>
           </section>

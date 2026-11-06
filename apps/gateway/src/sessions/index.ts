@@ -3,6 +3,7 @@ export {
   type Connection,
   type ConnectionSession,
   ConnectionsService,
+  sessionOf,
   type WelcomeListener,
 } from './connections.service';
 export { SessionGuard } from './session.guard';

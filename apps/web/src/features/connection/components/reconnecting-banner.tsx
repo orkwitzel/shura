@@ -3,9 +3,9 @@ import styles from './reconnecting-banner.module.css';
 export interface ReconnectingBannerProps {
   /**
    * `top` (the default) across the top of the screen; `hud` in its place, over a match's HUD
-   * (design §10.2).
+   * (design §10.2); `inline` where it's put, as in the spectating banner.
    */
-  readonly placement?: 'top' | 'hud';
+  readonly placement?: 'top' | 'hud' | 'inline';
 }
 
 /**

@@ -246,6 +246,9 @@ describe('the results (design §13.2, Results)', () => {
     expect(rows[1]).toHaveTextContent('Or');
     expect(rows[1]).toHaveAttribute('data-you');
     expect(rows[2]).toHaveTextContent('Bo');
+    // Each player's kind, from the room, as the lobby tags them.
+    expect(within(rows[1] as HTMLElement).getByText('guest')).toBeInTheDocument();
+    expect(within(rows[2] as HTMLElement).getByText('guest')).toBeInTheDocument();
     await userEvent.keyboard('{Enter}');
     expect(results()).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Your board' })).not.toBeInTheDocument();
@@ -310,6 +313,76 @@ describe('the results (design §13.2, Results)', () => {
     server.say({ event: 'roomState', data: { ...lobbyAfter(true), phase: 'countdown' } });
     await screen.findByRole('timer', { name: 'Countdown' });
     expect(results()).not.toBeInTheDocument();
+  });
+});
+
+describe('a quick-match opponent who leaves mid-match (design §9.4)', () => {
+  test('the results still show, with only Leave, then "Opponent left" at /online', async () => {
+    const { server, location } = await playing({ quickMatch: true });
+    const sentBefore = server.sent.length;
+    // As the game service sends them: the match ends with Bo out as `left`, then the room breaks up.
+    server.say({
+      event: 'matchEnd',
+      data: {
+        placements: [
+          { playerId: 'me', place: 1 },
+          { playerId: 'bo', place: 2, reason: 'left', frame: 40 },
+        ],
+        stats: [
+          { playerId: 'me', linesSent: 4, apm: 12.5, pps: 1.25 },
+          { playerId: 'bo', linesSent: 1, apm: 3, pps: 0.5 },
+        ],
+      },
+    });
+    server.say({ event: 'opponentLeft', data: {} });
+    const dialog = await screen.findByRole('dialog', { name: '1st place' });
+    expect(dialog).toHaveTextContent('Opponent left.');
+    expect(within(dialog).queryByRole('menuitem', { name: /Rematch/ })).not.toBeInTheDocument();
+    expect(location()).toBe('/r/K7QX');
+
+    await userEvent.keyboard('{Enter}');
+    expect(location()).toBe('/online');
+    expect(await screen.findByRole('heading', { name: 'Opponent left' })).toBeInTheDocument();
+    // Nothing was asked of the server meanwhile: no join of the room gone, no rematch.
+    expect(
+      server.sent
+        .slice(sentBefore)
+        .filter(({ event }) => event !== 'inputBatch' && event !== 'ping'),
+    ).toEqual([]);
+  });
+});
+
+describe('"Reconnecting…" (design §13.2), once and never over the spectating banner', () => {
+  test('a spectator sees it in the spectating banner', async () => {
+    const { server } = await joinedMidMatch();
+    server.drop();
+    expect(screen.getAllByText('Reconnecting…')).toHaveLength(1);
+    const banner = screen.getByText('Spectating').closest('[role="status"]') as HTMLElement;
+    expect(within(banner).getByText('Reconnecting…')).toBeInTheDocument();
+  });
+
+  test('a player at the results sees it once, over the HUD', async () => {
+    const { server } = await playing();
+    youWin(server);
+    await screen.findByRole('dialog', { name: '1st place' });
+    server.drop();
+    expect(screen.getAllByText('Reconnecting…')).toHaveLength(1);
+    const yours = screen.getByRole('region', { name: 'Your board' });
+    expect(within(yours).getByText('Reconnecting…')).toBeInTheDocument();
+  });
+
+  test('a spectator at the results sees it once, across the top', async () => {
+    const { server } = await joinedMidMatch();
+    server.say({
+      event: 'matchEnd',
+      data: {
+        placements: FFA_PLAYERS.map(({ id }, at) => ({ playerId: id, place: at + 1 })),
+        stats: FFA_PLAYERS.map(({ id }) => ({ playerId: id, linesSent: 3, apm: 5, pps: 1 })),
+      },
+    });
+    await screen.findByRole('dialog', { name: 'Results' });
+    server.drop();
+    expect(screen.getAllByText('Reconnecting…')).toHaveLength(1);
   });
 });
 

@@ -137,6 +137,42 @@ test.each([
   },
 );
 
+test('resuming isn’t a new session: a socket down 2.5 s with HTTP up comes back in time under a tight limit', async () => {
+  // Loopback is a trusted proxy and Ada's requests name an address that isn't exempt; her socket
+  // comes from loopback, which is. Each of her 11 tries during the drop reaches the gateway.
+  world = await onlineWorld({
+    limits: { trustedProxies: ['127.0.0.1', '::1'], sessionsPerIpPerMinute: 2 },
+  });
+  const line = faultySocket();
+  const ada = world.client('Ada', {
+    through: line.through,
+    fetchThrough: (fetch) => (url, init) =>
+      fetch(url, {
+        ...init,
+        headers: { ...init.headers, 'x-forwarded-for': '198.51.100.1' },
+      }),
+  });
+  const bo = world.client('Bo');
+  const code = await openRoom(world, '1v1', ada, bo);
+  await startMatch(world, ada, bo);
+  const sessionId = ada.getState().sessionId;
+  const drops: Drops = [
+    [ada, 16],
+    [bo, 10],
+  ];
+  let count = await play(0, 80, drops);
+
+  line.drop();
+  count = await play(count, count + 50, drops);
+  count = await restored(line, ada, count, drops);
+  count = await play(count, count + 20, drops);
+  expect(ada.getState().sessionId).toBe(sessionId);
+  expect(ada.getState().room?.code).toBe(code);
+  expect(ownGame(ada).out).toBeNull();
+  await playToEnd([ada, bo], drops, count);
+  expectVerified(world, code, [ada, bo]);
+});
+
 test('batches held up on the way for 1 s arrive in order, and the match carries on verified', async () => {
   world = await onlineWorld();
   const line = faultySocket();

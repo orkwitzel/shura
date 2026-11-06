@@ -15,7 +15,7 @@ async function lobby(room: OnlineRoom, state: Partial<OnlineSessionState> = {}) 
   const screen = await renderScreen(
     <LobbyView
       session={session}
-      server="http://localhost:8080"
+      web="http://127.0.0.1:5173"
       clock={fakeClock()}
       active
       onLeave={onLeave}
@@ -36,7 +36,7 @@ describe('what it shows', () => {
     expect(frame()).toContain('ROOM K7QX');
     expect(frame()).toContain('FFA');
     expect(frame()).toContain('shura join K7QX');
-    expect(frame()).toContain('http://localhost:8080/r/K7QX');
+    expect(frame()).toContain('http://127.0.0.1:5173/r/K7QX');
   });
 
   it('the seats with their tags, the host, ready and last place, and the empty seats', async () => {
@@ -163,7 +163,7 @@ describe("a player's keys", () => {
 
   it('R or Enter toggles ready', async () => {
     const { frame, type, session } = await lobby(room);
-    expect(frame()).toContain('R ready');
+    expect(frame()).toContain('R/Enter ready');
     await type(KEYS.letter('r'));
     expect(session.setReady).toHaveBeenLastCalledWith(true);
     session.set({ room: { ...room, players: room.players.map((p) => ({ ...p, ready: true })) } });

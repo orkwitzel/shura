@@ -9,9 +9,13 @@ src/
 ├── main.ts     runs the Commander program
 ├── app/        the root: the commands, which screen shows, the providers, starting Ink, the stores
 ├── screens/    one folder per screen: main-menu/, solo/, results/, settings/, online/
-├── components/ React components two screens share: the nickname prompt, the menu (entries and cursor)
-├── board/      board text drawing (rows of coloured characters), not React, and text-width: padding
-│               and cutting in terminal columns (string-width, cli-truncate), never `.length`
+├── components/ React components two screens share: the nickname prompt, the menu (entries and cursor),
+│               the rows of pre-coloured text a board is drawn in
+├── addresses/  where things are: the server's URL (`--server` > `SHURA_SERVER` > config), the web
+│               client's (`SHURA_WEB`), a room's link
+├── board/      board text drawing (rows of coloured characters), not React, opponents' boards (how many
+│               fit, a stack's height), and text-width: padding and cutting in terminal columns
+│               (string-width, cli-truncate), never `.length`
 └── platform/   anything that touches the terminal itself: input/, terminal/, the clock, file storage
 ```
 

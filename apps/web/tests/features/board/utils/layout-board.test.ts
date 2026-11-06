@@ -15,6 +15,7 @@ import {
   GHOST_DRAWING,
   layoutBoard,
   layoutSmallBoard,
+  rectStyle,
   SMALL_LAYOUT_CELLS,
 } from '@/features/board/utils/layout-board';
 
@@ -440,5 +441,14 @@ describe('layoutSmallBoard: an FFA opponent’s board', () => {
       expect(Number.isInteger(shape.x / 2)).toBe(true);
       expect(Number.isInteger(shape.y / 2)).toBe(true);
     }
+  });
+});
+
+test('a rectangle as CSS places an element at it', () => {
+  expect(rectStyle({ x: 10, y: 20, width: 30, height: 40 })).toEqual({
+    left: 10,
+    top: 20,
+    width: 30,
+    height: 40,
   });
 });

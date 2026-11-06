@@ -1,6 +1,7 @@
 import { type Key, useInput } from 'ink';
 import { render } from 'ink-testing-library';
 import type { RawKey, TerminalInput } from '../../src/platform/input/terminal-input';
+import { settle } from './ink';
 
 function Recorder({ onKey }: { onKey: (raw: RawKey) => void }) {
   useInput((input, key) => onKey({ input, key }));
@@ -15,10 +16,10 @@ export async function parseTerminalBytes(chunks: readonly string[]): Promise<Raw
   const keys: RawKey[] = [];
   const app = render(<Recorder onKey={(raw) => keys.push(raw)} />);
   // useInput subscribes in an effect, after the first render.
-  await tick();
+  await settle();
   for (const chunk of chunks) {
     app.stdin.write(chunk);
-    await tick();
+    await settle();
   }
   app.unmount();
   return keys;
@@ -35,18 +36,14 @@ export async function parseTimedBytes(chunks: readonly TimedBytes[]): Promise<Te
   const keys: TerminalInput[] = [];
   let time = 0;
   const app = render(<Recorder onKey={(raw) => keys.push({ ...raw, time })} />);
-  await tick();
+  await settle();
   for (const chunk of chunks) {
     time = chunk.time;
     app.stdin.write(chunk.bytes);
-    await tick();
+    await settle();
   }
   app.unmount();
   return keys;
-}
-
-function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /** A key as Ink reports it, for tests that don't need it parsed from bytes. */

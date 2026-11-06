@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { clearSessionToken, readSessionToken, saveSessionToken } from '@/lib/session-token';
+import { clearSessionToken, readSessionToken, saveSessionToken } from '@/lib/online/session-token';
 
 describe('the session token in sessionStorage', () => {
   afterEach(() => vi.restoreAllMocks());

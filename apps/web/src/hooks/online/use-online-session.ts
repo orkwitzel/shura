@@ -1,8 +1,8 @@
 import { handlingFrames, type OnlineSession } from '@shura/client-core';
 import { useSettingsStore } from '@shura/client-core/react';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { type OpenOnlineSession, openOnlineSession } from '@/lib/open-online-session';
-import { clearSessionToken, readSessionToken, saveSessionToken } from '@/lib/session-token';
+import { type OpenOnlineSession, openOnlineSession } from '@/lib/online/open-online-session';
+import { clearSessionToken, readSessionToken, saveSessionToken } from '@/lib/online/session-token';
 
 /**
  * How online sessions are opened: over the browser's `WebSocket` to this page's gateway. Tests

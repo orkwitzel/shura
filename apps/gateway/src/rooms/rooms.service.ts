@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   type ClientData,
-  errorBody,
   type GatewayToGameData,
   parseRoomCode,
   type RoomInfo,
@@ -18,10 +17,11 @@ import {
   type ConnectionSession,
   ConnectionsService,
   SessionsService,
+  sessionOf,
 } from '../sessions';
 import { STORES } from '../valkey';
 import { claimRoomCode, createRoomMessage, placeRoom } from './placement';
-import { REFUSE, roomNotFound } from './refusals';
+import { REFUSE, ROOM_GONE, roomNotFound } from './refusals';
 import type { CreateRoomDto, JoinRoomDto } from './rooms.dto';
 
 /** The room messages a client sends on to its room's pod as they are. */
@@ -46,8 +46,6 @@ export type EnterListener = (connection: Connection) => Promise<void> | void;
  */
 @Injectable()
 export class RoomsService {
-  /** Each connection's place in its room's link. */
-  readonly #members = new WeakMap<Connection, RoomMember>();
   readonly #enterListeners: EnterListener[] = [];
 
   constructor(
@@ -85,7 +83,7 @@ export class RoomsService {
    */
   createRoom(socket: WebSocket, { mode }: CreateRoomDto): Promise<void> {
     return this.connections.inTurn(socket, async (connection) => {
-      const session = this.#session(connection);
+      const session = sessionOf(connection);
       if (connection.roomCode) throw REFUSE.inARoom();
       const pod = await placeRoom(this.stores.podHealth);
       if (!pod) throw REFUSE.noPod();
@@ -151,7 +149,7 @@ export class RoomsService {
    */
   setNickname(socket: WebSocket, { nickname }: ClientData<'setNickname'>): Promise<void> {
     return this.connections.inTurn(socket, async (connection) => {
-      const session = this.#session(connection);
+      const session = sessionOf(connection);
       if (!connection.roomCode) throw REFUSE.notInRoom();
       const normalised = await this.sessions.rename(session, nickname);
       this.#forward(connection, { event: 'setNickname', data: { nickname: normalised } });
@@ -192,7 +190,7 @@ export class RoomsService {
     connection: Connection,
     { event, data }: { event: Event; data: ClientData<Event> },
   ): void {
-    const session = this.#session(connection);
+    const session = sessionOf(connection);
     const code = connection.roomCode;
     if (!code) throw REFUSE.notInRoom();
     this.links.forward(code, session.id, { event, data } as Parameters<
@@ -207,7 +205,7 @@ export class RoomsService {
     place: RoomPlace,
     create?: GatewayToGameData<'createRoom'>,
   ): Promise<void> {
-    const session = this.#session(connection);
+    const session = sessionOf(connection);
     for (const listener of this.#enterListeners) await listener(connection);
     const member = this.#memberOf(connection, session);
     connection.roomCode = code;
@@ -233,17 +231,14 @@ export class RoomsService {
       await this.#enter(connection, code, room);
       return;
     }
-    await this.stores.sessions.update(this.#session(connection).token, { roomCode: null });
-    this.connections.send(connection, {
-      event: 'exception',
-      data: { ...errorBody('room_not_found', 'Your room is gone.') },
-    });
+    await this.stores.sessions.update(sessionOf(connection).token, { roomCode: null });
+    this.connections.send(connection, { event: 'exception', data: { ...ROOM_GONE } });
   }
 
   /** Out of the room: off its link (with a `detach` if the socket closed), and out of the session. */
   async #exit(connection: Connection, { detach }: { readonly detach: boolean }): Promise<void> {
     const code = connection.roomCode;
-    const member = this.#members.get(connection);
+    const member = connection.roomMember;
     if (!code || !member || !connection.session) return;
     connection.roomCode = null;
     this.links.exit(code, member, { detach });
@@ -257,31 +252,26 @@ export class RoomsService {
 
   /** The connection's member of its room's link: what the pod's messages for it reach. */
   #memberOf(connection: Connection, session: ConnectionSession): RoomMember {
-    let member = this.#members.get(connection);
+    let member = connection.roomMember;
     if (!member) {
       member = {
         sessionId: session.id,
-        deliver: (event, data) => {
-          this.connections.send(connection, { event, data } as Parameters<
-            ConnectionsService['send']
-          >[1]);
+        deliver: (message) => {
+          this.connections.send(connection, message);
           // A quick-match room broke up (design §9.4): the pod has already taken the session out.
-          if (event === 'opponentLeft') this.#brokenUp(connection);
+          if (message.event === 'opponentLeft') this.#brokenUp(connection);
         },
         lost: (code) => {
           this.connections
             .inTurn(connection.socket, (current) => {
               if (current.roomCode !== code) return;
               current.roomCode = null;
-              this.connections.send(current, {
-                event: 'exception',
-                data: { code: 'room_not_found', message: "The room's server went away." },
-              });
+              this.connections.send(current, { event: 'exception', data: { ...ROOM_GONE } });
             })
             .catch(() => {});
         },
       };
-      this.#members.set(connection, member);
+      connection.roomMember = member;
     }
     return member;
   }
@@ -294,11 +284,5 @@ export class RoomsService {
         if (current.roomCode === code) await this.#exit(current, { detach: false });
       })
       .catch((error: unknown) => this.logger.warn({ err: error }, 'leaving a broken-up room'));
-  }
-
-  #session(connection: Connection): ConnectionSession {
-    // SessionGuard has let the message through, so the hello succeeded.
-    if (!connection.session) throw new Error('a room message before hello');
-    return connection.session;
   }
 }

@@ -1,7 +1,6 @@
 import { errorText, type OnlineConnection } from '@shura/client-core';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import styles from './connection-screen.module.css';
 
 export interface ConnectionScreenProps {
@@ -24,23 +23,14 @@ export interface ConnectionScreenProps {
 export function ConnectionScreen({ connection, onRetry, onBack, onReload }: ConnectionScreenProps) {
   const failure = connection.status === 'failed' ? connection : null;
   const outdated = failure?.reason === 'version_mismatch';
-  useHotkeys(
-    'escape',
-    (event) => {
-      event.preventDefault();
-      onBack();
-    },
-    SCREEN_HOTKEYS,
-  );
-  useHotkeys(
+  useScreenHotkeys('escape', () => onBack());
+  useScreenHotkeys(
     'enter',
-    (event) => {
-      // Also stops the focused button clicking itself as well.
-      event.preventDefault();
+    () => {
       if (outdated) onReload();
       else onRetry();
     },
-    { ...SCREEN_HOTKEYS, enabled: failure !== null },
+    { enabled: failure !== null },
   );
 
   if (!failure) {

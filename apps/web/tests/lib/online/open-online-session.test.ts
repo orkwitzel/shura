@@ -1,6 +1,6 @@
 import type { Connect, Fetch } from '@shura/client-core';
 import { describe, expect, test, vi } from 'vitest';
-import { deferredConnect, deferredFetch } from '@/lib/open-online-session';
+import { deferredConnect, deferredFetch } from '@/lib/online/open-online-session';
 
 describe('deferredConnect', () => {
   const handlers = { open: () => {}, message: () => {}, close: () => {} };

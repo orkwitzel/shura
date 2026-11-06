@@ -8,14 +8,13 @@ import {
 } from '@shura/client-core';
 import { SEATS } from '@shura/protocol';
 import type { ReactNode } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useStore } from 'zustand';
 import { PingChip } from '@/components/ping-chip';
 import { Button } from '@/components/ui/button';
 import { copyText } from '@/lib/clipboard';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
-import { showToast } from '@/lib/toasts';
-import { useRoomToasts } from '../hooks/use-room-toasts';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
+import { showNotice } from '@/lib/notices';
+import { useRoomNotices } from '../hooks/use-room-notices';
 import styles from './lobby.module.css';
 
 export interface LobbyProps {
@@ -38,25 +37,24 @@ type Seated = OnlineRoom['players'][number];
  * with a count; the player's ping in a corner. Keys, each shown as a key cap: **R** or Enter
  * toggles ready (Enter is *Start* for the host, once another seated player is ready, with a hint
  * saying what it waits for until then), **S** steps out to watch or takes a free seat, **N**
- * changes the nickname, **Esc** leaves the room. Joins, leaves and host changes show as toasts.
+ * changes the nickname, **Esc** leaves the room. Joins, leaves and host changes show as notices.
  */
 export function Lobby({ session, link, onChangeNickname, acceptKeys = true }: LobbyProps) {
   const room = useStore(session, (state) => state.room);
   const sessionId = useStore(session, (state) => state.sessionId);
   const ping = useStore(session, (state) => state.ping);
-  useRoomToasts(session);
+  useRoomNotices(session);
   const role = room ? lobbyRole(room, sessionId) : ({ kind: 'spectator' } as const);
   const seatFree = room !== null && room.players.length < SEATS[room.mode];
 
   const copy = async () => {
-    showToast((await copyText(link)) ? 'Link copied' : `Couldn’t copy: ${link}`);
+    showNotice((await copyText(link)) ? 'Link copied' : `Couldn’t copy: ${link}`);
   };
 
   // Each handled key is taken (`preventDefault`); Enter and Numpad Enter both read as `enter`.
-  useHotkeys(
+  useScreenHotkeys(
     'r, enter, s, n, escape',
-    (event, { keys }) => {
-      event.preventDefault();
+    (_event, { keys }) => {
       const key = keys?.[0];
       if (key === 'r' || key === 'enter') {
         if (role.kind === 'host' && role.canStart) session.startMatch();
@@ -64,12 +62,12 @@ export function Lobby({ session, link, onChangeNickname, acceptKeys = true }: Lo
       } else if (key === 's') {
         if (role.kind === 'spectator') {
           if (seatFree) session.takeSeat();
-          else showToast('No free seat', 'alert');
+          else showNotice('No free seat', 'alert');
         } else session.spectate();
       } else if (key === 'n') onChangeNickname();
       else session.leaveRoom();
     },
-    { ...SCREEN_HOTKEYS, enabled: acceptKeys },
+    { enabled: acceptKeys },
   );
 
   if (!room) return null;

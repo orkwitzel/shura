@@ -18,7 +18,6 @@ import {
 import { useSettings, useSettingsStore } from '@shura/client-core/react';
 import type { PieceActionType } from '@shura/engine';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
 import { KeyCapture } from '@/components/ui/key-capture';
 import { RadioGroup, type RadioOption } from '@/components/ui/radio-group';
@@ -27,7 +26,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { DEFAULT_BINDINGS } from '@/config/default-bindings';
 import { useEffects } from '@/hooks/use-effects';
 import { keyLabel } from '@/lib/keyboard/key-labels';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import { ctrlWarning } from '../utils/ctrl-warning';
 import { NicknameSetting } from './nickname-setting';
 import styles from './settings-form.module.css';
@@ -154,14 +153,11 @@ export function SettingsForm({ onClose }: SettingsFormProps) {
   }, []);
 
   // Esc leaves, from anywhere on the page. A key capture that's waiting keeps its Esc to itself.
-  useHotkeys(
+  useScreenHotkeys(
     'escape',
-    (event) => {
-      event.preventDefault();
-      onClose();
-    },
+    () => onClose(),
     // Held, the key repeat leaves too.
-    { ...SCREEN_HOTKEYS, ignoreEventWhen: (event) => event.defaultPrevented },
+    { ignoreEventWhen: (event) => event.defaultPrevented },
   );
 
   const change = (next: SettingsChange, said = '') => {

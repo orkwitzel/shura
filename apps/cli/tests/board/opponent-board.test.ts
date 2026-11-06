@@ -2,7 +2,12 @@ import { THEMES } from '@shura/client-core';
 import { createEngine, GARBAGE, ONE_VS_ONE } from '@shura/engine';
 import { expect, test } from 'vitest';
 import { lookOf } from '../../src/board/look';
-import { opponentBoardRows } from '../../src/board/opponent-board';
+import {
+  boardsFitting,
+  OPPONENT_BOARD,
+  opponentBoardRows,
+  stackHeight,
+} from '../../src/board/opponent-board';
 
 /** A fresh 1v1 game with its spawned piece. */
 const game = () => createEngine(ONE_VS_ONE, 7, 0).state;
@@ -43,4 +48,19 @@ test('an out board is greyed', () => {
   expect(drawn(false)).toContain(tColour);
   expect(drawn(true)).not.toContain(tColour);
   expect(drawn(true)).toContain(`38;2;${THEMES.indigo.chrome.grid.rgb.join(';')}m`);
+});
+
+test('a stack’s height is its highest filled row, counted from the floor', () => {
+  const state = structuredClone(createEngine(ONE_VS_ONE, 7, 0).serialize());
+  expect(stackHeight(state)).toBe(0);
+  state.board[0] = state.board[0]?.map(() => GARBAGE) ?? [];
+  state.board[3] = state.board[3]?.map((_, col) => (col === 4 ? 'T' : null)) ?? [];
+  expect(stackHeight(state)).toBe(4);
+});
+
+test('how many opponent boards fit: whole boards per row, and rows of them', () => {
+  expect(OPPONENT_BOARD).toEqual({ width: 14, height: 12 });
+  expect(boardsFitting(100, 30)).toEqual({ perRow: 7, total: 14 });
+  expect(boardsFitting(13, 30)).toEqual({ perRow: 0, total: 0 });
+  expect(boardsFitting(28, -1)).toEqual({ perRow: 2, total: 0 });
 });

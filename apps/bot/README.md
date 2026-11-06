@@ -33,12 +33,12 @@ Bodies are JSON of at most 4 KiB. A refusal is JSON `{ error }`: 400 for a bad r
 | Variable | Default | |
 |---|---|---|
 | `BOT_PORT` | `8090` | the HTTP API's port |
-| `GATEWAY_URL` | `http://localhost:8080` | the gateway's HTTP origin, which the bots connect to (sessions under `/api`, the socket at `/ws`) |
+| `GATEWAY_URL` | `http://127.0.0.1:8080` | the gateway's HTTP origin, which the bots connect to (sessions under `/api`, the socket at `/ws`) |
 | `BOT_SEED` | random | seeds every bot's choices, to replay a run |
 | `LOG_LEVEL` | `info` | pino's level |
 | `NODE_ENV` | `production` | `development` (set by `pnpm dev:bot`) pretty-prints the logs; anything else logs JSON |
 
-`pnpm bot` talks to `BOT_URL` (default `http://localhost:8090`).
+`pnpm bot` talks to `BOT_URL` (default `http://127.0.0.1:8090`).
 
 ## Code
 

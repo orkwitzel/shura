@@ -16,6 +16,7 @@ import {
   srs,
   VISIBLE_ROWS,
 } from '@shura/engine';
+import type { CSSProperties } from 'react';
 import { shade } from '@/utils/color';
 
 /** A rectangle, in the layout's pixels (CSS pixels), from its top-left corner. */
@@ -435,4 +436,9 @@ export function layoutSmallBoard(
     regions: { well },
     shapes: draw.shapes,
   };
+}
+
+/** A rectangle as a positioned element's CSS: its place in the window, in CSS pixels. */
+export function rectStyle({ x, y, width, height }: Rect): CSSProperties {
+  return { left: x, top: y, width, height };
 }

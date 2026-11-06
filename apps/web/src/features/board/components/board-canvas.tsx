@@ -25,7 +25,13 @@ import { effectsForEvents } from '../effects/utils/effects-for-events';
 import { useViewport } from '../hooks/use-viewport';
 import { createBoardPainter } from '../pixi/board-painter';
 import { type BoardFit, fitBoard } from '../utils/cell-size';
-import { boardRegions, LAYOUT_CELLS, layoutBoard, type Rect } from '../utils/layout-board';
+import {
+  boardRegions,
+  LAYOUT_CELLS,
+  layoutBoard,
+  type Rect,
+  rectStyle,
+} from '../utils/layout-board';
 import styles from './board-canvas.module.css';
 
 export interface BoardCanvasProps {
@@ -55,13 +61,6 @@ const sizeOf = ({ cellSize }: BoardFit, resolution: number): PixiSize => ({
   width: LAYOUT_CELLS.width * cellSize,
   height: LAYOUT_CELLS.height * cellSize,
   resolution,
-});
-
-const place = ({ x, y, width, height }: Rect): CSSProperties => ({
-  left: x,
-  top: y,
-  width,
-  height,
 });
 
 /**
@@ -169,7 +168,7 @@ export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasPro
   } as CSSProperties;
   /** A box's label, in the cell above its frame. */
   const labelOf = (box: Rect): CSSProperties => ({
-    ...place({ ...box, y: box.y - fit.cellSize, height: fit.cellSize * 0.8 }),
+    ...rectStyle({ ...box, y: box.y - fit.cellSize, height: fit.cellSize * 0.8 }),
   });
   return (
     <div className={styles.stage}>
@@ -182,12 +181,12 @@ export function BoardCanvas({ session, overlay, aside, onShown }: BoardCanvasPro
           Next
         </span>
         {aside !== undefined && (
-          <div className={styles.aside} style={place(regions.aside)}>
+          <div className={styles.aside} style={rectStyle(regions.aside)}>
             {aside}
           </div>
         )}
         {overlay !== undefined && (
-          <div className={styles.overlay} style={place(regions.well)}>
+          <div className={styles.overlay} style={rectStyle(regions.well)}>
             {overlay}
           </div>
         )}
