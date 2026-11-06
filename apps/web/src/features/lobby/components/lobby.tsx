@@ -8,12 +8,11 @@ import {
 } from '@shura/client-core';
 import { SEATS } from '@shura/protocol';
 import type { ReactNode } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { useStore } from 'zustand';
 import { PingChip } from '@/components/ping-chip';
 import { Button } from '@/components/ui/button';
 import { copyText } from '@/lib/clipboard';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import { showToast } from '@/lib/toasts';
 import { useRoomToasts } from '../hooks/use-room-toasts';
 import styles from './lobby.module.css';
@@ -53,10 +52,9 @@ export function Lobby({ session, link, onChangeNickname, acceptKeys = true }: Lo
   };
 
   // Each handled key is taken (`preventDefault`); Enter and Numpad Enter both read as `enter`.
-  useHotkeys(
+  useScreenHotkeys(
     'r, enter, s, n, escape',
-    (event, { keys }) => {
-      event.preventDefault();
+    (_event, { keys }) => {
       const key = keys?.[0];
       if (key === 'r' || key === 'enter') {
         if (role.kind === 'host' && role.canStart) session.startMatch();
@@ -69,7 +67,7 @@ export function Lobby({ session, link, onChangeNickname, acceptKeys = true }: Lo
       } else if (key === 'n') onChangeNickname();
       else session.leaveRoom();
     },
-    { ...SCREEN_HOTKEYS, enabled: acceptKeys },
+    { enabled: acceptKeys },
   );
 
   if (!room) return null;

@@ -18,11 +18,12 @@ src/
 │                  settings/, sound/, connection/, online-menu/, nickname/, lobby/, match/
 │                  (the online menu, names, out labels, the spectating banner)
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
-│                  backdrop, the "needs a keyboard" screen, the ping chip
+│                  backdrop, the "needs a keyboard" screen, the ping chip, the stat (a HUD chip or
+│                  a results row)
 ├── hooks/         shared hooks: use-solo-session, use-game-keys (a game's keys from the window),
 │                  use-online-session, use-room-link, use-room-address, use-theme,
 │                  use-reduced-motion
-├── lib/           browser APIs and libraries set up for Shura: keyboard/ (with screen-hotkeys,
+├── lib/           browser APIs and libraries set up for Shura: keyboard/ (with use-screen-hotkeys,
 │                  how screens' own keys listen through react-hotkeys-hook), pixi/, audio/,
 │                  raf-clock, online-clock (worker-timers in a hidden tab), open-online-session
 │                  (fetch and the WebSocket), server-api (the API client), session-token

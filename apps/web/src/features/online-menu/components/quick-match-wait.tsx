@@ -1,8 +1,7 @@
 import { formatWait } from '@shura/client-core';
 import { useEffect, useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import styles from './quick-match-wait.module.css';
 
 export interface QuickMatchWaitProps {
@@ -33,22 +32,8 @@ function useElapsed(since: number): number {
  */
 export function QuickMatchWait({ status, since, onCancel, onSearchAgain }: QuickMatchWaitProps) {
   const elapsed = useElapsed(since);
-  useHotkeys(
-    'escape',
-    (event) => {
-      event.preventDefault();
-      onCancel();
-    },
-    SCREEN_HOTKEYS,
-  );
-  useHotkeys(
-    'enter',
-    (event) => {
-      event.preventDefault();
-      onSearchAgain();
-    },
-    { ...SCREEN_HOTKEYS, enabled: status === 'opponentLeft' },
-  );
+  useScreenHotkeys('escape', () => onCancel());
+  useScreenHotkeys('enter', () => onSearchAgain(), { enabled: status === 'opponentLeft' });
 
   if (status === 'opponentLeft') {
     return (

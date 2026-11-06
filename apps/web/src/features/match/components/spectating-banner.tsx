@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
 import { Button } from '@/components/ui/button';
-import { SCREEN_HOTKEYS } from '@/lib/keyboard/screen-hotkeys';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import styles from './spectating-banner.module.css';
 
 export interface SpectatingBannerProps {
@@ -19,14 +18,7 @@ export interface SpectatingBannerProps {
  * handled the Esc.
  */
 export function SpectatingBanner({ detail, status, onLeave }: SpectatingBannerProps) {
-  useHotkeys(
-    'escape',
-    (event) => {
-      event.preventDefault();
-      onLeave();
-    },
-    SCREEN_HOTKEYS,
-  );
+  useScreenHotkeys('escape', () => onLeave());
   return (
     <div className={styles.banner} role="status">
       <span className={styles.title}>Spectating</span>
