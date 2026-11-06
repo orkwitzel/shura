@@ -6,6 +6,7 @@ import {
   GARBAGE,
   type GarbageAcceptedAction,
   type GarbageEntry,
+  type GarbageReceivedAction,
   holeColumn,
   ONE_VS_ONE,
   type ReadonlyEngineState,
@@ -25,6 +26,11 @@ const O_IN_CORNER: ActivePiece = { kind: 'O', col: 0, row: 1, rotation: 0 };
 const A: GarbageEntry = { id: 1, lines: 3, holeSeed: 101 };
 const B: GarbageEntry = { id: 2, lines: 4, holeSeed: 202 };
 
+/** `garbageReceived` for `entry` at `frame`: the client's record of the server's `garbageQueued`. */
+function received(frame: number, { id, lines, holeSeed }: GarbageEntry): GarbageReceivedAction {
+  return { frame, type: ActionType.GarbageReceived, id, lines, holeSeed };
+}
+
 describe('the garbage meter', () => {
   test('starts empty', () => {
     expect(gameOf().state.garbageMeter).toEqual([]);
@@ -33,14 +39,119 @@ describe('the garbage meter', () => {
   test('shows queued garbage, oldest first', () => {
     expect(gameOf({ garbage: [A, B] }).state.garbageMeter).toEqual([A, B]);
   });
+});
 
-  test('rejects an entry with no lines, a reused id or a hole seed out of range', () => {
-    const engine = gameOf({ garbage: [A] });
-    expect(() => engine.queueGarbage({ ...B, lines: 0 })).toThrow(RangeError);
-    expect(() => engine.queueGarbage({ ...B, id: A.id })).toThrow(RangeError);
-    expect(() => engine.queueGarbage({ ...B, holeSeed: -1 })).toThrow(RangeError);
-    expect(() => engine.queueGarbage({ ...B, holeSeed: 2 ** 32 })).toThrow(RangeError);
-    expect(engine.state.garbageMeter).toEqual([A]);
+describe('receiving garbage', () => {
+  test.each([
+    { way: 'accepting garbage', acceptGarbage: true },
+    { way: 'replaying', acceptGarbage: false },
+  ])(
+    'garbageReceived adds the attack to the end of the meter at its frame, $way',
+    ({ acceptGarbage }) => {
+      const engine = gameOf({ garbage: [A] });
+      engine.step(3, [received(3, B)], { acceptGarbage });
+      expect(engine.state.garbageMeter).toEqual([A, B]);
+    },
+  );
+
+  test("applies before the frame's other actions, wherever it stands among them", () => {
+    // The Tetris at frame 1 cancels all 3 of A's lines and sends 1: A was already in the meter.
+    const engine = gameOf(clearing(4));
+    const { sent } = engine.step(1, [...HARD_DROP_AT_1, received(1, A)]);
+    expect(sent).toEqual([{ frame: 1, lines: 1 }]);
+    expect(engine.state.garbageMeter).toEqual([]);
+  });
+
+  // The regression test for the bug in ADR 0013: an attack can be cancelled from the frame it was
+  // received at, and not before, whichever way the engine runs.
+  describe.each([
+    { way: 'accepting garbage', acceptGarbage: true },
+    { way: 'replaying', acceptGarbage: false },
+  ])('an attack received at frame 5, $way', ({ acceptGarbage }) => {
+    const RECEIVED_AT_5 = received(5, B);
+
+    test.each([1, 4])("isn't cancelled by a Tetris at frame %i, before it", (frame) => {
+      const engine = gameOf(clearing(4));
+      const actions: Action[] = [{ frame, type: ActionType.HardDrop }, RECEIVED_AT_5];
+      const { sent } = engine.step(5, actions, { acceptGarbage });
+      expect(sent).toEqual([{ frame, lines: 4 }]);
+      expect(engine.state.garbageMeter).toEqual([B]);
+    });
+
+    test.each([5, 6])('is cancelled by a Tetris at frame %i, at or after it', (frame) => {
+      const engine = gameOf(clearing(4));
+      const actions: Action[] = [RECEIVED_AT_5, { frame, type: ActionType.HardDrop }];
+      const { sent } = engine.step(6, actions, { acceptGarbage });
+      expect(sent).toEqual([]);
+      // The Tetris's 4 lines cancel all 4 of B's.
+      expect(engine.state.garbageMeter).toEqual([]);
+    });
+  });
+
+  test('lands at the lock that clears nothing in the frame it is received at, accepting garbage', () => {
+    const engine = gameOf({ piece: O_IN_CORNER });
+    const { accepted } = engine.step(1, [...HARD_DROP_AT_1, received(1, A)], {
+      acceptGarbage: true,
+    });
+    expect(accepted).toEqual([{ frame: 1, type: ActionType.GarbageAccepted, id: A.id }]);
+    expect(holesOf(engine.state)).toHaveLength(A.lines);
+  });
+
+  test('lands where a garbageAccepted in the frame it is received at says, replaying', () => {
+    const accepting = gameOf({ piece: O_IN_CORNER });
+    const { accepted } = accepting.step(1, [...HARD_DROP_AT_1, received(1, A)], {
+      acceptGarbage: true,
+    });
+    const replayed = gameOf({ piece: O_IN_CORNER });
+    replayed.step(1, [...accepted, ...HARD_DROP_AT_1, received(1, A)]);
+    expect(replayed.state.garbageMeter).toEqual([]);
+    expect(replayed.hash()).toBe(accepting.hash());
+  });
+
+  describe.each([
+    { way: 'accepting garbage', acceptGarbage: true },
+    { way: 'replaying', acceptGarbage: false },
+  ])('throws and changes nothing, $way,', ({ acceptGarbage }) => {
+    function expectRefused(actions: Action[], engine = gameOf({ garbage: [A] })) {
+      const before = engine.hash();
+      expect(() => engine.step(10, actions, { acceptGarbage })).toThrow(RangeError);
+      expect(engine.hash()).toBe(before);
+    }
+
+    test('on an id already in the meter', () => {
+      expectRefused([received(2, { ...B, id: A.id })]);
+    });
+
+    test('on an id received earlier in the same step', () => {
+      expectRefused([received(2, B), received(3, { ...B, lines: 1 })]);
+    });
+
+    test('on an id received before, even once it has landed', () => {
+      const engine = gameOf({ piece: O_IN_CORNER });
+      engine.step(1, [received(1, A), ...HARD_DROP_AT_1], { acceptGarbage: true });
+      expect(engine.state.garbageMeter).toEqual([]);
+      expectRefused([received(2, A)], engine);
+    });
+
+    test('on an attack with no lines', () => {
+      expectRefused([received(2, { ...B, lines: 0 })]);
+    });
+
+    test.each([-1, 2 ** 32, 1.5])('on the hole seed %d', (holeSeed) => {
+      expectRefused([received(2, { ...B, holeSeed })]);
+    });
+
+    test('on a bad id', () => {
+      expectRefused([received(2, { ...B, id: -1 })]);
+    });
+
+    test('in a single-player mode', () => {
+      expectRefused([received(2, B)], gameOfMode(TEST_SETTINGS));
+    });
+
+    test('even after a valid garbageReceived in an earlier frame', () => {
+      expectRefused([received(2, B), received(3, { ...B, id: 3, lines: 0 })]);
+    });
   });
 });
 
@@ -138,9 +249,8 @@ describe('garbage landing, accepting garbage as it comes', () => {
     const [first, second] = SAME_COLUMN as [GarbageEntry, GarbageEntry];
     const engine = gameOf({ piece: O_IN_CORNER, garbage: [first] });
     engine.step(1, HARD_DROP_AT_1, { acceptGarbage: true });
-    engine.queueGarbage(second);
     // The next piece falls and locks on its own at the lock delay's end, clearing nothing.
-    engine.step(2_000, [], { acceptGarbage: true });
+    engine.step(2_000, [received(2, second)], { acceptGarbage: true });
     expect(engine.state.garbageMeter).toEqual([]);
     expect(holesOf(engine.state)).toEqual([
       holeColumn(7, holeColumn(3, null)),
@@ -258,10 +368,9 @@ describe('garbage landing, replaying garbageAccepted', () => {
 });
 
 describe('sending garbage', () => {
-  test('a single-player mode sends none and takes none', () => {
+  test('a single-player mode sends none', () => {
     const engine = gameOfMode(TEST_SETTINGS, clearing(4));
     expect(engine.step(1, HARD_DROP_AT_1).sent).toEqual([]);
-    expect(() => engine.queueGarbage(A)).toThrow(RangeError);
   });
 
   const TETRIS_READY = clearing(4);

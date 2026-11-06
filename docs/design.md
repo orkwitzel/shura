@@ -138,7 +138,7 @@ Two checks enforce these mechanically. The engine's `tsconfig.json` loads no Nod
 
     Events are output only: they are never part of the engine state, `serialize` or `hash`, so adding or changing them never changes game outcomes. Stepping a span of frames in one call or in several gives the same events. A `step` that throws reports nothing, since it changes nothing. The server ignores them.
 - There is no way to add garbage between frames. An attack reaches the meter only through a `garbageReceived` action, so a game's action log is the whole of its input: replaying it needs nothing beside it. (`queueGarbage`, which added an attack between frames, was removed in M4: the frame at which it ran wasn't recorded, so a server replaying the game couldn't know which locks it could cancel. See [ADR 0013](adr/0013-received-garbage-is-an-action.md).)
-- `engine.state` is read-only: board (garbage cells are `G`), active piece, hold, queue, garbage meter (the attacks not yet landed, oldest first, each with the lines it has left), the margin carry (§3), the last attack that landed and its hole column (§3), stats (level, score, lines cleared, pieces placed, the combo counter and back-to-back status), the last turn (for T-spin detection), whether the player has topped out, and whether the game finished by the mode's end condition. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out or a garbage overflow it is the piece that locked.
+- `engine.state` is read-only: board (garbage cells are `G`), active piece, hold, queue, garbage meter (the attacks not yet landed, oldest first, each with the lines it has left), the id of every attack received so far (`receivedGarbageIds`, so no id is received twice), the margin carry (§3), the last attack that landed and its hole column (§3), stats (level, score, lines cleared, pieces placed, the combo counter and back-to-back status), the last turn (for T-spin detection), whether the player has topped out, and whether the game finished by the mode's end condition. There is always an active piece: after a block out it is the piece that couldn't spawn, left overlapping the stack where clients can show it, and after a lock out or a garbage overflow it is the piece that locked.
 - `engine.serialize() → EngineState` and `restoreEngine(state) → Engine` produce and consume plain data. They're used for join and reconnect snapshots (§8.6) and in tests.
 - `engine.hash()` is a stable hash of the full state, used by the replay-hash tests and for debugging.
 - Pure helpers, exported and unit-tested: SRS kick lookup (`srs.kicks`, behind the `RotationSystem` interface which also gives each piece's cell offsets in each rotation state), T-spin detection (`detectTSpin`, from the board, the T and the last turn with its kick), the attack calculator (`calculateAttack`, from the combo counter and back-to-back status before the lock and what it cleared, and `applyMarginTime`, from the attack, the frame, margin time and the carry), garbage cancellation (`cancelGarbage`, over a garbage meter), the hole column of a hole seed after the last attack's column (`holeColumn`), and each player's garbage RNG (`holeSeeds`). Two more read `engine.state` for the client's input engine (§7.3) and change nothing: `canMove(state, cols, rows)`, whether the active piece fits inside the walls, above the floor and clear of the stack when moved by `cols` columns right and `rows` rows up (negative for left and down), checking only where it ends; and `currentGravity(state)`, the gravity the next frame builds up in sub-rows per frame, from the mode's gravity curve at the current level or, for a curve that follows time, at the next frame (so it rises a frame before each versus speed-up). A lock in that frame can still raise the level first.
@@ -392,8 +392,8 @@ Every room assignment carries an **epoch** number, incremented whenever the room
 
 ### 9.4 Quick-match
 
-- The queue is a Valkey list or sorted set shared by all gateways.
-- On `quickMatch`, the gateway atomically pops a waiting partner with a Lua script. If none is waiting, it enqueues the player.
+- The queue is a Valkey list shared by all gateways, oldest entry first.
+- On `quickMatch`, the gateway atomically pops a waiting partner with a Lua script. If none is waiting, it enqueues the player. The same script refuses a session that is already queued or still cooling down.
 - When a pair forms, the pairing gateway creates the room (§9.2), and a Valkey pub/sub message tells the waiting player's gateway to attach them.
 - Quick-match rooms have no host and start automatically. 1v1 only. They skip the lobby: after results both players get *Rematch*, which starts the next match once both have pressed it, or *Leave*. If one leaves, the other gets `opponentLeft` and goes back to the quick-match waiting screen, from where they can queue again.
 - Each session can have one queue entry. Leaving and rejoining quickly triggers a short cooldown.
@@ -404,12 +404,18 @@ Accessed only through `packages/valkey` interfaces, using `iovalkey`. Initial ke
 
 | Key | Type | Content | TTL |
 |---|---|---|---|
-| `room:{code}` | hash | pod address, epoch, mode, phase, settings, host | deleted with the room |
-| `qm:1v1` | list / zset | waiting session ids | n/a |
+| `room:{code}` | hash | pod address, epoch, mode (which fixes the settings, §4), phase, host | deleted with the room |
+| `qm:1v1` | list | waiting session ids, oldest first | n/a |
+| `qm:cooldown:{sessionId}` | string | set while a session that left the queue waits to rejoin it | the requeue cooldown (3 s) |
+| `qm:matched` | pub/sub channel | `{ sessionId, partnerId, roomCode }`: tells the waiting player's gateway that a pair formed | n/a |
 | `session:{token}` | hash | session id, nickname, current room | ~30 min sliding |
 | `pod:{id}` | hash | address, room count, engineVersion, draining | 5 s, refreshed every 2 s |
+| `pods` | sorted set | every pod id, scored by when its heartbeat expires (on the beating pod's clock), so gateways list pods with no SCAN; the hash's own TTL is what counts, and a beat drops ids already expired | n/a |
 | `log:{matchId}` | stream | seed + settings entry, then one entry per room every 100 ms of verified batches and garbage routings (tagged with epoch) | deleted at match end |
-| `rl:*` | counters | rate-limit buckets and connection counts per IP / session (`RateLimiter`, §11) | short |
+| `rl:bucket:{key}` | hash | a token bucket's tokens and when they were counted (`RateLimiter`, §11) | until it would be full again |
+| `rl:count:{key}` | counter | a connection count (`RateLimiter`, §11) | set by the caller, restarted on each count or refresh |
+
+The `{key}` of a rate limit is the caller's, such as `ip:{address}:new` or `session:{id}`. Every key and channel can take a prefix, which tests use to share one Valkey. Each interface has an in-memory version with the same behaviour, on an injected clock, for tests and single-process runs. Every change that reads and then writes runs as one Lua script, so concurrent calls from several pods stay atomic. Rate-limit buckets refill on the calling pod's clock, passed into the script, so pods' clocks must be in sync (NTP).
 
 In production Valkey runs with a replica and failover (Sentinel or a managed service; deferred), with AOF `everysec`.
 
@@ -417,7 +423,7 @@ In production Valkey runs with a replica and failover (Sentinel or a managed ser
 
 See [ADR 0007](adr/0007-full-match-log-in-valkey.md).
 
-- At match start, `game` writes the seed, mode settings and player list as the first entry of `log:{matchId}`.
+- At match start, `game` writes the seed, mode settings and player list as the first entry of `log:{matchId}`. Each stream entry holds its data as JSON, and each append its epoch as a field of its own, so a phase-2 fencing script can check it without parsing the data. `MatchLog` doesn't know the entries' shapes: `game` parses what it reads back.
 - Every 100 ms it appends one entry per room containing all players' newly verified batches and the garbage routings since the last entry: each `garbageQueued` (attacker, target, id, lines, hole seed, and the target's verified frame when it was sent). That's about 10 appends/s per room, pipelined. The routings record the match RNG's FFA draws (§4) and the sent-not-received lists (§8.5), which phase-2 recovery needs and the batches alone don't give.
 - A batch is acknowledged to its client only after the append containing it succeeds.
 - The log is **complete**: no checkpoints and no trimming. Approximate sizes: a 3-minute 1v1 ≈ 0.7 MB, a 3-minute 8-player FFA ≈ 2.9 MB, 1,000 concurrent rooms ≈ 0.5–1 GB at peak. Margin time keeps matches bounded.
