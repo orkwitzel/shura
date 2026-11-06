@@ -77,7 +77,7 @@ interface Player extends MatchPlayer {
  * Seams for later issues:
  * - #62 garbage routing and the match log: `#checkGarbage`, `#routeGarbage`, and acknowledging only
  *   after the log append that holds the batch (`#acknowledge`);
- * - #64 reconnects: a batch sent again is acknowledged again (`receive`), snapshots of the engines.
+ * - #62 fills `unreceivedGarbage` in, for a player coming back mid-match.
  */
 export class Match {
   readonly matchId: string;
@@ -138,6 +138,39 @@ export class Match {
       frame,
       hash: engine.hash(),
     }));
+  }
+
+  /**
+   * Every player's game at their own last verified frame (design §8.6): what someone joining or
+   * coming back mid-match restores, then plays each player's relays on from.
+   */
+  snapshot(): ServerMessage {
+    return {
+      event: 'snapshot',
+      data: {
+        players: [...this.#players.values()].map(({ id, frame, engine }) => ({
+          playerId: id,
+          frame,
+          state: engine.serialize(),
+        })),
+      },
+    };
+  }
+
+  /** A `playerOut` for each player already out, for someone joining or coming back (§8.6). */
+  outs(): ServerMessage[] {
+    return [...this.#players.values()].flatMap(({ id, out }) =>
+      out ? [{ event: 'playerOut' as const, data: { playerId: id, ...out } }] : [],
+    );
+  }
+
+  /**
+   * The attacks sent to `playerId` that none of their verified batches has received yet, as the
+   * `garbageQueued` sent again when they come back (design §8.6). Nothing is routed until #62,
+   * which fills this in from the player's sent-not-received list.
+   */
+  unreceivedGarbage(_playerId: string): ServerMessage[] {
+    return [];
   }
 
   /**

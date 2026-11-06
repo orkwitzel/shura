@@ -30,6 +30,7 @@ test('ERRORS has every code the design names, with its HTTP status (§8.3, §8.7
     'wrong_phase',
     'not_in_room',
     'unavailable',
+    'no_free_seat',
   ]) {
     expect(status).toHaveProperty(code);
   }
