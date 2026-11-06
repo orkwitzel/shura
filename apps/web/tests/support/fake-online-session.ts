@@ -15,7 +15,7 @@ import type { ErrorCode, ServerData } from '@shura/protocol';
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
-import type { OpenOnlineSession, OpenOnlineSessionOptions } from '@/lib/open-online-session';
+import type { OpenOnlineSession, OpenOnlineSessionOptions } from '@/lib/online/open-online-session';
 
 type Player = ServerData<'roomState'>['players'][number];
 type Spectator = ServerData<'roomState'>['spectators'][number];

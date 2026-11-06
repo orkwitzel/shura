@@ -1,6 +1,6 @@
 import { ClientCoreProvider } from '@shura/client-core/react';
 import type { ReactNode } from 'react';
-import { serverApi } from '@/lib/server-api';
+import { serverApi } from '@/lib/online/server-api';
 import { recordsStore } from '@/stores/records-store';
 import { settingsStore } from '@/stores/settings-store';
 

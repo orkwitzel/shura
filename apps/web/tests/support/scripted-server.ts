@@ -7,8 +7,8 @@ import {
 } from '@shura/client-core';
 import type { ClientMessage, ServerMessage } from '@shura/protocol';
 import { act } from '@testing-library/react';
-import { createOnlineClock } from '@/lib/online-clock';
-import type { OpenOnlineSession } from '@/lib/open-online-session';
+import { createOnlineClock } from '@/lib/online/online-clock';
+import type { OpenOnlineSession } from '@/lib/online/open-online-session';
 import { fakeBrowser } from './fake-browser';
 
 /**

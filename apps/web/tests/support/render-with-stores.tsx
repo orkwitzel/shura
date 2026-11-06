@@ -11,8 +11,8 @@ import type { ReactElement } from 'react';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { DEFAULT_BINDINGS } from '@/config/default-bindings';
-import { OpenOnlineSessionContext } from '@/hooks/use-online-session';
-import type { OpenOnlineSession } from '@/lib/open-online-session';
+import { OpenOnlineSessionContext } from '@/hooks/online/use-online-session';
+import type { OpenOnlineSession } from '@/lib/online/open-online-session';
 import { fakeApi } from './fake-api';
 import { type MemoryStorage, memoryStorage } from './memory-storage';
 

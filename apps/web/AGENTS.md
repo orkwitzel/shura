@@ -21,13 +21,13 @@ src/
 │                  backdrop, the "needs a keyboard" screen, the ping chip, the stat (a HUD chip or
 │                  a results row)
 ├── hooks/         shared hooks: use-solo-session, use-game-keys (a game's keys from the window),
-│                  use-online-session, use-room-link, use-room-address, use-theme,
-│                  use-reduced-motion
+│                  use-session-handling, use-theme, use-reduced-motion, use-effects; online/
+│                  (use-online-session, use-room-link, use-room-address)
 ├── lib/           browser APIs and libraries set up for Shura: keyboard/ (with use-screen-hotkeys,
 │                  how screens' own keys listen through react-hotkeys-hook), pixi/, audio/,
-│                  raf-clock, online-clock (worker-timers in a hidden tab), open-online-session
-│                  (fetch and the WebSocket), server-api (the API client), session-token
-│                  (sessionStorage), clipboard, toasts (Sonner), local-storage
+│                  raf-clock, online/ (online-clock: worker-timers in a hidden tab;
+│                  open-online-session: fetch and the WebSocket; server-api: the API client;
+│                  session-token: sessionStorage), clipboard, toasts (Sonner), local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
 ├── config/        fixed values: default-bindings, routes, online
 ├── utils/         small pure helpers, created when one is needed
@@ -98,9 +98,9 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
   - The hook disposes of it on unmount.
   - The page passes it to features as a prop, and they read it with `useSession(session, selector)`. Features never create sessions or stores.
 - **The online session.** One belongs to the app's stay in online play, across `/online` and every `/r/:code`.
-  - `app/online-routes.tsx` makes it with `hooks/use-online-session.ts` once there's a nickname, and closes it as the player leaves those routes. Its token goes to `sessionStorage` through `lib/session-token`.
-  - `hooks/use-room-link.ts` checks a room's route with client-core's `useRoomLookup` (over `lib/server-api`, which `app/provider.tsx` gives `<ClientCoreProvider>`), and sends an unknown code to `/online`.
-  - `hooks/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room once the lookup has found it.
+  - `app/online-routes.tsx` makes it with `hooks/online/use-online-session.ts` once there's a nickname, and closes it as the player leaves those routes. Its token goes to `sessionStorage` through `lib/online/session-token`.
+  - `hooks/online/use-room-link.ts` checks a room's route with client-core's `useRoomLookup` (over `lib/online/server-api`, which `app/provider.tsx` gives `<ClientCoreProvider>`), and sends an unknown code to `/online`.
+  - `hooks/online/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room once the lookup has found it.
   - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Every server error shown goes through client-core's `errorText`.
   - Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`) and a fake server for the lookups (`renderWithStores({ api })`, `tests/support/fake-api.ts`, client-core's real API client over a fake `fetch`). Match tests use a real session over a server the test plays (`tests/support/scripted-server.ts`, on the online clock over the fake browser of `fake-browser.ts`).
 - **UI state.** State that only one feature uses goes in that feature's `stores/`.
