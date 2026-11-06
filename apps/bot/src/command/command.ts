@@ -13,6 +13,7 @@ interface BotListing {
   name: string;
   profile?: string;
   room?: string;
+  quickMatch?: boolean;
 }
 
 /** One call to the bot tool's HTTP API, and what to print of its answer. */
@@ -102,6 +103,17 @@ export async function runCommand(
           `${names(added)} ${added.length === 1 ? 'is' : 'are'} joining ${code}.\n`,
       };
     });
+  addingBots(program.command('quick').description('bots quick-match')).action(
+    (options: BotOptions) => {
+      request = {
+        path: '/bots',
+        method: 'POST',
+        body: { quickMatch: true, ...botsOf(options) },
+        done: ({ bots: added }: { bots: BotListing[] }) =>
+          `${names(added)} ${added.length === 1 ? 'is' : 'are'} quick-matching.\n`,
+      };
+    },
+  );
   program
     .command('leave')
     .description("removes room CODE's bots")
@@ -125,7 +137,10 @@ export async function runCommand(
           listed.length === 0
             ? 'No bots.\n'
             : listed
-                .map(({ name, profile, room }) => `${[name, profile, room].join('  ')}\n`)
+                .map(({ name, profile, room, quickMatch }) =>
+                  [name, profile, quickMatch ? 'quick-match' : room].join('  '),
+                )
+                .map((line) => `${line}\n`)
                 .join(''),
       };
     });

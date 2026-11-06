@@ -47,6 +47,13 @@ test('join asks for bots in a room and prints their names', async () => {
   expect(out).toBe('Ada and Turing are joining K7QX.\n');
 });
 
+test('quick asks for quick-match bots', async () => {
+  const { code, calls, out } = await run(['quick'], { bots: [{ name: 'Ada' }] });
+  expect(code).toBe(0);
+  expect(calls[0]?.body).toEqual({ quickMatch: true, count: 1, profile: 'casual' });
+  expect(out).toBe('Ada is quick-matching.\n');
+});
+
 test('leave removes a room’s bots', async () => {
   const { code, calls, out } = await run(['leave', 'K7QX'], { removed: 3 }, 200);
   expect(code).toBe(0);
@@ -60,12 +67,12 @@ test('list prints each bot', async () => {
     {
       bots: [
         { name: 'Ada', profile: 'casual', room: 'K7QX' },
-        { name: 'Kay', profile: 'casual', room: 'AB23' },
+        { name: 'Kay', profile: 'casual', quickMatch: true },
       ],
     },
     200,
   );
-  expect(out).toBe('Ada  casual  K7QX\nKay  casual  AB23\n');
+  expect(out).toBe('Ada  casual  K7QX\nKay  casual  quick-match\n');
 });
 
 test('the tool’s refusal is printed, with exit code 1', async () => {

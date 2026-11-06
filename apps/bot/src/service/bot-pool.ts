@@ -24,7 +24,7 @@ export const BOT_NAMES = [
   'Perlis',
 ] as const;
 
-/** Bots to add: `count` of them in one room. */
+/** Bots to add: `count` of them in one room, or each in quick-match. */
 export interface BotRequest {
   readonly target: BotTarget;
   readonly count: number;
@@ -36,7 +36,8 @@ export interface BotRequest {
 export interface BotInfo {
   readonly name: string;
   readonly profile: BotProfileName;
-  readonly room: string;
+  readonly room?: string;
+  readonly quickMatch?: true;
   readonly pps?: number;
 }
 

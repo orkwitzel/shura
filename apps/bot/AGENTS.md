@@ -14,7 +14,7 @@ src/
 │   ├── profile.ts     BotProfile and BOT_PROFILES (only `casual`)
 │   └── random.ts      the bot's own seeded Random
 ├── bot/
-│   ├── bot.ts         one bot's life in its room on client-core's online session
+│   ├── bot.ts         one bot's life in a room or a quick-match on client-core's online session
 │   └── pilot.ts       plays one game: thinks, asks the brain, presses keys through the input engine
 ├── service/
 │   ├── bot-pool.ts    the bots alive, their names and seeds

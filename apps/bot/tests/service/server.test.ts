@@ -5,7 +5,10 @@ import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createBotPool } from '../../src/service/bot-pool';
 import { createBotServer } from '../../src/service/server';
 
-/** The sessions asked for, and sockets that open but never answer: what was dialled and sent. */
+/**
+ * The sessions asked for, and sockets that welcome a `hello` and answer nothing else: what was
+ * dialled and sent.
+ */
 const asked: unknown[] = [];
 const dialled: string[] = [];
 const sent: unknown[] = [];
@@ -18,7 +21,15 @@ const sessions: Fetch = async (url, init) => {
 const stalled: Connect = (url, handlers) => {
   dialled.push(url);
   queueMicrotask(handlers.open);
-  return { send: (text) => sent.push(JSON.parse(text)), close: () => {} };
+  const send = (text: string) => {
+    const message = JSON.parse(text) as { event: string; data: { sessionToken?: string } };
+    sent.push(message);
+    if (message.event !== 'hello') return;
+    const sessionId = message.data.sessionToken?.replace('token-', 'id-') ?? '';
+    const welcome = { event: 'welcome', data: { sessionId, serverTime: 0 } };
+    queueMicrotask(() => handlers.message(JSON.stringify(welcome)));
+  };
+  return { send, close: () => {} };
 };
 
 const pool = createBotPool({
@@ -89,12 +100,14 @@ test('POST /bots adds bots to a room, each a session of its own name on the gate
   expect(list.bots.map(({ name }) => name)).toEqual(['Ada', 'Turing', 'Hopper']);
 });
 
-test('a pps override is taken', async () => {
-  const res = await post({ room: 'K7QX', pps: 3 });
+test('a pps override and quick-match are taken', async () => {
+  const res = await post({ quickMatch: true, pps: 3 });
   expect(res.status).toBe(201);
   expect(await res.json()).toEqual({
-    bots: [{ name: 'Ada', profile: 'casual', room: 'K7QX', pps: 3 }],
+    bots: [{ name: 'Ada', profile: 'casual', quickMatch: true, pps: 3 }],
   });
+  // It asks to quick-match once welcomed.
+  await vi.waitFor(() => expect(sent).toContainEqual({ event: 'quickMatch', data: {} }));
 });
 
 test('DELETE /bots?room= removes that room’s bots only', async () => {
@@ -113,6 +126,7 @@ test.each([
   [{ room: 'K7QX', count: 0 }],
   [{ room: 'nope!' }],
   [{ room: 'K7QX', quickMatch: true }],
+  [{ quickMatch: false }],
   [{ room: 'K7QX', profile: 'expert' }],
   [{ count: 2 }],
   ['not json'],

@@ -11,6 +11,7 @@ A small service that runs headless **bots** (see the [glossary](../../docs/gloss
 pnpm dev                          # gateway, game and web (in one terminal)
 pnpm dev:bot                      # the bot tool on :8090 (in another)
 pnpm bot join K7QX --count 1      # one bot joins room K7QX and readies up
+pnpm bot quick --count 2          # two bots quick-match
 pnpm bot leave K7QX               # removes K7QX's bots
 pnpm bot list
 ```
@@ -20,11 +21,12 @@ pnpm bot list
 | Request | Does |
 |---|---|
 | `POST /bots { room, count?, profile?, pps? }` | adds `count` bots (default 1, at most 100) to the room |
+| `POST /bots { quickMatch: true, count?, profile?, pps? }` | adds bots that quick-match |
 | `DELETE /bots?room=K7QX` | removes the room's bots |
 | `GET /bots` | lists the bots |
 | `GET /livez` | answers 200 while the tool runs |
 
-Bodies are JSON of at most 4 KiB. A refusal is JSON `{ error }`: 400 for a bad request, 404, 405, and 413 for a body too large. Quick-match bots (`{ quickMatch: true }`, `pnpm bot quick`) come with quick-match in the online session.
+Bodies are JSON of at most 4 KiB. A refusal is JSON `{ error }`: 400 for a bad request, 404, 405, and 413 for a body too large.
 
 ## Config
 
@@ -45,4 +47,4 @@ Bodies are JSON of at most 4 KiB. A refusal is JSON `{ error }`: 400 for a bad r
 - `src/bot/bot.ts`: one bot's lobby life on its online session.
 - `src/service/` (the pool and the HTTP API) and `src/main.ts`: the service. `src/command/`: `pnpm bot`.
 
-Tests are in `tests/`. The in-process match test, a bot against a scripted client in a 1v1 through the real gateway and game service, is in `apps/gateway/tests/integration/bots.test.ts`.
+Tests are in `tests/`. The in-process match tests (a bot against a scripted client in a 1v1 room, and in a quick-match through a rematch and a requeue, through the real gateway and game service) are in `apps/gateway/tests/integration/bots.test.ts`.

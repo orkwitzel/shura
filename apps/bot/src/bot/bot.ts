@@ -3,11 +3,8 @@ import type { BotProfile } from '../brain/profile';
 import { type Random, seededRandom } from '../brain/random';
 import { type Pilot, type Seat, startPilot } from './pilot';
 
-/**
- * Where a bot plays: the room with a code. Quick-match bots (`{ quickMatch: true }`) come with the
- * online session's quick-match (#65).
- */
-export type BotTarget = { readonly room: string };
+/** Where a bot plays: the room with a code, or a quick-match. */
+export type BotTarget = { readonly room: string } | { readonly quickMatch: true };
 
 /** Why a bot stopped playing on its own. */
 export type BotEnd = 'failed' | 'refused' | 'closed';
@@ -25,7 +22,10 @@ export interface BotOptions {
   readonly target: BotTarget;
   /** Pieces per second to aim for instead of the profile's, for load tests. */
   readonly pps?: number;
-  /** Hears why it stopped, if it stops by itself: its connection failed, or its room refused it. */
+  /**
+   * Hears why it stopped, if it stops by itself: its connection failed, or the server refused it
+   * (its room doesn't exist or is full, or it couldn't queue).
+   */
   readonly ended?: (end: BotEnd, message: string) => void;
 }
 
@@ -36,13 +36,14 @@ export interface Bot {
   stop(): void;
 }
 
-/** How long a bot takes to ready up in the lobby, in ms: a person's moment. */
-const READY_MS = { min: 500, spread: 1000 } as const;
+/** How long a bot takes to ready up in the lobby, or to rematch after results, in ms. */
+const MOMENT_MS = { min: 500, spread: 1000 } as const;
 
 /**
  * A bot (design §13.4): a client like any other, on client-core's online session with no special
- * trust. It joins its room, readies up a moment after each lobby starts, and plays each match with
- * a pilot. A bot whose room refuses it, or whose connection fails or closes, stops.
+ * trust. It joins its room and readies up a moment after each lobby starts, or quick-matches,
+ * rematches a moment after each match's results and queues again if its opponent leaves. It plays
+ * each match with a pilot. A bot the server refuses, or whose connection fails or closes, stops.
  */
 export function startBot(options: BotOptions): Bot {
   return new BotPlayer(options);
@@ -53,9 +54,13 @@ class BotPlayer implements Bot {
   readonly #random: Random;
   readonly #unsubscribe: () => void;
   #pilot: Pilot | null = null;
-  /** The match the pilot plays. */
+  /** The match the pilot plays, and the room it plays it in. */
   #matchId: string | null = null;
-  #readying: (() => void) | null = null;
+  #matchRoom: string | null = null;
+  /** The match it asked to rematch after. */
+  #rematched: string | null = null;
+  /** Cancels the moment it's waiting out before it readies up or rematches. */
+  #waiting: (() => void) | null = null;
   #stopped = false;
 
   constructor(options: BotOptions) {
@@ -78,13 +83,14 @@ class BotPlayer implements Bot {
     this.#stopped = true;
     this.#unsubscribe();
     this.#stopPilot();
-    this.#readying?.();
+    this.#waiting?.();
     this.#options.session.close();
   }
 
   #enter(): void {
     const { session, target } = this.#options;
-    session.joinRoom(target.room);
+    if ('room' in target) session.joinRoom(target.room);
+    else session.quickMatch();
   }
 
   #changed = (state: OnlineSessionState, previous: OnlineSessionState): void => {
@@ -99,30 +105,68 @@ class BotPlayer implements Bot {
       return;
     }
     if (!room) {
-      // The room doesn't exist, is full, or went away: there's nothing for it to do.
-      if (error && error !== previous.error) this.#end('refused', error.message);
+      if (error && error !== previous.error) {
+        // The room doesn't exist, is full or went away, or it couldn't queue: nothing to do.
+        this.#end('refused', error.message);
+      } else if (state.quickMatch === 'opponentLeft' && previous.quickMatch !== 'opponentLeft') {
+        // Its opponent left a quick-match: it queues again.
+        this.#cancelWait();
+        this.#options.session.quickMatch();
+      }
       return;
     }
-    if (match && match.matchId !== this.#matchId && match.playerId) this.#play(match.matchId);
+    if (match && match.matchId !== this.#matchId && match.playerId) {
+      this.#play(match.matchId, room.code);
+    }
     if (match?.phase === 'ended') this.#stopPilot();
+    if (room.quickMatch) {
+      // Quick-match rooms skip the lobby: after the results it rematches, once per match.
+      const ended = match?.phase === 'ended' && match.matchId === this.#matchId;
+      if (ended && this.#matchRoom === room.code && this.#rematched !== match.matchId) {
+        this.#rematched = match.matchId;
+        this.#afterMoment(() => this.#rematch(room.code));
+      }
+      return;
+    }
     const me = room.players.find(({ id }) => id === state.sessionId);
-    if (room.phase === 'lobby' && me && !me.ready && !this.#readying) this.#readyUp();
+    if (room.phase === 'lobby' && me && !me.ready && !this.#waiting) {
+      this.#afterMoment(() => this.#readyUp());
+    }
   };
 
-  /** Readies up after a moment, if it is still in the lobby and not ready. */
-  #readyUp(): void {
-    const ms = READY_MS.min + Math.floor(this.#random() * READY_MS.spread);
-    this.#readying = this.#options.clock.after(ms, () => {
-      this.#readying = null;
-      const { room, sessionId } = this.#options.session.getState();
-      const me = room?.players.find(({ id }) => id === sessionId);
-      if (room?.phase === 'lobby' && me && !me.ready) this.#options.session.setReady(true);
+  /** Runs `then` after a person's moment, unless the bot stops or is sent elsewhere first. */
+  #afterMoment(then: () => void): void {
+    this.#cancelWait();
+    const ms = MOMENT_MS.min + Math.floor(this.#random() * MOMENT_MS.spread);
+    this.#waiting = this.#options.clock.after(ms, () => {
+      this.#waiting = null;
+      then();
     });
   }
 
-  #play(matchId: string): void {
+  #cancelWait(): void {
+    this.#waiting?.();
+    this.#waiting = null;
+  }
+
+  /** Readies up, if it is still in the lobby and not ready. */
+  #readyUp(): void {
+    const { room, sessionId } = this.#options.session.getState();
+    const me = room?.players.find(({ id }) => id === sessionId);
+    if (room?.phase === 'lobby' && me && !me.ready) this.#options.session.setReady(true);
+  }
+
+  /** Asks for a rematch, if it is still in the room of the match that ended. */
+  #rematch(code: string): void {
+    const { room, match } = this.#options.session.getState();
+    if (room?.code === code && match?.phase === 'ended') this.#options.session.rematch();
+  }
+
+  #play(matchId: string, roomCode: string): void {
     this.#stopPilot();
+    this.#cancelWait();
     this.#matchId = matchId;
+    this.#matchRoom = roomCode;
     const { clock, profile, pps } = this.#options;
     this.#pilot = startPilot({
       clock,

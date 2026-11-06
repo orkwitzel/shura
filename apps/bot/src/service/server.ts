@@ -31,11 +31,11 @@ const common = {
   pps: z.number().positive().max(MAX_PPS).optional(),
 };
 
-/**
- * `POST /bots`: `{ room, count, profile, pps? }` (design §13.4). `{ quickMatch: true, … }` comes
- * with the online session's quick-match (#65).
- */
-const addSchema = z.strictObject({ room: roomCode, ...common });
+/** `POST /bots`: `{ room, count, profile, pps? }` or `{ quickMatch: true, … }` (design §13.4). */
+const addSchema = z.union([
+  z.strictObject({ room: roomCode, ...common }),
+  z.strictObject({ quickMatch: z.literal(true), ...common }),
+]);
 
 /**
  * The bot tool's HTTP API (design §13.4), on Hono: `POST /bots` adds bots (a JSON body of at most
@@ -57,9 +57,10 @@ export function botApi(pool: BotPool): Hono {
       if (!result.success) return c.json({ error: z.prettifyError(result.error) }, 400);
     }),
     (c) => {
-      const { room, count, profile, pps } = c.req.valid('json');
+      const added = c.req.valid('json');
+      const { count, profile, pps } = added;
       const request: BotRequest = {
-        target: { room },
+        target: 'room' in added ? { room: added.room } : { quickMatch: true },
         count,
         profile,
         ...(pps !== undefined && { pps }),
