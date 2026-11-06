@@ -11,6 +11,7 @@ An online multiplayer falling-block puzzle game (guideline rules) with a web cli
 - `CONTRIBUTING.md`: branch, PR and release rules. Follow them exactly.
 - `apps/cli/AGENTS.md`: where code and tests go in the terminal client. Read it before adding or moving a CLI file.
 - `docs/agents/nest.md`, `apps/gateway/AGENTS.md` and `apps/game/AGENTS.md`: the NestJS conventions of the two services and where their code and tests go. Read them before adding or moving a server file.
+- `packages/valkey/AGENTS.md`: where a store's interface, versions and tests go. Read it before changing the shared state.
 
 ## Determinism (packages/engine)
 
