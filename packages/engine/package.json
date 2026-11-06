@@ -4,9 +4,17 @@
   "type": "module",
   "license": "AGPL-3.0-only",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch --no-clean",
     "typecheck": "tsc && tsc -p tsconfig.test.json",
     "test": "vitest run --fsModuleCachePath node_modules/.vitest-cache",
     "record": "tsx scripts/record.ts"
@@ -14,6 +22,7 @@
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "tsdown": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

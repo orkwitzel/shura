@@ -303,7 +303,7 @@ The knobs that set how a bot plays: think time, target speed, mistake rate and l
 _Avoid_: difficulty (until PvE), bot config
 
 **Draining**:
-A game pod's state while shutting down: it gets no new rooms and finishes or hands off the ones it has.
+A service pod's state while shutting down: its `/readyz` fails so it gets no new work. A draining gateway pod takes no new connections; a draining game pod also gets no new rooms and finishes or hands off the ones it has.
 _Avoid_: terminating, cordoned
 
 **Engine version / protocol version**:

@@ -63,7 +63,11 @@ describe('serialize and restore', () => {
     expect(uninterrupted.state.toppedOut).toBe(true);
   });
 
-  test('restoring at any frame and continuing gives the same final hash', () => {
+  // Replays the game once per frame (quadratic): about 0.5s alone, but several times that on a
+  // shared CI runner while turbo runs every package's tests and typechecks at once.
+  test('restoring at any frame and continuing gives the same final hash', {
+    timeout: 30_000,
+  }, () => {
     for (let frame = 0; frame <= game.lastFrame; frame++) {
       const first = play(newEngine(), game.actions, 0, frame);
       const resumed = play(restoreEngine(first.serialize()), game.actions, frame, game.lastFrame);

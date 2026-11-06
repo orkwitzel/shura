@@ -1,22 +1,22 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
-    "transit": {
-      "dependsOn": ["^transit"]
-    },
-    "typecheck": {
-      "dependsOn": ["transit"]
-    },
-    "test": {
-      "dependsOn": ["transit"]
-    },
     "build": {
-      "dependsOn": ["transit"],
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!scripts/**", "!recorded-matches/**"],
       "outputs": ["dist/**"]
     },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": ["PORT", "LOG_LEVEL", "NODE_ENV", "POD_ID"]
     }
   }
 }

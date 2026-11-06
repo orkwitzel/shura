@@ -33,6 +33,61 @@
   },
   "overrides": [
     {
+      "includes": ["apps/gateway/**", "apps/game/**"],
+      "javascript": {
+        "parser": {
+          "unsafeParameterDecoratorsEnabled": true
+        }
+      },
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/gateway/src/*.ts", "apps/game/src/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./*/**", "!./*/index"],
+                    "message": "Import a feature only through its index.ts (docs/agents/nest.md): `./rooms`, never `./rooms/rooms.service`."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/gateway/src/*/**", "apps/game/src/*/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../*/**", "!../*/index", "../../**"],
+                    "message": "Import another feature only through its index.ts (docs/agents/nest.md): `../rooms`, never `../rooms/rooms.service`. A feature's own files are flat in its folder."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["scripts/**"],
       "linter": {
         "rules": {
