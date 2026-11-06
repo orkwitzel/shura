@@ -1,12 +1,12 @@
 {
   "description": "Sprint: 109 pieces with 12 holds, placed by a greedy bot and hard dropped at 1 row/s. 34 line clears, 28 singles and 6 doubles, at level 1 throughout. The hard drop at frame 1222 reaches 40 lines and finishes the game there. The replay steps 120 frames past the finish, and the frame stays at 1222.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 1,
   "mode": "sprint",
   "lastFrame": 1342,
   "players": [
     {
-      "expectedHash": "70e1e361615570ea",
+      "expectedHash": "6c786b21d42897ba",
       "actions": [
         { "frame": 3, "type": "moveLeft" },
         { "frame": 4, "type": "moveLeft" },

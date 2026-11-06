@@ -5,6 +5,7 @@ import {
   ENGINE_VERSION,
   FFA,
   type GarbageAcceptedAction,
+  type GarbageReceivedAction,
   MARATHON,
   type ModeSettings,
   ONE_VS_ONE,
@@ -27,8 +28,9 @@ export type PresetName = keyof typeof PRESETS;
 /**
  * A recorded match (design §5.3): everything needed to replay a game, and the hash each player's
  * game must end on. A single-player mode's has one player; a 1v1's has two, and the replay plays
- * the server's part as `Match` does, so the garbage queued on each player comes from the other's
- * attacks, and lands where their `garbageAccepted` actions say.
+ * the server's part as `Match` does, so the garbage each player receives comes from the other's
+ * attacks. Each player's log holds their `garbageReceived` actions, which must be the ones the
+ * harness sends them, and their `garbageAccepted` actions, which say where it lands.
  */
 export interface RecordedMatch {
   description: string;
@@ -104,40 +106,83 @@ export interface ReplayOptions {
   acceptGarbage?: boolean;
 }
 
+/** What a replay of a recorded match ended on and recorded, by player. */
+export interface Replayed {
+  /** The final hash of each player's game. */
+  hashes: string[];
+  /** The `garbageReceived` actions the harness gave each player. */
+  received: GarbageReceivedAction[][];
+  /** Accepting garbage, the `garbageAccepted` actions each player's engine recorded. */
+  accepted: GarbageAcceptedAction[][];
+}
+
 /**
- * Plays a recorded match through, frame by frame. Returns the final hash of each player's game, and
- * the `garbageAccepted` actions each player's engine recorded if it accepted garbage.
+ * Plays a recorded match through in lockstep, frame by frame, with the harness sending the garbage
+ * each player receives in place of the `garbageReceived` actions in their log.
  */
 export function replay(
   match: RecordedMatch,
   { restoring = false, acceptGarbage = false }: ReplayOptions = {},
-): { hashes: string[]; accepted: GarbageAcceptedAction[][] } {
+): Replayed {
   const { players, lastFrame } = match;
   const game = new Match(settingsOf(match), match.seed, players.length);
+  const fromHarness = (type: ActionType) =>
+    type === ActionType.GarbageReceived || (acceptGarbage && type === ActionType.GarbageAccepted);
   const frames = players.map(({ actions }) =>
     byFrame(
-      acceptGarbage
-        ? actions.filter((action) => action.type !== ActionType.GarbageAccepted)
-        : actions,
+      actions.filter(({ type }) => !fromHarness(type)),
       lastFrame,
     ),
   );
+  const received: GarbageReceivedAction[][] = players.map(() => []);
   const accepted: GarbageAcceptedAction[][] = players.map(() => []);
   for (let frame = 1; frame <= lastFrame; frame++) {
     if (restoring) game.restore();
-    const landed = game.playFrame(
+    const played = game.playFrame(
       frame,
       frames.map((actions) => actions[frame] ?? []),
       { acceptGarbage },
     );
-    for (const [player, actions] of landed.entries()) accepted[player]?.push(...actions);
+    for (const [player, actions] of played.received.entries()) received[player]?.push(...actions);
+    for (const [player, actions] of played.accepted.entries()) accepted[player]?.push(...actions);
   }
-  return { hashes: game.engines.map((engine) => engine.hash()), accepted };
+  return { hashes: game.engines.map((engine) => engine.hash()), received, accepted };
+}
+
+/** Each player's `garbageReceived` actions in their log, by player. */
+function receivedIn(match: RecordedMatch): GarbageReceivedAction[][] {
+  return match.players.map(({ actions }) =>
+    actions.filter(
+      (action): action is GarbageReceivedAction => action.type === ActionType.GarbageReceived,
+    ),
+  );
+}
+
+/**
+ * `actions` with its `garbageReceived` actions replaced by `received`, each first in its frame, as
+ * the engine applies it.
+ */
+function withReceived(
+  actions: readonly Action[],
+  received: readonly GarbageReceivedAction[],
+): Action[] {
+  const rest = actions.filter((action) => action.type !== ActionType.GarbageReceived);
+  const merged: Action[] = [];
+  let next = 0;
+  for (const action of rest) {
+    while ((received[next]?.frame ?? Number.POSITIVE_INFINITY) <= action.frame) {
+      merged.push(received[next++] as GarbageReceivedAction);
+    }
+    merged.push(action);
+  }
+  merged.push(...received.slice(next));
+  return merged;
 }
 
 /** Replays a recorded match twice. Returns why it fails, or `null` if both runs match the record. */
 export function checkRecordedMatch(file: string, match: RecordedMatch): string | null {
-  const first = replay(match).hashes.join(', ');
+  const replayed = replay(match);
+  const first = replayed.hashes.join(', ');
   const second = replay(match).hashes.join(', ');
   if (first !== second) {
     return `${file} ended on ${first}, then on ${second}, from the same input. The engine is no longer deterministic: find what reads state outside the engine (docs/design.md §5.1).`;
@@ -145,27 +190,34 @@ export function checkRecordedMatch(file: string, match: RecordedMatch): string |
   if (match.engineVersion !== ENGINE_VERSION) {
     return `${file} was recorded with engine version ${match.engineVersion}, but ENGINE_VERSION is ${ENGINE_VERSION}. Re-record it: ${RECORD_COMMAND}`;
   }
+  if (JSON.stringify(replayed.received) !== JSON.stringify(receivedIn(match))) {
+    return `${file}'s garbageReceived actions aren't the garbage the other player sends, at the frame after. Re-record it: ${RECORD_COMMAND}`;
+  }
   const expected = expectedHashes(match).join(', ');
   if (first !== expected) {
     return [
       `${file} ended on hash ${first}, but ${expected} was recorded. Game outcomes changed.`,
       'If the change is unintended, it is a bug: fix it rather than re-recording.',
       `If it is intended, bump ENGINE_VERSION in packages/engine/src/version.ts and re-record in the same PR: ${RECORD_COMMAND}`,
-      '(During M1, before any release, ENGINE_VERSION stays at 1 and only the re-record is needed.)',
     ].join('\n');
   }
   return null;
 }
 
-/** Rewrites every recorded match with the hashes and engine version of the current engine. */
+/**
+ * Rewrites every recorded match with the hashes and engine version of the current engine, and the
+ * `garbageReceived` actions the harness sends each player.
+ */
 export function recordAll(): { file: string; changed: boolean }[] {
   return loadRecordedMatches().map(({ file, match }) => {
-    const { hashes } = replay(match);
-    const changed =
-      hashes.join() !== expectedHashes(match).join() || match.engineVersion !== ENGINE_VERSION;
-    if (changed) {
-      writeRecordedMatch(file, { ...withHashes(match, hashes), engineVersion: ENGINE_VERSION });
-    }
+    const { hashes, received } = replay(match);
+    const players = withHashes(match, hashes).players.map((player, index) => ({
+      ...player,
+      actions: withReceived(player.actions, received[index] ?? []),
+    }));
+    const recorded: RecordedMatch = { ...match, engineVersion: ENGINE_VERSION, players };
+    const changed = JSON.stringify(recorded) !== JSON.stringify(match);
+    if (changed) writeRecordedMatch(file, recorded);
     return { file, changed };
   });
 }
