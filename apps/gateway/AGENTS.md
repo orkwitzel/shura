@@ -6,7 +6,9 @@ The gateway service: the public WebSocket, the `/api` routes and forwarding room
 
 ```text
 src/
-├── main.ts            creates the app, sets WsAdapter (maxConcurrentMessages: 1), listens
+├── main.ts            creates the app, calls configureApp, listens
+├── configure-app.ts   configureApp(app): the pino logger, WsAdapter (maxConcurrentMessages: 1),
+│                      shutdown hooks
 ├── app.module.ts      imports the add-ons and the feature modules
 ├── config/            the zod schema of the environment, given to @nestjs/config
 ├── clock/             the Clock (now() and timers) by its CLOCK token
@@ -31,4 +33,4 @@ src/
 - A message that needs a session uses `SessionGuard`. Only `hello` and `ping` don't.
 - Room-scoped messages go to the room's game pod through `RoomLinksService`, never straight from a feature to a socket of its own.
 - `tests/` mirrors `src/`. Tests that run the gateway with a game service and clients go in `tests/integration/`, and helpers (`faultySocket()`, test clients) in `tests/support/`.
-- `tests/support/boot.ts` boots the app as `main.ts` does on a free port (`boot({ override })` to replace providers). `tests/architecture.test.ts` holds the architecture checks.
+- `tests/support/boot.ts` boots the app as `main.ts` does (`configureApp`) on a free port: `boot({ override })` replaces providers, `boot({ imports })` adds test-only modules beside `AppModule`. `tests/architecture.test.ts` holds the architecture checks.

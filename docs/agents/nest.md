@@ -9,7 +9,7 @@ Rules shared by `apps/gateway` and `apps/game`. Each service's own `AGENTS.md` g
 - One folder per **feature module**, named after its capability (`rooms/`, `quick-match/`). It holds `<name>.module.ts` and, as needed, `<name>.controller.ts`, `<name>.service.ts` (or several services named after what they do), `<name>.dto.ts`, guards and decorators.
 - A feature exports what others may use from its `index.ts`: the module and its exported providers. Other features import only that `index.ts` (`../rooms`), never a file inside the folder. Biome's `noRestrictedImports` enforces it, so a feature's own files stay flat in its folder.
 - Import injected classes as values, never with `import type`: Nest reads constructor types from decorator metadata. Biome's `useImportType` is off in the services for that reason.
-- `app.module.ts` imports the feature modules and the add-ons. `main.ts` only creates the app, sets the WS adapter and listens.
+- `app.module.ts` imports the feature modules and the add-ons. `configure-app.ts` has `configureApp(app)`, which sets the logger, the WS adapter and shutdown hooks. `main.ts` only creates the app, calls `configureApp` and listens; `tests/support/boot.ts` calls `configureApp` too, so tests run the app as it ships.
 - Generate files with `nest g` (schematics set in `nest-cli.json`: a folder per module, no `.spec` files, since tests go in `tests/`), so they land in this shape.
 - The services build with `nest build` (SWC, options in `.swcrc`, ES modules) and use TypeScript 6 (the `nest` catalog in `pnpm-workspace.yaml`): the Nest CLI needs TypeScript's compiler API, which TypeScript 7.0 doesn't ship.
 
@@ -30,14 +30,14 @@ Rules shared by `apps/gateway` and `apps/game`. Each service's own `AGENTS.md` g
 ## Validation and errors
 
 - Every message and request body is a zod schema in `@shura/protocol`, made a DTO with `createZodDto`. The validation pipe (global for HTTP, through `@WsProtocol()` on sockets) rejects invalid input with `invalid_message`. Never define a message's shape in a service.
-- Throw `WsException({ code, message })` on sockets and `HttpException({ code, message }, status)` over HTTP. Every `code` is a key of `ERRORS` in `@shura/protocol`, which also gives its default text and HTTP status. Add new codes there.
+- Throw `WsException({ code, message })` on sockets and `HttpException({ code, message }, status)` over HTTP. The one exception shared by both is the validation pipe's `InvalidMessageException` (an `HttpException`): `WsExceptionFilter` sends any exception carrying an `ERRORS` body, and anything else as `internal_error`. Every `code` is a key of `ERRORS` in `@shura/protocol`, which also gives its default text and HTTP status. Add new codes there.
 - Rate limits use `@RateLimit('<key>')` with `RateLimitGuard`, on controllers and WS handlers alike, backed by `RateLimiter` from `@shura/valkey` (design §11).
 
 ## Providers
 
 - Process-wide services are providers. Per-room and per-match objects (a room, a match, its clock) are plain classes that providers create.
 - The clock, the Valkey stores and the logger are injected by token, so tests replace them with `overrideProvider`.
-- Config comes from `ConfigService`, validated at startup by the service's zod schema. The logger is `nestjs-pino`'s `PinoLogger`, with `roomCode`, `matchId` and `sessionId` added through `assign`.
+- Config comes from `ConfigService`, validated at startup by the service's zod schema. Defaults are safe for production: `NODE_ENV` defaults to `production`, and only the `dev` script sets `development` (pretty logs through `pino-pretty`, a dev dependency). The logger is `nestjs-pino`'s `PinoLogger`, with `roomCode`, `matchId` and `sessionId` added through `assign`.
 
 ## Tests
 
