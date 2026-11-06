@@ -221,6 +221,62 @@ describe('the room', () => {
   });
 });
 
+describe('quick-match (design §9.4)', () => {
+  test('queues, and is back to idle once cancelled', async () => {
+    const { online, say, sent } = await welcomed();
+    expect(online.getState().quickMatch).toBe('idle');
+    online.quickMatch();
+    expect(sent.at(-1)).toEqual({ event: 'quickMatch', data: {} });
+    say('quickMatchQueued');
+    expect(online.getState().quickMatch).toBe('queued');
+    online.cancelQuickMatch();
+    expect(sent.at(-1)).toEqual({ event: 'cancelQuickMatch', data: {} });
+    say('quickMatchCancelled');
+    expect(online.getState().quickMatch).toBe('idle');
+  });
+
+  test('a quick-match room ends the wait, and says it is one', async () => {
+    const { online, say } = await welcomed();
+    online.quickMatch();
+    say('quickMatchQueued');
+    say('roomState', roomState('K7QX', { hostId: undefined, quickMatch: true }));
+    expect(online.getState().quickMatch).toBe('idle');
+    expect(online.getState().room).toMatchObject({ code: 'K7QX', quickMatch: true });
+    expect(online.getState().room?.hostId).toBeUndefined();
+  });
+
+  test('asks for a rematch', async () => {
+    const { online, say, sent } = await welcomed();
+    say('roomState', roomState('K7QX', { hostId: undefined, quickMatch: true }));
+    online.rematch();
+    expect(sent.at(-1)).toEqual({ event: 'rematch', data: {} });
+  });
+
+  test('opponentLeft takes you out of the room, keeping the last match for its results', async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX', { hostId: undefined, quickMatch: true }));
+    say('countdown', {
+      startAt: 13_000,
+      seed: 7,
+      matchId: 'm1',
+      players: [
+        { id: 'me', index: 0 },
+        { id: 'them', index: 1 },
+      ],
+    });
+    ticking.advance(3050);
+    say('matchEnd', { placements: [{ playerId: 'me', place: 1 }], stats: [] });
+    say('opponentLeft');
+    expect(online.getState().quickMatch).toBe('opponentLeft');
+    expect(online.getState().room).toBeNull();
+    expect(online.getState().match).toMatchObject({ phase: 'ended', matchId: 'm1' });
+
+    online.quickMatch();
+    say('quickMatchQueued');
+    expect(online.getState().quickMatch).toBe('queued');
+  });
+});
+
 describe('a match', () => {
   const countdown = {
     startAt: 13_000,

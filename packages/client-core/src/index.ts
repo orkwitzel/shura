@@ -56,6 +56,7 @@ export {
   type OnlineSessionOptions,
   type OnlineSessionState,
   PING_EVERY_MS,
+  type QuickMatchStatus,
   type RoutingListener,
 } from './online/online-session';
 export {

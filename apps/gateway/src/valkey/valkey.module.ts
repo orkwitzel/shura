@@ -1,5 +1,6 @@
 import { Global, Inject, Injectable, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { LIMIT_DEFAULTS } from '@shura/protocol';
 import { createValkeyStores, type Stores } from '@shura/valkey';
 import { CLOCK, type Clock } from '../clock';
 import type { Env } from '../config';
@@ -32,6 +33,7 @@ class StoresCloser implements OnApplicationShutdown {
         createValkeyStores(config.get('VALKEY_URL', { infer: true }), {
           prefix: config.get('VALKEY_PREFIX', { infer: true }),
           now: () => clock.now(),
+          requeueCooldownMs: LIMIT_DEFAULTS.quickMatchCooldownMs,
         }),
     },
     StoresCloser,

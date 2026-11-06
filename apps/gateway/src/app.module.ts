@@ -8,6 +8,7 @@ import { type Env, validateEnv } from './config';
 import { ValidationPipe } from './errors';
 import { HealthModule } from './health';
 import { PlayModule } from './play';
+import { QuickMatchModule } from './quick-match';
 import { RoomLinksModule } from './room-links';
 import { RoomsModule } from './rooms';
 import { SessionsModule } from './sessions';
@@ -38,6 +39,7 @@ import { VersionGuard } from './versions';
     RoomLinksModule,
     RoomsModule,
     PlayModule,
+    QuickMatchModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ValidationPipe },

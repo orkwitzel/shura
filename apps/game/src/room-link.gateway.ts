@@ -15,6 +15,7 @@ import {
   InputBatchDto,
   LeaveRoomDto,
   ReadyDto,
+  RematchDto,
   RoomsService,
   StartMatchDto,
 } from './rooms';
@@ -66,6 +67,11 @@ export class RoomLinkGateway implements OnGatewayDisconnect {
   @SubscribeMessage('startMatch')
   startMatch(@ConnectedSocket() link: WebSocket, @MessageBody() message: StartMatchDto) {
     return this.rooms.startMatch(link, message);
+  }
+
+  @SubscribeMessage('rematch')
+  rematch(@ConnectedSocket() link: WebSocket, @MessageBody() message: RematchDto) {
+    return this.rooms.rematch(link, message);
   }
 
   @SubscribeMessage('inputBatch')

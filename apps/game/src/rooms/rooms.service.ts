@@ -21,6 +21,7 @@ import type {
   InputBatchDto,
   LeaveRoomDto,
   ReadyDto,
+  RematchDto,
   StartMatchDto,
 } from './rooms.dto';
 
@@ -134,6 +135,11 @@ export class RoomsService implements OnApplicationShutdown {
 
   startMatch(link: WebSocket, message: StartMatchDto): void {
     this.#room(link, message)?.start(message.sessionId);
+  }
+
+  /** After results in a quick-match room: the next match once both players ask (design §9.4). */
+  rematch(link: WebSocket, message: RematchDto): void {
+    this.#room(link, message)?.rematch(message.sessionId);
   }
 
   inputBatch(link: WebSocket, message: InputBatchDto): void {
