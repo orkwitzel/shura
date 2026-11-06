@@ -256,3 +256,42 @@ describe('leaving and saving', () => {
     expect(slider('DAS')).toHaveFocus();
   });
 });
+
+describe('online', () => {
+  const online = () => screen.getByRole('region', { name: 'Online' });
+  const field = () => within(online()).getByRole('textbox', { name: 'Nickname' });
+  const named = { stored: { settings: { version: 1, nickname: 'Or' } } };
+
+  test('shows the nickname, empty until set', () => {
+    settingsForm();
+    expect(field()).toHaveValue('');
+    expect(field()).toHaveAttribute('placeholder', 'asked the first time');
+  });
+
+  test('saves a nickname that passes as it’s typed, normalized', async () => {
+    const { stores, saved } = settingsForm(named);
+    expect(field()).toHaveValue('Or');
+    await userEvent.clear(field());
+    await userEvent.type(field(), ' Mira ');
+    expect(stores.settings.getState().nickname).toBe('Mira');
+    expect(saved().nickname).toBe('Mira');
+  });
+
+  test('says what’s wrong with one that doesn’t, and keeps the last good one', async () => {
+    const { stores } = settingsForm(named);
+    await userEvent.type(field(), '!');
+    expect(within(online()).getByRole('alert')).toHaveTextContent(
+      'Letters, digits, spaces, _ and - only.',
+    );
+    expect(stores.settings.getState().nickname).toBe('Or');
+  });
+
+  test('typing in it doesn’t leave the settings, but Esc still does', async () => {
+    const { onClose } = settingsForm();
+    await userEvent.click(field());
+    await userEvent.keyboard('Mira');
+    expect(onClose).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});

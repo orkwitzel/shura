@@ -1,0 +1,269 @@
+.lobby {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
+}
+
+/* The room code, big, with the mode and Copy link under it. */
+.header {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+}
+
+.corner {
+  position: absolute;
+  top: calc(-1 * var(--space-4));
+  right: calc(-1 * var(--space-2));
+}
+
+.code {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.codeLabel {
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.codeText {
+  font-family: var(--font-display);
+  font-size: var(--text-logo);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-right: -0.12em;
+  color: var(--color-text);
+  text-shadow:
+    4px 4px 0 var(--color-piece-t),
+    8px 8px 0 var(--color-shadow);
+  animation: drop 450ms var(--ease-bounce);
+}
+
+@keyframes drop {
+  from {
+    transform: translateY(-24px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mode {
+  padding: 2px var(--space-3);
+  font-family: var(--font-label);
+  font-size: var(--text-small);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border: var(--border-width-small) solid var(--color-shadow);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  transform: rotate(-3deg);
+}
+
+.copy {
+  font-size: var(--text-small);
+}
+
+/* The seats: one card per seat, in order. */
+.seats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.seat,
+.empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3);
+}
+
+.seat {
+  background: var(--color-deep);
+  border: var(--border-width-small) solid var(--color-shadow);
+  box-shadow: var(--shadow);
+  animation: pop 300ms var(--ease-bounce);
+}
+
+.seat[data-you] {
+  border-color: var(--color-accent);
+}
+
+.empty {
+  color: var(--color-muted);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  border: var(--border-width-small) dashed rgb(255 255 255 / 0.18);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.seatNumber {
+  flex: none;
+  width: 1.6em;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: var(--text-button);
+  unicode-bidi: plaintext;
+}
+
+.you {
+  padding: 0 var(--space-1);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.kind {
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+
+.crown {
+  flex: none;
+  width: 21px;
+  height: 15px;
+  fill: var(--color-accent);
+  filter: drop-shadow(2px 2px 0 var(--color-shadow));
+}
+
+.last {
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.status {
+  flex: none;
+  min-width: 6.5em;
+  padding: 2px var(--space-2);
+  text-align: center;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  background: rgb(0 0 0 / 0.3);
+}
+
+.seat[data-ready] .status {
+  color: var(--color-shadow);
+  background: var(--color-piece-s);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+  animation: pop 250ms var(--ease-bounce);
+}
+
+/* The spectators. */
+.watching {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.watchingTitle {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.watchers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.watcher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  background: rgb(0 0 0 / 0.25);
+  border: 2px solid var(--color-shadow);
+}
+
+.watcher .name {
+  font-size: var(--text-body);
+}
+
+/* The keys, each as a key cap. */
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-label);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+}
+
+.key[data-disabled] {
+  opacity: 0.45;
+}
+
+.wait {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-small);
+  color: var(--color-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .codeText,
+  .seat,
+  .seat[data-ready] .status {
+    animation: none;
+  }
+}

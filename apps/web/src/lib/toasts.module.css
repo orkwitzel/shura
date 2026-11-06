@@ -1,0 +1,38 @@
+/* Sonner sizes, places and stacks each toast (with `transform`), so this only dresses it. */
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* Sonner's toaster width, which it gives only toasts it styles itself. */
+  width: var(--width);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-panel);
+  border: var(--border-width-small) solid var(--color-border);
+  box-shadow: var(--shadow);
+}
+
+.toast::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  background: var(--color-accent);
+  box-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+.alert {
+  border-color: var(--color-piece-z);
+}
+
+.alert::before {
+  background: var(--color-piece-z);
+}
+
+.title {
+  unicode-bidi: plaintext;
+}
