@@ -90,7 +90,7 @@ export async function runCommand(
     .exitOverride()
     .showHelpAfterError()
     .helpCommand(false)
-    .addHelpText('after', '\nThe tool’s address is BOT_URL (default http://localhost:8090).');
+    .addHelpText('after', '\nThe tool’s address is BOT_URL (default http://127.0.0.1:8090).');
 
   addingBots(program.command('join').description('bots join room CODE'))
     .argument('<CODE>', 'the room code', roomCode)
