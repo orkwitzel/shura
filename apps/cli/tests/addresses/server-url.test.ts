@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { DEFAULT_SERVER, serverUrl } from '../../src/app/server-url';
+import { DEFAULT_SERVER, serverUrl, webUrl } from '../../src/addresses/server-url';
 
 test('--server wins over SHURA_SERVER, which wins over the config (design §13.3)', () => {
   const flag = 'https://flag.example';
@@ -13,5 +13,12 @@ test('--server wins over SHURA_SERVER, which wins over the config (design §13.3
 
 test('without any, the local gateway: an HTTP origin', () => {
   expect(serverUrl({})).toBe(DEFAULT_SERVER);
-  expect(DEFAULT_SERVER).toBe('http://localhost:8080');
+  expect(DEFAULT_SERVER).toBe('http://127.0.0.1:8080');
+});
+
+test('the web client is at SHURA_WEB, else at the server (design §13.3)', () => {
+  const server = 'https://shura.example';
+  expect(webUrl({ env: 'http://127.0.0.1:5173', server })).toBe('http://127.0.0.1:5173');
+  expect(webUrl({ env: '', server })).toBe(server);
+  expect(webUrl({ server })).toBe(server);
 });

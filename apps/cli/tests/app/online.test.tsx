@@ -54,6 +54,7 @@ async function online(
       colors="none"
       online={{
         server: 'http://test',
+        web: 'http://test',
         clientVersion: 'test',
         connect: server.connect,
         fetch: server.fetch,

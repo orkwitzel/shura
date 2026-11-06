@@ -705,7 +705,7 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 
 **Quitting:** Ctrl+C quits at once from anywhere and restores the terminal (cursor, keyboard protocol, alternate screen). A game in progress is dropped.
 
-**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the settings: nickname, bindings, handling, ghost, theme, skin and server URL. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build (`http://127.0.0.1:8080`, `pnpm dev`'s gateway, until there is a production server). The server URL is the HTTP origin (`https://…`); the CLI derives `/api` and the WebSocket URL (`wss://…/ws`) from it.
+**Config:** `~/.config/shura/config.json` (XDG; `%APPDATA%\shura` on Windows) holds the settings: nickname, bindings, handling, ghost, theme, skin and server URL. Server precedence: `--server` > `SHURA_SERVER` > config file > production default compiled into the build (`http://127.0.0.1:8080`, `pnpm dev`'s gateway, until there is a production server). The server URL is the HTTP origin (`https://…`); the CLI derives `/api` and the WebSocket URL (`wss://…/ws`) from it. A room's link (the lobby prints it) is `/r/CODE` at the web client's origin: `SHURA_WEB` if set, else the server's, since in production the web client and the gateway share an origin (§13.2). In dev they don't (Vite on :5173, the gateway on :8080), so `pnpm cli` sets `SHURA_WEB=http://127.0.0.1:5173` unless it's already set.
 
 **Records:** personal bests (§13.1) live in `records.json` in the XDG data directory (`~/.local/share/shura/`; `%LOCALAPPDATA%\shura` on Windows), apart from the config people edit by hand. Both files are written atomically (a temporary file, then a rename), so a crash mid-save never corrupts them. An invalid `config.json` falls back to the defaults with a message that says what's wrong. An invalid `records.json` is moved to `records.json.bak` and a fresh one started, with a message, so personal bests are never silently lost. The game drew on the alternate screen, so these messages show in short in the status line during the game, and in full on the terminal after quitting.
 
@@ -743,7 +743,7 @@ Every flag goes with every command, before or after it. `create` makes a 1v1 roo
 ```
 pnpm dev        docker compose up -d valkey  →  turbo dev (after building the packages):
                 packages (tsdown --watch) · gateway :8080 · game :8081 · web :5173 (Vite, forwards /ws and /api)
-pnpm cli        Ink client in its own terminal (needs a real TTY; builds the packages it uses first); defaults to http://127.0.0.1:8080
+pnpm cli        Ink client in its own terminal (needs a real TTY; builds the packages it uses first); defaults to http://127.0.0.1:8080, room links to :5173
 pnpm dev:game2  second game instance on :8082 to test multi-pod behaviour
 pnpm dev:bot    the bot tool on :8090 (testing only, §13.4)
 pnpm bot        join K7QX --count 5 · quick · leave K7QX · list: asks the bot tool for bots

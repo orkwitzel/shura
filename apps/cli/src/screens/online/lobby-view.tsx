@@ -14,15 +14,15 @@ import { SEATS } from '@shura/protocol';
 import { Box, Text } from 'ink';
 import { useRef, useState } from 'react';
 import { useStore } from 'zustand';
+import { roomLink } from '../../addresses/room-link';
 import { NicknamePrompt } from '../../components/nickname-prompt';
 import { useScreenKeys } from '../../platform/input/use-screen-keys';
 import { PingText } from './ping-text';
-import { roomLink } from './room-link';
 
 export interface LobbyViewProps {
   readonly session: OnlineSession;
-  /** The server's URL, for the room's link. */
-  readonly server: string;
+  /** The web client's origin, for the room's link. */
+  readonly web: string;
   readonly clock: Pick<Clock, 'now'>;
   readonly active: boolean;
   /** Esc: the room is left, back to the *Play online* menu. */
@@ -65,7 +65,7 @@ function useRoomEvents(room: OnlineRoom, sessionId: string | null): readonly str
  * the host's Start, once another seated player is ready), S steps out to spectate or takes a free
  * seat, N changes the nickname (saved to the settings too), and Esc leaves the room.
  */
-export function LobbyView({ session, server, clock, active, onLeave }: LobbyViewProps) {
+export function LobbyView({ session, web, clock, active, onLeave }: LobbyViewProps) {
   const room = useStore(session, (state) => state.room);
   const sessionId = useStore(session, (state) => state.sessionId);
   const ping = useStore(session, (state) => state.ping);
@@ -117,7 +117,7 @@ export function LobbyView({ session, server, clock, active, onLeave }: LobbyView
   }
 
   const seats = SEATS[shown.mode];
-  const link = roomLink(server, shown.code);
+  const link = roomLink(web, shown.code);
   const keys = [
     role.kind === 'host'
       ? role.canStart

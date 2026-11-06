@@ -35,6 +35,8 @@ export const VERSION_MISMATCH_MESSAGE =
 export interface OnlineNetwork {
   /** The server's HTTP origin: the API is under `/api` and the socket at `ws(s)://…/ws`. */
   readonly server: string;
+  /** The web client's origin, for rooms' links: the server's, unless `SHURA_WEB` says (§13.3). */
+  readonly web: string;
   readonly clientVersion: string;
   readonly connect: Connect;
   /** The platform's `fetch`, for `POST /api/sessions`: Node's own unless a test gives one. */
@@ -240,7 +242,7 @@ function SessionScreen({
     return (
       <LobbyView
         session={session}
-        server={server}
+        web={network.web}
         clock={clock}
         active={visible}
         onLeave={toMenu}

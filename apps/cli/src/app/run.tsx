@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
 import pkg from '../../package.json' with { type: 'json' };
+import { serverUrl, webUrl } from '../addresses/server-url';
 import { terminalClock } from '../platform/clock';
 import { fileStorage, storagePaths } from '../platform/file-storage';
 import { captureHeader, createCaptureFile } from '../platform/input/capture';
@@ -12,7 +13,6 @@ import { nodeConnect } from '../platform/web-socket';
 import type { OnlineNetwork } from '../screens/online/online-screen';
 import { App } from './app';
 import type { PlayOptions } from './commands';
-import { serverUrl } from './server-url';
 import { exitMessages, openStores } from './stores';
 
 /**
@@ -65,9 +65,11 @@ export function onlineNetwork(
   options: Pick<PlayOptions, 'server' | 'name'>,
   configServer: string | undefined,
   env: NodeJS.ProcessEnv,
-): Pick<OnlineNetwork, 'server' | 'clientVersion' | 'name'> {
+): Pick<OnlineNetwork, 'server' | 'web' | 'clientVersion' | 'name'> {
+  const server = serverUrl({ flag: options.server, env: env.SHURA_SERVER, config: configServer });
   return {
-    server: serverUrl({ flag: options.server, env: env.SHURA_SERVER, config: configServer }),
+    server,
+    web: webUrl({ env: env.SHURA_WEB, server }),
     clientVersion: pkg.version,
     ...(options.name !== undefined && { name: options.name }),
   };

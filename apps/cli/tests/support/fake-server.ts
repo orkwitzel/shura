@@ -80,6 +80,7 @@ export function offlineNetwork(clock: TimerClock): OnlineNetwork {
   const server = fakeServer();
   return {
     server: 'http://test',
+    web: 'http://test',
     clientVersion: 'test',
     connect: server.connect,
     fetch: server.fetch,
