@@ -2,6 +2,7 @@ import { ENGINE_VERSION, type PieceActionType } from '@shura/engine';
 import {
   type ClientData,
   type ClientEvent,
+  LAG_OUT_MS,
   type PlayerKind,
   PROTOCOL_VERSION,
   type RoomMode,
@@ -33,6 +34,19 @@ export const CONNECT_PINGS = 5;
 
 /** How often the session pings once connected, in the lobby and during matches (design §8.4). */
 export const PING_EVERY_MS = 2000;
+
+/**
+ * The wait between attempts to reconnect while the drop is inside the lag-out window (design
+ * §10.2): the first attempt is at once, then one every 250 ms until 3 s after the drop, so a player
+ * whose network is back within the window is back before the server lags them out.
+ */
+export const RECONNECT_QUICK_MS = 250;
+
+/** The waits between attempts once the window has passed: 1 s, then every 2 s (the last, repeated). */
+export const RECONNECT_BACKOFF_MS: readonly number[] = [1000, 2000];
+
+/** Why a connection can fail for good: trying again can't help. */
+const FINAL_FAILURES: ReadonlySet<string> = new Set(['version_mismatch', 'nickname_invalid']);
 
 /**
  * Why a connection failed: the server's error `code` (from `POST /api/sessions` or an `exception`
@@ -130,6 +144,12 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   setReady(ready: boolean): void;
   /** The host's Start (design §10.1). */
   startMatch(): void;
+  /** Steps out of your seat to watch, in the lobby (design §10.1). */
+  spectate(): void;
+  /** Takes a free seat, in the lobby. */
+  takeSeat(): void;
+  /** Changes your nickname, in the lobby (design §10.2). The room's `roomState` says the result. */
+  setNickname(nickname: string): void;
   /** Asks for a 1v1 against the next player who asks (design §9.4). Sent once connected. */
   quickMatch(): void;
   /** Leaves the quick-match queue. */
@@ -176,6 +196,11 @@ class Session implements OnlineSession {
   readonly #api: Api;
   readonly #store: StoreApi<OnlineSessionState>;
   #socket: OnlineSocket | null = null;
+  /** When the connection dropped, on the session's clock. */
+  #droppedAt = 0;
+  /** Attempts to reconnect that failed after the lag-out window had passed. */
+  #slowRetries = 0;
+  #cancelRetry: () => void = () => {};
   readonly #sync = new ClockSync();
   readonly #input: InputEngine;
   /** When each ping still waiting for its pong was sent, by id. */
@@ -221,6 +246,10 @@ class Session implements OnlineSession {
   joinRoom = (code: string): void => this.#enter({ event: 'joinRoom', data: { code } });
   setReady = (ready: boolean): void => this.#send({ event: 'ready', data: { ready } });
   startMatch = (): void => this.#send({ event: 'startMatch', data: {} });
+  spectate = (): void => this.#send({ event: 'spectate', data: {} });
+  takeSeat = (): void => this.#send({ event: 'takeSeat', data: {} });
+  setNickname = (nickname: string): void =>
+    this.#send({ event: 'setNickname', data: { nickname } });
   quickMatch = (): void => this.#enter({ event: 'quickMatch', data: {} });
   cancelQuickMatch = (): void => this.#send({ event: 'cancelQuickMatch', data: {} });
   rematch = (): void => this.#send({ event: 'rematch', data: {} });
@@ -249,24 +278,32 @@ class Session implements OnlineSession {
     if (room && connection.status === 'connected') this.#write({ event: 'leaveRoom', data: {} });
     this.#endMatch();
     this.#cancelPing();
+    this.#cancelRetry();
     this.#set({ connection: { status: 'closed' } });
     this.#socket?.close();
   };
 
   /**
    * Creates the session, or resumes the one its token names (`POST /api/sessions`, design §10.2),
-   * then opens the socket. A refusal (`version_mismatch`, `nickname_invalid`) or a server that
-   * can't be reached fails the connection.
+   * then opens the socket. Connecting, a refusal (`version_mismatch`, `nickname_invalid`) or a
+   * server that can't be reached fails the connection. Reconnecting, only a refusal does: anything
+   * else is tried again (`#retry`). Back as another session (the old one expired), the room and
+   * match you were in are gone.
    */
   async #start(): Promise<void> {
     const { nickname } = this.#options;
-    const { sessionToken } = this.getState();
+    const { sessionToken, sessionId } = this.getState();
+    const trying = () => {
+      const { status } = this.getState().connection;
+      return status === 'connecting' || status === 'reconnecting';
+    };
     try {
       const session = await this.#api.createSession({
         nickname,
         ...(sessionToken !== null && { sessionToken }),
       });
-      if (this.getState().connection.status !== 'connecting') return;
+      if (!trying()) return;
+      if (sessionId !== null && session.sessionId !== sessionId) this.#dropRoom();
       this.#set({
         sessionId: session.sessionId,
         sessionToken: session.sessionToken,
@@ -274,12 +311,36 @@ class Session implements OnlineSession {
         names: new Map(this.getState().names).set(session.sessionId, session.nickname),
       });
     } catch (error) {
-      if (this.getState().connection.status !== 'connecting') return;
-      if (isOnlineError(error)) this.#fail(error.code, error.message);
-      else this.#fail('unreachable', UNREACHABLE_TEXT);
+      if (!trying()) return;
+      const code = isOnlineError(error) ? error.code : 'unreachable';
+      const message = isOnlineError(error) ? error.message : UNREACHABLE_TEXT;
+      if (this.getState().connection.status === 'reconnecting' && !FINAL_FAILURES.has(code)) {
+        this.#retry();
+        return;
+      }
+      this.#endMatch();
+      this.#fail(code, message);
       return;
     }
     this.#socket = this.#dial();
+  }
+
+  /**
+   * The next attempt to reconnect (design §10.2): every 250 ms until 3 s after the drop, the lag-out
+   * window, so a player whose network is back inside it plays on; then after 1 s, then every 2 s.
+   */
+  #retry(): void {
+    const { clock } = this.#options;
+    let delay = RECONNECT_QUICK_MS;
+    if (clock.now() - this.#droppedAt + RECONNECT_QUICK_MS > LAG_OUT_MS) {
+      const backoff = RECONNECT_BACKOFF_MS;
+      delay = backoff[Math.min(this.#slowRetries, backoff.length - 1)] ?? 0;
+      this.#slowRetries++;
+    }
+    this.#cancelRetry = clock.after(delay, () => {
+      this.#cancelRetry = () => {};
+      if (this.getState().connection.status === 'reconnecting') void this.#start();
+    });
   }
 
   /** Opens a socket. What it hears counts only while it's the session's current one. */
@@ -315,19 +376,25 @@ class Session implements OnlineSession {
   }
 
   /**
-   * The socket closed, or never opened. Before the `welcome` the server can't be reached (or it
-   * refused the `hello` and already said why). Reconnecting after a drop (design §10.2) comes with
-   * #64; until then a dropped connection has failed.
+   * The socket closed, or never opened. A first connection that never got its `welcome` has failed:
+   * the server can't be reached, or it refused the `hello` and already said why. One that dropped
+   * is resumed at once, then retried (`#retry`), while a match plays on locally and keeps its
+   * batches (design §10.2).
    */
   #closed(): void {
     const { status } = this.getState().connection;
     this.#cancelPing();
+    this.#socket = null;
     if (status === 'connecting') {
       this.#endMatch();
       this.#fail('unreachable', UNREACHABLE_TEXT);
     } else if (status === 'connected') {
-      this.#endMatch();
-      this.#fail('unreachable', 'Lost the connection to the server.');
+      this.#set({ connection: { status: 'reconnecting' } });
+      this.#droppedAt = this.#options.clock.now();
+      this.#slowRetries = 0;
+      void this.#start();
+    } else if (status === 'reconnecting') {
+      this.#retry();
     }
   }
 
@@ -386,15 +453,25 @@ class Session implements OnlineSession {
       case 'matchEnd':
         this.#match?.end(message.data);
         return;
+      case 'snapshot':
+        this.#match?.restore(message.data);
+        return;
       default:
-        // garbageQueued (#62) and snapshot (#64) come with their issues.
+        // garbageQueued comes with #62.
         return;
     }
   }
 
-  /** The `welcome`: connected. The pings start, and the messages waiting go, in order. */
+  /**
+   * The `welcome`, first or after a reconnect: connected. The match's batches not yet
+   * acknowledged go again first, in order (design §10.2), then the pings start, and the messages
+   * waiting go, in order.
+   */
   #welcome({ sessionId }: ServerData<'welcome'>): void {
     this.#set({ connection: { status: 'connected' }, sessionId });
+    for (const batch of this.#match?.unacknowledged ?? []) {
+      this.#write({ event: 'inputBatch', data: batch as ClientData<'inputBatch'> });
+    }
     this.#pingsLeft = CONNECT_PINGS;
     this.#pings.clear();
     this.#ping();
@@ -404,16 +481,18 @@ class Session implements OnlineSession {
   }
 
   /**
-   * An `exception`. Before the `welcome` it's why the connection failed (a version mismatch, an
-   * expired session); after, it's for the UI to show.
+   * An `exception`. Before the first `welcome` it's why the connection failed (a version mismatch,
+   * an expired session); before a reconnect's, only a new version fails it, and anything else is
+   * tried again once the server closes the socket. After, it's for the UI to show.
    */
   #exception({ code, message }: ServerData<'exception'>): void {
     const { status } = this.getState().connection;
-    if (status === 'connecting' || status === 'reconnecting') {
+    if (status === 'connecting' || (status === 'reconnecting' && FINAL_FAILURES.has(code))) {
       this.#endMatch();
       this.#fail(code, message);
       return;
     }
+    if (status === 'reconnecting') return;
     // The room went away under you: its server did, or it was gone when you came back.
     if (code === 'room_not_found' && this.getState().room) this.#dropRoom();
     this.#set({ error: { code, message } });
