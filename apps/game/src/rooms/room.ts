@@ -80,8 +80,7 @@ export interface RoomOptions {
  * Seams for later issues:
  * - #64: `detach` holds the seat (30 s in the lobby, the 3 s window in a match) instead of
  *   leaving, `attach` of a known session restores it with a snapshot, and `spectate`/`takeSeat`
- *   move seats;
- * - #63: lag-outs, through `Match.goOut`.
+ *   move seats.
  */
 export class Room {
   readonly code: string;
@@ -277,11 +276,14 @@ export class Room {
   #launch(players: readonly Member[]): void {
     const { matchId, seed } = this.#options.newMatch();
     const { clock, logger } = this.#options;
+    const startAt = clock.now() + COUNTDOWN_MS;
     const match = new Match({
       matchId,
       mode: this.mode,
       seed,
       players: players.map(({ id }) => id),
+      clock,
+      startAt,
       output: {
         toPlayer: (id, message) => this.#send(id, message),
         toOthers: (id, message) => {
@@ -292,7 +294,6 @@ export class Room {
       },
     });
     this.#match = match;
-    const startAt = clock.now() + COUNTDOWN_MS;
     this.#setPhase('countdown');
     logger.info({ matchId, players: players.length }, 'match counting down');
     this.#broadcast({
@@ -360,6 +361,7 @@ export class Room {
   #stopMatch(): void {
     for (const stop of this.#stopTimers) stop();
     this.#stopTimers = [];
+    this.#match?.stop();
     if (this.#match) this.#lastMatch = this.#match;
     this.#match = null;
   }

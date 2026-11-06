@@ -29,6 +29,7 @@ export {
   sessionSchema,
 } from './http/sessions';
 export { ENGINE_VERSION_HEADER, PROTOCOL_VERSION_HEADER } from './http/version-headers';
+export { placeAmong } from './match/places';
 export {
   actionSchema,
   type BatchAction,

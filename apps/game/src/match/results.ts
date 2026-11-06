@@ -1,4 +1,4 @@
-import { FRAMES_PER_SECOND, type OutReason, type ServerData } from '@shura/protocol';
+import { FRAMES_PER_SECOND, type OutReason, placeAmong, type ServerData } from '@shura/protocol';
 
 /** What the results need of a match's player. */
 export interface MatchPlayer {
@@ -18,13 +18,11 @@ export interface MatchPlayer {
  * the places the tie took.
  */
 export function placements(players: readonly MatchPlayer[]): ServerData<'matchEnd'>['placements'] {
-  // A player still in outlasted everyone who went out.
-  const reached = (player: MatchPlayer) => player.out?.frame ?? Number.POSITIVE_INFINITY;
+  const outs = players.map(({ out }) => out?.frame ?? null);
   return players
-    .map((player) => {
-      const place = 1 + players.filter((other) => reached(other) > reached(player)).length;
-      const { out } = player;
-      return { playerId: player.id, place, ...(out && { reason: out.reason, frame: out.frame }) };
+    .map(({ id, out }) => {
+      const place = placeAmong(out?.frame ?? null, outs);
+      return { playerId: id, place, ...(out && { reason: out.reason, frame: out.frame }) };
     })
     .sort((a, b) => a.place - b.place);
 }
