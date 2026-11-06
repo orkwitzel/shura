@@ -115,6 +115,8 @@ describe('per connection', () => {
     world = await onlineWorld({ limits: { maxPayloadBytes: 1024 } });
     const client = await welcomed();
     await send(client, { event: 'ping', data: { id: 1, padding: 'x'.repeat(2000) } });
+    // The raw client's close isn't counted as traffic, so under load it can land after `settle()`.
+    await eventually(world, () => client.closed, 'the close');
     expect(client.closeCode).toBe(1009);
   });
 });
