@@ -4,6 +4,7 @@ import { App } from '../../src/app/app';
 import type { CliStores } from '../../src/app/stores';
 import type { InputOptions } from '../../src/platform/input/use-terminal-input';
 import { fakeClock } from './fake-clock';
+import { offlineNetwork } from './fake-server';
 import { resize, settle } from './ink';
 import { memoryStores } from './stores';
 
@@ -54,6 +55,7 @@ export async function shuraApp({
       seed={7}
       colors="none"
       {...(input && { input })}
+      online={offlineNetwork(clock)}
       {...stores}
     />,
   );

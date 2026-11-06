@@ -15,8 +15,11 @@ import {
 } from '@shura/client-core';
 import { useSettings, useSettingsStore } from '@shura/client-core/react';
 import type { PieceActionType } from '@shura/engine';
+import { suggestNickname } from '@shura/protocol';
 import { Box, type Key, Text } from 'ink';
 import { useState } from 'react';
+import { nextIndex } from '../../components/menu';
+import { NicknamePrompt } from '../../components/nickname-prompt';
 import { bindableKey, keyLabel } from '../../platform/input/bindable';
 import { useScreenKeys } from '../../platform/input/use-screen-keys';
 
@@ -48,7 +51,13 @@ interface BindingRow {
   readonly action: PieceActionType;
 }
 
-type Row = ValueRow | BindingRow;
+/** The nickname for online play (design §13.1): Enter changes it, in a prompt. */
+interface NicknameRow {
+  readonly kind: 'nickname';
+  readonly label: string;
+}
+
+type Row = ValueRow | BindingRow | NicknameRow;
 
 function frameCount(count: number): string {
   return `${count} ${count === 1 ? 'frame' : 'frames'}`;
@@ -142,6 +151,7 @@ const SECTIONS: readonly { title: string; rows: readonly Row[] }[] = [
       ),
     ],
   },
+  { title: 'ONLINE', rows: [{ kind: 'nickname', label: 'Nickname' }] },
 ];
 
 const ROWS: readonly Row[] = SECTIONS.flatMap(({ rows }) => rows);
@@ -170,14 +180,15 @@ const LABEL_WIDTH = 18;
  * where the cursor is.
  */
 function hint(row: Row | undefined, capturing: boolean): string {
+  if (row?.kind === 'nickname') return '↑↓ choose  Enter change  Esc back';
   if (row?.kind !== 'binding') return '↑↓ choose  ←→ change  Esc back';
   if (capturing) return `Press a key for ${row.label} (Esc cancels).`;
   return '←→ slot  Enter rebind  Backspace clear  Esc back';
 }
 
 /**
- * The settings screen (design §13.3): handling steppers, a "press a key" rebind for each game
- * control, the ghost toggle, and the theme and skin pickers. Every change goes to the settings store
+ * The settings screen (design §13.3): the nickname, handling steppers, a "press a key" rebind for
+ * each game control, the ghost toggle, and the theme and skin pickers. Every change goes to the settings store
  * and is saved at once. It reads the stores from `ClientCoreProvider`, so it stands on its own: the
  * in-game menu and the main menu both open it.
  */
@@ -188,6 +199,7 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
   const [slot, setSlot] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [message, setMessage] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const row = ROWS[cursor];
 
   const change = (next: SettingsChange, said = '') => {
@@ -196,7 +208,7 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
   };
 
   const moveTo = (at: number) => {
-    setCursor(Math.min(Math.max(at, 0), ROWS.length - 1));
+    setCursor(at);
     setSlot(0);
     setMessage('');
   };
@@ -219,7 +231,7 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
 
   // A press, told from the key repeat, so the OS repeat of the Enter that opened the rebind prompt
   // isn't bound.
-  useScreenKeys({ active, clock }, ({ input, key }, press) => {
+  useScreenKeys({ active: active && !renaming, clock }, ({ input, key }, press) => {
     if (!row) return;
     if (capturing && row.kind === 'binding') {
       if (press) capture(input, key, row.action);
@@ -227,11 +239,13 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
     }
     if (key.eventType === 'release') return;
     if (key.escape) onClose();
-    else if (key.upArrow) moveTo(cursor - 1);
-    else if (key.downArrow) moveTo(cursor + 1);
+    else if (key.upArrow) moveTo(nextIndex(ROWS, cursor, -1));
+    else if (key.downArrow) moveTo(nextIndex(ROWS, cursor, 1));
     else if (row.kind === 'value' && (key.leftArrow || key.rightArrow)) {
       const direction = key.rightArrow ? 1 : -1;
       if (row.can(settings, direction)) change(row.step(settings, direction));
+    } else if (row.kind === 'nickname') {
+      if (key.return && press) setRenaming(true);
     } else if (row.kind === 'binding') {
       const slots = settings.bindings[row.action].length + 1;
       if (key.leftArrow) setSlot((at) => Math.max(0, at - 1));
@@ -254,15 +268,32 @@ export function SettingsScreen({ onClose, active, clock }: SettingsScreenProps) 
   };
 
   const shownValue = (row: Row, selected: boolean): string => {
+    if (row.kind === 'nickname') return settings.nickname || '(not set)';
     if (row.kind === 'binding') return bindingValue(row.action, selected);
     return `${row.can(settings, -1) ? '< ' : '  '}${row.value(settings)}${row.can(settings, 1) ? ' >' : ''}`;
   };
 
+  if (renaming) {
+    return (
+      <NicknamePrompt
+        initial={settings.nickname || suggestNickname()}
+        fresh={!settings.nickname}
+        active={active}
+        clock={clock}
+        onAccept={(nickname) => {
+          setRenaming(false);
+          change({ nickname });
+        }}
+        onCancel={() => setRenaming(false)}
+      />
+    );
+  }
+
   return (
     <Box flexDirection="column" width={WIDTH}>
       <Text bold>SETTINGS</Text>
-      {SECTIONS.map(({ title, rows }, index) => (
-        <Box key={title} flexDirection="column" marginTop={index === 0 ? 0 : 1}>
+      {SECTIONS.map(({ title, rows }) => (
+        <Box key={title} flexDirection="column">
           <Text dimColor>{title}</Text>
           {rows.map((each) => {
             const selected = each === row;

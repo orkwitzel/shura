@@ -49,7 +49,7 @@ describe('the main menu', () => {
     const app = await start();
     expect(lines(app.frame())).toEqual([
       'SHURA',
-      'Play online  coming soon',
+      'Play online',
       '› Single player',
       'Settings',
       'Quit',
@@ -57,9 +57,13 @@ describe('the main menu', () => {
     ]);
   });
 
-  it('moves the cursor with ↑ and ↓, passing over Play online and stopping at the ends', async () => {
+  it('moves the cursor with ↑ and ↓, stopping at the ends', async () => {
     const app = await start();
     await app.type(KEYS.up);
+    expect(lines(app.frame())).toContain('› Play online');
+    await app.type(KEYS.up);
+    expect(lines(app.frame())).toContain('› Play online');
+    await app.type(KEYS.down);
     expect(lines(app.frame())).toContain('› Single player');
     await app.type(KEYS.down);
     expect(lines(app.frame())).toContain('› Settings');

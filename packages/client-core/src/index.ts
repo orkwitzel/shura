@@ -154,7 +154,16 @@ export {
   formatWait,
   pingQuality,
 } from './view/format';
-export { ordinal, type PlacedMatch, placeOf } from './view/places';
+export {
+  type MatchResultRows,
+  matchResultRows,
+  OUT_WORDS,
+  ordinal,
+  type PlacedMatch,
+  placeOf,
+  RESULTS_MS,
+  type ResultRow,
+} from './view/places';
 export {
   type LobbyRole,
   lobbyRole,
