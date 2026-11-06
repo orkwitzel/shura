@@ -90,3 +90,20 @@ export function opponentBoardRows(
   rows.push(`${WALLS.left}${WALLS.floor.repeat(BOARD_WIDTH)}${WALLS.right}`);
   return rows;
 }
+
+/** An opponent's half-block board on screen, in characters: the meter, walls, a gap; its name. */
+export const OPPONENT_BOARD = { width: 14, height: 12 } as const;
+
+/** How many opponent boards fit in `columns`×`rows`: whole boards per row, and in all. */
+export function boardsFitting(columns: number, rows: number): { perRow: number; total: number } {
+  const perRow = Math.max(0, Math.floor(columns / OPPONENT_BOARD.width));
+  return { perRow, total: perRow * Math.max(0, Math.floor(rows / OPPONENT_BOARD.height)) };
+}
+
+/** How high a game's stack is, in rows: for the list of opponents when their boards don't fit. */
+export function stackHeight({ board }: Pick<ReadonlyEngineState, 'board'>): number {
+  for (let row = board.length - 1; row >= 0; row--) {
+    if (board[row]?.some((cell) => cell !== null)) return row + 1;
+  }
+  return 0;
+}

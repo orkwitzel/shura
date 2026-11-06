@@ -21,10 +21,16 @@ import { useStore } from 'zustand';
 import { boardRows, HIDDEN_ROWS_SHOWN } from '../../board/board';
 import { meterColumn } from '../../board/garbage-meter';
 import type { Look } from '../../board/look';
-import { opponentBoardRows } from '../../board/opponent-board';
+import {
+  boardsFitting,
+  OPPONENT_BOARD,
+  opponentBoardRows,
+  stackHeight,
+} from '../../board/opponent-board';
 import { menuLines, overlayRows } from '../../board/overlay';
 import { NO_PIECE, pieceRows } from '../../board/piece';
 import { cutTo } from '../../board/text-width';
+import { Rows } from '../../components/rows';
 import {
   eventTypeOf,
   type KeyName,
@@ -57,9 +63,6 @@ export interface MatchViewProps {
 /** Your board's columns: the HUD, the meter, the board between its walls, the preview, gaps. */
 const HUD_WIDTH = 14;
 const OWN_WIDTH = HUD_WIDTH + 1 + 22 + 2 + 10 + 2;
-/** An opponent's half-block board: the meter, the board between its walls, a gap; its name. */
-const OPPONENT_WIDTH = 14;
-const OPPONENT_HEIGHT = 12;
 /** How long an attack flashes its target's name, in ms (design §13.3). */
 const FLASH_MS = 600;
 
@@ -71,15 +74,19 @@ interface MenuEntry {
   readonly run: () => void;
 }
 
-/** Rows of pre-coloured strings, one `<Text>` each (design §13.3). */
-function Rows({ rows }: { rows: readonly string[] }) {
+/**
+ * The "SPECTATING" line (design §13.2): the room and mode, why you watch if `detail` says, and
+ * Esc to leave.
+ */
+function SpectatingLine({ where, detail }: { where: string; detail?: string }) {
   return (
-    <>
-      {rows.map((row, index) => (
-        // The rows are positions, so their index is their identity.
-        <Text key={index}>{row}</Text>
-      ))}
-    </>
+    <Text>
+      <Text bold color="yellow">
+        SPECTATING
+      </Text>
+      <Text>{`  ${where}${detail ? ` · ${detail}` : ''}`}</Text>
+      <Text dimColor>{'   Esc leave'}</Text>
+    </Text>
   );
 }
 
@@ -164,7 +171,7 @@ function OpponentBoard({
   const meter = meterColumn(game.out ? 0 : totalLines(game.engine.garbageMeter), 10, 2, look);
   const rows = board.map((row, at) => `${meter[at] ?? ' '}${row}`);
   return (
-    <Box flexDirection="column" width={OPPONENT_WIDTH} height={OPPONENT_HEIGHT}>
+    <Box flexDirection="column" width={OPPONENT_BOARD.width} height={OPPONENT_BOARD.height}>
       <Text wrap="truncate">
         {' '}
         <Name name={cutTo(name, 12)} flashing={flashing} />
@@ -215,14 +222,6 @@ function OpponentList({
   );
 }
 
-/** How high a game's stack is, in rows. */
-function stackHeight({ board }: OnlinePlayerGame['engine']): number {
-  for (let row = board.length - 1; row >= 0; row--) {
-    if (board[row]?.some((cell) => cell !== null)) return row + 1;
-  }
-  return 0;
-}
-
 /** Opponents' boards in a grid of `columns`, or a list if `fits` is false. */
 function Opponents({
   match,
@@ -262,12 +261,6 @@ function Opponents({
       ))}
     </Box>
   );
-}
-
-/** How many half-block boards fit in `columns`×`rows`: per row, and in all. */
-function boardsFitting(columns: number, rows: number): { perRow: number; total: number } {
-  const perRow = Math.max(0, Math.floor(columns / OPPONENT_WIDTH));
-  return { perRow, total: perRow * Math.max(0, Math.floor(rows / OPPONENT_HEIGHT)) };
 }
 
 /**
@@ -372,13 +365,7 @@ export function MatchView({
     const fit = boardsFitting(size.columns, size.rows - 3);
     return (
       <Box flexDirection="column">
-        <Text>
-          <Text bold color="yellow">
-            SPECTATING
-          </Text>
-          <Text>{`  ${where} · you take a seat at the next lobby`}</Text>
-          <Text dimColor>{'   Esc leave'}</Text>
-        </Text>
+        <SpectatingLine where={where} detail="you take a seat at the next lobby" />
         <Box marginTop={1}>
           <Opponents
             match={match}
@@ -467,12 +454,7 @@ export function MatchView({
         />
       </Box>
       {me.out ? (
-        <Text>
-          <Text bold color="yellow">
-            SPECTATING
-          </Text>
-          <Text dimColor>{`  ${where}   Esc leave`}</Text>
-        </Text>
+        <SpectatingLine where={where} />
       ) : (
         <Box>
           <Text dimColor>{`${where}  `}</Text>

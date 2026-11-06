@@ -6,7 +6,7 @@ import {
   Option,
 } from '@commander-js/extra-typings';
 import { SOLO_MODES, type SoloMode } from '@shura/client-core';
-import { parseRoomCode, ROOM_CODE_LENGTH } from '@shura/protocol';
+import { parseRoomCode, ROOM_CODE_LENGTH, roomModeSchema } from '@shura/protocol';
 import pkg from '../../package.json' with { type: 'json' };
 import type { InputChoice } from '../platform/input/input-adapter';
 import type { OnlineStart } from '../screens/online/online-start';
@@ -14,8 +14,11 @@ import type { OnlineStart } from '../screens/online/online-start';
 /** The adapters `--input` can fix; without it the CLI chooses (design §7.3). */
 const FIXED_INPUTS = ['precise', 'basic'] as const satisfies readonly InputChoice[];
 
-/** The online modes a room can play (design §4); `shura create` makes a 1v1 room by default. */
-const ROOM_MODES = ['1v1', 'ffa'] as const;
+/**
+ * The online modes a room can play (design §4), as the protocol has them; `shura create` makes a
+ * 1v1 room by default.
+ */
+const ROOM_MODES = roomModeSchema.options;
 
 /** What each solo mode is, for `shura solo --help`. */
 const SOLO_MODE_HELP: Readonly<Record<SoloMode, string>> = {

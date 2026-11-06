@@ -4,6 +4,7 @@ import { boardRows, HIDDEN_ROWS_SHOWN } from '../../board/board';
 import type { Look } from '../../board/look';
 import { overlayRows } from '../../board/overlay';
 import { NO_PIECE, pieceRows } from '../../board/piece';
+import { Rows } from '../../components/rows';
 import { Hud } from './hud';
 
 export interface GameViewProps {
@@ -18,18 +19,6 @@ export interface GameViewProps {
   readonly overlay?: readonly string[];
   /** Short notices for the status line (a config file that couldn't be used). */
   readonly notices: readonly string[];
-}
-
-/** Rows of pre-coloured strings, one `<Text>` each (design §13.3). */
-function Rows({ rows }: { rows: readonly string[] }) {
-  return (
-    <>
-      {rows.map((row, index) => (
-        // The rows are positions, so their index is their identity.
-        <Text key={index}>{row}</Text>
-      ))}
-    </>
-  );
 }
 
 /** Hold, on the left (design §13.3), greyed out once used for this piece. */
