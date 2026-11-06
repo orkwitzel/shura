@@ -52,3 +52,8 @@ allowBuilds:
   "@swc/core": true
   esbuild: true
   lefthook: true
+
+overrides:
+  # GHSA-q7qp-rjg7-q26m: Nest 11's platform-express pins multer 2.4.0. Drop this once a Nest 11
+  # release depends on multer 2.5.0 or later.
+  multer: 2.5.0
