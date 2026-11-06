@@ -1,5 +1,6 @@
 import { formatWait } from '@shura/client-core';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useInterval } from 'usehooks-ts';
 import { Button } from '@/components/ui/button';
 import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import styles from './quick-match-wait.module.css';
@@ -18,10 +19,7 @@ export interface QuickMatchWaitProps {
 /** The time since `since`, in ms, updated a few times a second. */
 function useElapsed(since: number): number {
   const [now, setNow] = useState(() => performance.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(performance.now()), 250);
-    return () => clearInterval(timer);
-  }, []);
+  useInterval(() => setNow(performance.now()), 250);
   return Math.max(0, now - since);
 }
 

@@ -11,8 +11,8 @@ import { type BoardPainter, createBoardPainter } from './board-painter';
  * `matchFrame`.
  */
 export interface MatchPainter {
-  /** Moves each board's layer to its place on the stage. */
-  place(boards: readonly MatchBoard[]): void;
+  /** Moves each board's layer to where `boards` lays it out on the stage. */
+  arrange(boards: readonly MatchBoard[]): void;
   /** Paints the boards `paints` names again; every other board keeps what it has. */
   paint(paints: readonly BoardPaint[]): void;
   /** Your game's effects, which shake your board's layer. */
@@ -40,8 +40,8 @@ export function createMatchPainter(
     [...layers].map(([id, { painter }]) => [id, painter]),
   );
   return {
-    place(placed) {
-      for (const board of placed) {
+    arrange(boards) {
+      for (const board of boards) {
         const layer = layers.get(board.playerId);
         if (layer) placeLayer(layer.outer, board.x, board.y);
       }
