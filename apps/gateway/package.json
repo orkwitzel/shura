@@ -3,6 +3,13 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "exports": {
+    "./app.module": "./src/app.module.ts",
+    "./clock": "./src/clock/index.ts",
+    "./config": "./src/config/index.ts",
+    "./configure-app": "./src/configure-app.ts",
+    "./valkey": "./src/valkey/index.ts"
+  },
   "files": [
     "dist"
   ],

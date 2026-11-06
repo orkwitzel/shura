@@ -6,20 +6,16 @@ import {
   Option,
 } from '@commander-js/extra-typings';
 import { SOLO_MODES, type SoloMode } from '@shura/client-core';
+import { parseRoomCode, ROOM_CODE_LENGTH } from '@shura/protocol';
 import pkg from '../../package.json' with { type: 'json' };
 import type { InputChoice } from '../platform/input/input-adapter';
+import type { OnlineStart } from '../screens/online/online-start';
 
 /** The adapters `--input` can fix; without it the CLI chooses (design §7.3). */
 const FIXED_INPUTS = ['precise', 'basic'] as const satisfies readonly InputChoice[];
 
 /** The online modes a room can play (design §4); `shura create` makes a 1v1 room by default. */
 const ROOM_MODES = ['1v1', 'ffa'] as const;
-
-/**
- * A room code (design §10.3): 4 characters, or 6 for a private room, from the letters and digits
- * without 0, O, 1, I and L.
- */
-const ROOM_CODE = /^[2-9A-HJKMNP-Z]{4}([2-9A-HJKMNP-Z]{2})?$/;
 
 /** What each solo mode is, for `shura solo --help`. */
 const SOLO_MODE_HELP: Readonly<Record<SoloMode, string>> = {
@@ -28,11 +24,6 @@ const SOLO_MODE_HELP: Readonly<Record<SoloMode, string>> = {
   ultra: 'score as much as you can in 2 minutes',
 };
 
-/** What `shura create` and `shura join` open on: a new room's lobby, or that room's. */
-export type OnlineStart =
-  | { readonly action: 'create'; readonly mode: (typeof ROOM_MODES)[number] }
-  | { readonly action: 'join'; readonly code: string };
-
 /**
  * What the terminal app opens with: the main menu, straight on a game of `mode`, or straight on a
  * room, and the global options that change it.
@@ -40,7 +31,7 @@ export type OnlineStart =
 export interface PlayOptions {
   /** `shura solo <mode>`; without it the app opens on the main menu. */
   readonly mode?: SoloMode;
-  /** `shura create` or `shura join <CODE>`. */
+  /** `shura quick`, `shura create` or `shura join <CODE>`. */
   readonly online?: OnlineStart;
   /** `--server`: the server for online play, over `SHURA_SERVER` and the config (design §13.3). */
   readonly server?: string;
@@ -63,27 +54,25 @@ export interface CommandIO {
   play(options: PlayOptions): Promise<number>;
 }
 
+/** A room code as the protocol parses it (design §10.3): 4 letters and digits, any case. */
 const roomCode = (code: string): string => {
-  const upper = code.toUpperCase();
-  if (!ROOM_CODE.test(upper)) {
-    throw new InvalidArgumentError('A room code is 4 or 6 letters and digits, like K7QX.');
+  const parsed = parseRoomCode(code);
+  if (parsed === undefined) {
+    throw new InvalidArgumentError(
+      `A room code is ${ROOM_CODE_LENGTH} letters and digits, like K7QX.`,
+    );
   }
-  return upper;
+  return parsed;
 };
 
 /**
  * Runs `shura <argv>` (design §13.3) and returns the exit code: 0 for help and the version, the
- * app's own for the menu, `solo`, `create` and `join` (1 for a version mismatch), 1 for `quick`
- * until quick-match exists (#65), and 2 for a mistake in the arguments, which prints what was
- * wrong and the help. Every flag goes before or after the command, and `--mode` goes only with
- * `create`.
+ * app's own for the menu, `solo`, `quick`, `create` and `join`, and 2 for a mistake in the
+ * arguments, which prints what was wrong and the help. Every flag goes before or after the command,
+ * and `--mode` goes only with `create`.
  */
 export async function runCommand(argv: readonly string[], io: CommandIO): Promise<number> {
   let code = 0;
-  const noQuickMatch = () => {
-    io.err("quick match isn't available yet\n");
-    code = 1;
-  };
 
   // Set before the commands are added: each command copies them from the program.
   const program = new Command()
@@ -117,8 +106,7 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
       if (program.opts().mode !== undefined && command.name() !== 'create') {
         command.error('error: --mode goes only with create');
       }
-    })
-    .addHelpText('after', "\nQuick match isn't available yet: quick exits with 1.");
+    });
 
   const playOptions = ({
     color,
@@ -145,7 +133,13 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
     .action(async (mode, _options, command) => {
       code = await io.play({ mode, ...playOptions(command.optsWithGlobals()) });
     });
-  program.command('quick').description('join the 1v1 quick-match queue').action(noQuickMatch);
+  program
+    .command('quick')
+    .description('join the 1v1 quick-match queue')
+    .action(async (_options, command) => {
+      const online: OnlineStart = { action: 'quick' };
+      code = await io.play({ ...playOptions(command.optsWithGlobals()), online });
+    });
   program
     .command('create')
     .description('create a room (1v1 unless --mode ffa) and print its code and link')
@@ -160,7 +154,9 @@ export async function runCommand(argv: readonly string[], io: CommandIO): Promis
     .command('join')
     .description('join a room by its code')
     .addArgument(
-      new Argument('<CODE>', 'the room code: 4 or 6 letters and digits').argParser(roomCode),
+      new Argument('<CODE>', `the room code: ${ROOM_CODE_LENGTH} letters and digits`).argParser(
+        roomCode,
+      ),
     )
     .action(async (room, _options, command) => {
       const online: OnlineStart = { action: 'join', code: room };

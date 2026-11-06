@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { App } from '../../src/app/app';
 import { startTerminalApp } from '../../src/app/run';
 import { fakeClock } from '../support/fake-clock';
+import { offlineNetwork } from '../support/fake-server';
 import { settle } from '../support/ink';
 import { memoryStores } from '../support/stores';
 
@@ -57,7 +58,14 @@ async function gameInTerminal() {
   const stdin = new TerminalIn();
   const clock = fakeClock(1_000);
   const instance = startTerminalApp(
-    <App mode="sprint" clock={clock} seed={7} colors="none" {...memoryStores()} />,
+    <App
+      mode="sprint"
+      clock={clock}
+      seed={7}
+      colors="none"
+      online={offlineNetwork(clock)}
+      {...memoryStores()}
+    />,
     {
       // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
       stdout: stdout as any,
@@ -83,13 +91,14 @@ describe('taking over the terminal', () => {
     const stdout = new TerminalOut();
     const stdin = new TerminalIn();
     let rawWhenAsked: boolean | undefined;
+    const clock = fakeClock(1_000);
     const write = stdout.write;
     stdout.write = (chunk, callback) => {
       if (chunk.includes(KITTY_QUERY)) rawWhenAsked ??= stdin.rawMode;
       return write(chunk, callback);
     };
     const instance = startTerminalApp(
-      <App clock={fakeClock(1_000)} colors="none" {...memoryStores()} />,
+      <App clock={clock} colors="none" online={offlineNetwork(clock)} {...memoryStores()} />,
       {
         // biome-ignore lint/suspicious/noExplicitAny: test doubles for the TTY streams
         stdout: stdout as any,

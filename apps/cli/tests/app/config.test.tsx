@@ -6,6 +6,7 @@ import { App } from '../../src/app/app';
 import { exitMessages, openStores } from '../../src/app/stores';
 import type { ColorMode } from '../../src/platform/terminal/color-mode';
 import { fakeClock } from '../support/fake-clock';
+import { offlineNetwork } from '../support/fake-server';
 import { resize, settle, visibleRows } from '../support/ink';
 import { tempStorage } from '../support/temp-storage';
 
@@ -42,6 +43,7 @@ async function sprint(
       seed={7}
       colors={colors}
       input={{ choice: 'precise' }}
+      online={offlineNetwork(clock)}
       {...stores}
     />,
   );

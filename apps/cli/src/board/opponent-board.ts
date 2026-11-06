@@ -8,11 +8,19 @@ import {
   VISIBLE_ROWS,
 } from '@shura/engine';
 import { type Look, WALLS } from './look';
+import { centerIn } from './text-width';
 
-/** How an opponent's board is drawn: greyed once they're out (design §10.1). */
+/**
+ * How an opponent's board is drawn: greyed once they're out (design §10.1), with `lines` (their
+ * place and why) over its middle rows.
+ */
 export interface OpponentBoardStyle {
   readonly out: boolean;
+  readonly lines?: readonly string[];
 }
+
+/** Characters between an opponent board's walls. */
+const INSIDE = BOARD_WIDTH;
 
 /** Without colour, each half-block character by which of its two cells are filled. */
 const HALF_GLYPHS = { none: ' ', top: '▀', bottom: '▄', both: '█' } as const;
@@ -45,7 +53,7 @@ function cells(state: ReadonlyEngineState): BoardCell[][] {
 export function opponentBoardRows(
   state: ReadonlyEngineState,
   look: Look,
-  { out }: OpponentBoardStyle,
+  { out, lines = [] }: OpponentBoardStyle,
 ): string[] {
   const grid = cells(state);
   const colorOf = (cell: Exclude<BoardCell, null>): ThemeColor => {
@@ -73,6 +81,11 @@ export function opponentBoardRows(
       }
     }
     rows.push(`${WALLS.side}${text}${WALLS.side}`);
+  }
+  // The lines go over the middle rows, each centred on its own and cut to the board.
+  const top = Math.floor((rows.length - lines.length) / 2);
+  for (const [index, line] of lines.entries()) {
+    rows[top + index] = `${WALLS.side}${centerIn(line, INSIDE)}${WALLS.side}`;
   }
   rows.push(`${WALLS.left}${WALLS.floor.repeat(BOARD_WIDTH)}${WALLS.right}`);
   return rows;
