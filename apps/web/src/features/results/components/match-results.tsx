@@ -16,6 +16,11 @@ export interface MatchResultsProps {
   readonly roomCode: string;
   /** A quick-match room has no lobby: *Rematch* and *Leave* instead (design §9.4). */
   readonly quickMatch: boolean;
+  /**
+   * Your quick-match opponent left mid-match, breaking the room up (design §9.4): "Opponent
+   * left.", and only *Leave* (Enter or Esc).
+   */
+  readonly opponentLeft?: boolean;
   /** You've asked for the rematch: the server has you ready (design §9.4), across a reconnect. */
   readonly rematchAsked: boolean;
   /** Enter, Esc, or 10 s, in a room with a code: back to the lobby. */
@@ -48,7 +53,7 @@ function useResultsTimer(running: boolean, onDone: () => void): number {
  * out at the same frame sharing one, with their lines sent, attack per minute and pieces per
  * second, your row highlighted. Enter, or 10 s, goes back to the lobby. In a quick-match room
  * *Rematch* (Enter) and *Leave* (Esc) instead, and once you've asked for the rematch it waits for
- * your opponent.
+ * your opponent; if your opponent left mid-match, "Opponent left." and only *Leave*.
  */
 export function MatchResults({
   result,
@@ -56,6 +61,7 @@ export function MatchResults({
   name,
   roomCode,
   quickMatch,
+  opponentLeft = false,
   rematchAsked,
   onBack,
   onRematch,
@@ -66,27 +72,30 @@ export function MatchResults({
   const { rows, mine, winners } = matchResultRows(result, you);
   const opponent = rows.find((row) => !row.you);
 
-  const items: MenuItem[] = quickMatch
-    ? [
-        {
-          id: 'rematch',
-          label: rematchAsked
-            ? `Waiting for ${opponent ? name(opponent.playerId) : 'your opponent'}…`
-            : 'Rematch',
-          onSelect: () => {
-            if (!rematchAsked) onRematch();
+  const leave: MenuItem = { id: 'leave', label: 'Leave', shortcut: 'Escape', onSelect: onLeave };
+  const items: MenuItem[] = opponentLeft
+    ? [leave]
+    : quickMatch
+      ? [
+          {
+            id: 'rematch',
+            label: rematchAsked
+              ? `Waiting for ${opponent ? name(opponent.playerId) : 'your opponent'}…`
+              : 'Rematch',
+            onSelect: () => {
+              if (!rematchAsked) onRematch();
+            },
           },
-        },
-        { id: 'leave', label: 'Leave', shortcut: 'Escape', onSelect: onLeave },
-      ]
-    : [{ id: 'back', label: 'Back to lobby', detail: `${left} s`, onSelect: onBack }];
+          leave,
+        ]
+      : [{ id: 'back', label: 'Back to lobby', detail: `${left} s`, onSelect: onBack }];
 
   return (
     <Dialog
       open
       className={styles.results}
       title={mine ? `${ordinal(mine.place)} place` : 'Results'}
-      onClose={quickMatch ? onLeave : onBack}
+      onClose={quickMatch || opponentLeft ? onLeave : onBack}
     >
       <p className={styles.summary}>
         {winners.length > 0 && (
@@ -97,11 +106,13 @@ export function MatchResults({
                 <bdi>{name(id)}</bdi>
               </span>
             ))}{' '}
-            won ·{' '}
+            won
           </>
         )}
-        room {roomCode}
+        {winners.length > 0 && roomCode && ' · '}
+        {roomCode && `room ${roomCode}`}
       </p>
+      {opponentLeft && <p className={styles.left}>Opponent left.</p>}
       <table className={styles.table}>
         <thead>
           <tr>
@@ -132,7 +143,8 @@ export function MatchResults({
           ))}
         </tbody>
       </table>
-      <MenuList label="Results" items={items} autoFocus />
+      {/* A new menu when the opponent leaves, so its one item takes the focus. */}
+      <MenuList key={opponentLeft ? 'left' : 'menu'} label="Results" items={items} autoFocus />
     </Dialog>
   );
 }

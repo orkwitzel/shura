@@ -15,6 +15,7 @@ import { MatchResults } from '@/features/results/components/match-results';
 import { useSound } from '@/features/sound/hooks/use-sound';
 import { useGameKeys } from '@/hooks/use-game-keys';
 import { useSessionHandling } from '@/hooks/use-session-handling';
+import { opponentLeftResults } from '@/utils/match-on';
 import styles from './room-match.module.css';
 
 /** The CSS pixels the boards leave clear across the top, for the spectating banner. */
@@ -41,7 +42,8 @@ export interface RoomMatchProps {
  *   the connection is down.
  * - **Spectating** a match you don't play in: every board the same size in a grid, from the
  *   snapshot, under a banner saying you take a seat at the next lobby, with *Leave* (Esc).
- * - **Ended:** the results over the boards, until they're done with.
+ * - **Ended:** the results over the boards, until they're done with. When your quick-match
+ *   opponent left mid-match, you're out of the room already: only *Leave*, which is done with them.
  *
  * Loaded apart, with Pixi.
  */
@@ -53,6 +55,8 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
   const myOut = useStore(session, (state) => state.match?.me?.out ?? null);
   const result = useStore(session, (state) => state.match?.result ?? null);
   const quickMatch = useStore(session, (state) => state.room?.quickMatch === true);
+  // Your quick-match opponent left mid-match: you're out of the room, with only *Leave*.
+  const opponentLeft = useStore(session, opponentLeftResults);
   const roomCode = useStore(session, (state) => state.room?.code ?? '');
   // The server marks you ready once you've asked for the rematch (design §9.4).
   const rematchAsked = useStore(session, ({ room, sessionId }) => {
@@ -94,6 +98,9 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
   };
   const banner =
     result !== null ? null : me === null ? WATCHING_TEXT : myOut && youOutText(myOut.reason);
+  // "Reconnecting…" shows once (design §13.2): over your HUD if you have a board, else in the
+  // spectating banner, else (a spectator at the results) across the top.
+  const reconnectingAt = !reconnecting ? null : me !== null ? 'hud' : banner ? 'banner' : 'top';
 
   return (
     <main className={styles.match}>
@@ -111,13 +118,20 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
         overlay={me && myOut ? outLabel(me) : <Countdown label={countdown} />}
         aside={
           <div className={styles.aside}>
-            {reconnecting && <ReconnectingBanner placement="hud" />}
+            {reconnectingAt === 'hud' && <ReconnectingBanner placement="hud" />}
             <MatchHud session={session} />
             <Callouts game={events} />
           </div>
         }
       />
-      {banner && <SpectatingBanner detail={banner} onLeave={session.leaveRoom} />}
+      {banner && (
+        <SpectatingBanner
+          detail={banner}
+          status={reconnectingAt === 'banner' && <ReconnectingBanner placement="inline" />}
+          onLeave={session.leaveRoom}
+        />
+      )}
+      {reconnectingAt === 'top' && <ReconnectingBanner />}
       <MatchMenu
         open={menuOpen && playing}
         onBack={() => setMenuOpen(false)}
@@ -130,10 +144,11 @@ export function RoomMatch({ session, onResultsDone }: RoomMatchProps) {
           name={(playerId) => names.get(playerId) ?? '?'}
           roomCode={roomCode}
           quickMatch={quickMatch}
+          opponentLeft={opponentLeft}
           rematchAsked={rematchAsked}
           onBack={onResultsDone}
           onRematch={session.rematch}
-          onLeave={session.leaveRoom}
+          onLeave={opponentLeft ? onResultsDone : session.leaveRoom}
         />
       )}
     </main>
