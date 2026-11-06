@@ -6,6 +6,8 @@ import { type ErrorBody, errorBody } from '@shura/protocol';
  */
 export const REFUSALS = {
   notInLobby: errorBody('wrong_phase', 'Not in the lobby.'),
+  startsItself: errorBody('wrong_phase', 'Quick-match rooms start by themselves.'),
+  noRematch: errorBody('wrong_phase', 'Rematch comes after a quick-match result.'),
   notSeated: errorBody('wrong_phase', 'Take a seat to play.'),
   notHost: errorBody('not_host', 'Only the host starts the match.'),
   nobodyReady: errorBody('wrong_phase', 'Waiting for another player to be ready.'),

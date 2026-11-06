@@ -10,3 +10,4 @@ export class LeaveRoomDto extends createZodDto(gatewayToGameMessages.leaveRoom) 
 export class ReadyDto extends createZodDto(gatewayToGameMessages.ready) {}
 export class StartMatchDto extends createZodDto(gatewayToGameMessages.startMatch) {}
 export class InputBatchDto extends createZodDto(gatewayToGameMessages.inputBatch) {}
+export class RematchDto extends createZodDto(gatewayToGameMessages.rematch) {}
