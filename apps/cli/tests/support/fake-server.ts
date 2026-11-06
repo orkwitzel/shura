@@ -1,5 +1,6 @@
-import type { Connect, Fetch } from '@shura/client-core';
+import type { Connect, Fetch, TimerClock } from '@shura/client-core';
 import type { ClientMessage, ServerMessage } from '@shura/protocol';
+import type { OnlineNetwork } from '../../src/screens/online/online-screen';
 
 /** A gateway's `/api` and `/ws` in memory, for the CLI's online screens. */
 export interface FakeServer {
@@ -45,10 +46,12 @@ export function fakeServer({
     sessions,
     push,
     fetch: async (_url, init) => {
-      sessions.push(init.body === undefined ? undefined : JSON.parse(init.body));
+      const asked = init.body === undefined ? undefined : JSON.parse(init.body);
+      sessions.push(asked);
+      // A new session keeps the nickname asked for.
       const { status, body } = session ?? {
         status: 201,
-        body: { sessionId: 'me', sessionToken: 't', nickname: 'Ada' },
+        body: { sessionId: 'me', sessionToken: 't', nickname: asked?.nickname ?? 'Ada' },
       };
       return { ok: status < 400, status, json: async () => body };
     },
@@ -69,5 +72,17 @@ export function fakeServer({
         close: () => setTimeout(() => closeClient?.(), 0),
       };
     },
+  };
+}
+
+/** Online play over a fake server: for tests that never go online. */
+export function offlineNetwork(clock: TimerClock): OnlineNetwork {
+  const server = fakeServer();
+  return {
+    server: 'http://test',
+    clientVersion: 'test',
+    connect: server.connect,
+    fetch: server.fetch,
+    clock,
   };
 }

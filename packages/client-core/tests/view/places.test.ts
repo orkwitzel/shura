@@ -1,16 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { OUT_WORDS, ordinal, placeOf } from '../../src/index';
-
-describe('how a player went out, in words (design §13.2)', () => {
-  test('is the same in both UIs', () => {
-    expect(OUT_WORDS).toEqual({
-      toppedOut: 'topped out',
-      laggedOut: 'lagged out',
-      removed: 'removed',
-      left: 'left',
-    });
-  });
-});
+import { matchResultRows, OUT_WORDS, ordinal, placeOf, RESULTS_MS } from '../../src/index';
 
 const out = (frame: number) => ({ reason: 'toppedOut' as const, frame });
 
@@ -70,5 +59,50 @@ describe('ordinal (the lobby’s last place, design §13.2)', () => {
     [102, '102nd'],
   ])('%i is %s', (place, words) => {
     expect(ordinal(place)).toBe(words);
+  });
+});
+
+describe('a match’s results as rows (design §13.2, Results)', () => {
+  const result = {
+    placements: [
+      { playerId: 'cy', place: 3, reason: 'toppedOut' as const, frame: 400 },
+      { playerId: 'ada', place: 1 },
+      { playerId: 'bo', place: 1 },
+    ],
+    stats: [
+      { playerId: 'ada', linesSent: 12, apm: 40.5, pps: 1.25 },
+      { playerId: 'cy', linesSent: 3, apm: 10, pps: 0.8 },
+    ],
+  };
+
+  test('lists every player by place, with their stats, zero for a player with none', () => {
+    const { rows } = matchResultRows(result, 'cy');
+    expect(rows).toEqual([
+      { playerId: 'ada', place: 1, linesSent: 12, apm: 40.5, pps: 1.25, you: false },
+      { playerId: 'bo', place: 1, linesSent: 0, apm: 0, pps: 0, you: false },
+      { playerId: 'cy', place: 3, linesSent: 3, apm: 10, pps: 0.8, you: true },
+    ]);
+  });
+
+  test('gives your row and the winners, sharing first place', () => {
+    const { mine, winners } = matchResultRows(result, 'cy');
+    expect(mine?.place).toBe(3);
+    expect(winners).toEqual(['ada', 'bo']);
+    expect(matchResultRows(result, null).mine).toBeNull();
+  });
+
+  test('stay up 10 s in a room with a code', () => {
+    expect(RESULTS_MS).toBe(10_000);
+  });
+});
+
+describe('how a player went out, in words (design §13.2)', () => {
+  test.each([
+    ['toppedOut', 'topped out'],
+    ['laggedOut', 'lagged out'],
+    ['removed', 'removed'],
+    ['left', 'left'],
+  ] as const)('%s is "%s"', (reason, words) => {
+    expect(OUT_WORDS[reason]).toBe(words);
   });
 });

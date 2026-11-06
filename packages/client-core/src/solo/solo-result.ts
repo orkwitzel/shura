@@ -1,5 +1,5 @@
 import type { ReadonlyEngineState } from '@shura/engine';
-import { piecesPerSecond } from '../shared/frames';
+import { piecesPerSecond } from '../view/stats';
 import type { SoloMode } from './modes';
 import type { SoloSessionState } from './solo-session';
 

@@ -104,7 +104,7 @@ export {
   type VersionedFormat,
 } from './settings/versioned';
 export type { Clock, TimerClock } from './shared/clock';
-export { FRAMES_PER_SECOND, framesToMs, msToFrames, piecesPerSecond } from './shared/frames';
+export { FRAMES_PER_SECOND, framesToMs, msToFrames } from './shared/frames';
 export type { AppStores, Store } from './shared/store';
 export { SOLO_MODES, SOLO_PRESETS, type SoloMode } from './solo/modes';
 export { personalBestLine, personalBestSummary } from './solo/personal-best';
@@ -159,7 +159,16 @@ export {
   formatWait,
   pingQuality,
 } from './view/format';
-export { OUT_WORDS, ordinal, type PlacedMatch, placeOf } from './view/places';
+export {
+  type MatchResultRows,
+  matchResultRows,
+  OUT_WORDS,
+  ordinal,
+  type PlacedMatch,
+  placeOf,
+  RESULTS_MS,
+  type ResultRow,
+} from './view/places';
 export {
   type LobbyRole,
   lobbyRole,
@@ -167,3 +176,4 @@ export {
   type RoomChange,
   roomChanges,
 } from './view/room';
+export { piecesPerSecond } from './view/stats';
