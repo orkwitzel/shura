@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WsException } from '@nestjs/websockets';
 import { type ErrorBody, errorBody, type PlayerKind, type ServerMessage } from '@shura/protocol';
+import type { SessionRecord } from '@shura/valkey';
 import PQueue from 'p-queue';
 import { WebSocket } from 'ws';
 
@@ -28,6 +29,15 @@ export interface Connection {
 export type CloseListener = (connection: Connection) => Promise<void> | void;
 
 /**
+ * Runs once a connection's `hello` is welcomed, in the same turn, so before any message after the
+ * `hello`: with the session's record as it was, its room included (design §10.2).
+ */
+export type WelcomeListener = (
+  connection: Connection,
+  record: SessionRecord,
+) => Promise<void> | void;
+
+/**
  * Every open client socket and what the gateway knows of it (`Connection`), by socket: nothing is
  * stored on the socket itself.
  *
@@ -40,6 +50,7 @@ export type CloseListener = (connection: Connection) => Promise<void> | void;
 export class ConnectionsService {
   readonly #connections = new WeakMap<WebSocket, { connection: Connection; queue: PQueue }>();
   readonly #closeListeners: CloseListener[] = [];
+  readonly #welcomeListeners: WelcomeListener[] = [];
 
   /** A client's socket opened. */
   open(socket: WebSocket): void {
@@ -67,6 +78,16 @@ export class ConnectionsService {
   /** Runs `listener` for each connection as it closes. */
   onClose(listener: CloseListener): void {
     this.#closeListeners.push(listener);
+  }
+
+  /** Runs `listener` for each connection once its `hello` is welcomed. */
+  onWelcome(listener: WelcomeListener): void {
+    this.#welcomeListeners.push(listener);
+  }
+
+  /** The connection's `hello` was welcomed as `record`'s session: only in the connection's turn. */
+  async welcomed(connection: Connection, record: SessionRecord): Promise<void> {
+    for (const listener of this.#welcomeListeners) await listener(connection, record);
   }
 
   /** The socket closed: the close listeners run in the connection's turn, then it's forgotten. */

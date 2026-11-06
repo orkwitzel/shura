@@ -1,56 +1,163 @@
-import type { Connect } from '@shura/client-core';
-import type { ServerMessage } from '@shura/protocol';
+import type { Connect, Fetch, SocketHandlers } from '@shura/client-core';
+
+/** Which way messages go: from the server to the client, or from the client to the server. */
+export type Direction = 'inbound' | 'outbound';
+
+/** A message on the line, as JSON: `{ event, data }`. */
+export interface LineMessage {
+  readonly event: string;
+  readonly data: Record<string, unknown>;
+}
 
 /**
- * Which way a client's messages go: `inbound` from the server to the client. (#64 adds
- * `outbound` and `drop()`, for reconnects and lag-outs.)
- */
-export type Direction = 'inbound';
-
-/**
- * A client's socket on a faulty network (design §14): a test holds back its messages, as a slow
- * network would, and releases them, in order. Pass `through` to `OnlineWorld.client`.
+ * A test client's line to the gateway, with faults a real network has (design §14): messages held
+ * back and let through later in order, and drops. It wraps the client's real socket (`through`)
+ * and its `fetch` (`fetchThrough`), so pass it whole as the client's options:
+ * `world.client('Ada', line)`. Nothing in the services knows about it.
  */
 export interface FaultySocket {
-  /** Wraps a client's `Connect`, for `OnlineWorld.client`'s `through`. */
+  /** Wraps the client's socket connections, for `OnlineWorld.client`. */
   readonly through: (connect: Connect) => Connect;
+  /** Wraps the client's `fetch`, for `OnlineWorld.client`: requests fail while the line is down. */
+  readonly fetchThrough: (fetch: Fetch) => Fetch;
   /**
-   * Holds back the first message going `direction` that `from` matches (any message, without it)
-   * and every message after it, until `release`.
+   * Holds back the messages going `direction`, as a slow network would: every one from now on, or
+   * from the first one `from` matches. They wait until `release`.
    */
-  hold(direction: Direction, from?: (message: ServerMessage) => boolean): void;
-  /** Delivers the messages held going `direction`, in order, and stops holding them. */
+  hold(direction: Direction, from?: (message: LineMessage) => boolean): void;
+  /** Lets the messages held going `direction` through, in order, and stops holding. */
   release(direction: Direction): void;
-  /** The messages held going `direction` and not yet delivered, in order. */
-  held(direction: Direction): readonly ServerMessage[];
+  /** The messages held going `direction`, oldest first. */
+  held(direction: Direction): readonly LineMessage[];
+  /**
+   * The line goes down: the socket closes as a network drop closes it (the client hears `close`,
+   * and nothing more from it), and every dial and request fails until `restore`. Messages held
+   * on the dropped socket are lost.
+   */
+  drop(): void;
+  /** The line is back: dials and requests go through again. */
+  restore(): void;
+  /** How many sockets the client has dialled, the ones that failed included. */
+  readonly dials: number;
+  /** How many HTTP requests the client has made, the ones that failed included. */
+  readonly requests: number;
+}
+
+/** One socket the client dialled through the line. */
+interface Line {
+  dead: boolean;
+  readonly handlers: SocketHandlers;
+  send(text: string): void;
+  close(): void;
+}
+
+/** What one direction holds: `null` when it isn't holding. */
+interface Hold {
+  from: ((message: LineMessage) => boolean) | null;
+  queue: { line: Line; text: string }[] | null;
 }
 
 export function faultySocket(): FaultySocket {
-  let from: ((message: ServerMessage) => boolean) | null = null;
-  let held: ServerMessage[] | null = null;
-  let deliver: (text: string) => void = () => {};
+  let down = false;
+  let dials = 0;
+  let requests = 0;
+  let current: Line | null = null;
+  const holds: Record<Direction, Hold> = {
+    inbound: { from: null, queue: null },
+    outbound: { from: null, queue: null },
+  };
+
+  /** Passes `text` going `direction` on `line`, or holds it. */
+  const pass = (direction: Direction, line: Line, text: string, deliver: () => void) => {
+    const hold = holds[direction];
+    if (!hold.queue && hold.from?.(JSON.parse(text) as LineMessage)) hold.queue = [];
+    if (hold.queue) hold.queue.push({ line, text });
+    else deliver();
+  };
+
   return {
     through: (connect) => (url, handlers) => {
-      deliver = handlers.message;
-      return connect(url, {
-        ...handlers,
+      dials++;
+      if (down) {
+        // The dial fails, a moment after it's made, as a refused connection does.
+        let closed = false;
+        queueMicrotask(() => {
+          if (!closed) handlers.close();
+        });
+        return {
+          send: () => {},
+          close: () => {
+            closed = true;
+          },
+        };
+      }
+      let real: ReturnType<Connect> | null = null;
+      const line: Line = {
+        dead: false,
+        handlers,
+        send: (text) => real?.send(text),
+        close: () => real?.close(),
+      };
+      real = connect(url, {
+        open: () => {
+          if (!line.dead) handlers.open();
+        },
         message: (text) => {
-          const message = JSON.parse(text) as ServerMessage;
-          if (!held && from?.(message)) held = [];
-          if (held) held.push(message);
-          else handlers.message(text);
+          if (!line.dead) pass('inbound', line, text, () => handlers.message(text));
+        },
+        close: () => {
+          if (line.dead) return;
+          line.dead = true;
+          handlers.close();
         },
       });
+      current = line;
+      return {
+        send: (text) => {
+          if (!line.dead) pass('outbound', line, text, () => line.send(text));
+        },
+        close: () => line.close(),
+      };
     },
-    hold(_direction, starts = () => true) {
-      from = starts;
+    fetchThrough: (fetch) => async (url, init) => {
+      requests++;
+      if (down) throw new TypeError('fetch failed');
+      return fetch(url, init);
     },
-    release() {
-      const due = held ?? [];
-      held = null;
-      from = null;
-      for (const message of due) deliver(JSON.stringify(message));
+    hold(direction, from) {
+      const hold = holds[direction];
+      hold.from = from ?? null;
+      hold.queue = from ? null : [];
     },
-    held: () => held ?? [],
+    release(direction) {
+      const hold = holds[direction];
+      const due = hold.queue ?? [];
+      hold.from = null;
+      hold.queue = null;
+      for (const { line, text } of due) {
+        if (line.dead) continue;
+        if (direction === 'inbound') line.handlers.message(text);
+        else line.send(text);
+      }
+    },
+    held: (direction) =>
+      (holds[direction].queue ?? []).map(({ text }) => JSON.parse(text) as LineMessage),
+    drop() {
+      down = true;
+      const line = current;
+      if (!line || line.dead) return;
+      line.dead = true;
+      line.close();
+      line.handlers.close();
+    },
+    restore() {
+      down = false;
+    },
+    get dials() {
+      return dials;
+    },
+    get requests() {
+      return requests;
+    },
   };
 }

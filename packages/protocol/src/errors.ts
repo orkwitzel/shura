@@ -31,6 +31,8 @@ export const ERRORS = {
    * lobby, starting before another seated player is ready, creating a room from inside one.
    */
   wrong_phase: { message: "That can't be done right now.", status: 409 },
+  /** `takeSeat` in a lobby whose seats are all taken (design §10.1). */
+  no_free_seat: { message: 'Every seat is taken.', status: 409 },
   /** A room action from a session that isn't in a room. */
   not_in_room: { message: "You're not in a room.", status: 409 },
   /** No game server can take the room right now (none live, or no free room code). */

@@ -3,6 +3,7 @@ export {
   type Connection,
   type ConnectionSession,
   ConnectionsService,
+  type WelcomeListener,
 } from './connections.service';
 export { SessionGuard } from './session.guard';
 export { CreateSessionDto, HelloDto, PingDto } from './sessions.dto';

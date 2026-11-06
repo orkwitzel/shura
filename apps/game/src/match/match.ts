@@ -97,9 +97,9 @@ interface Player extends MatchPlayer {
  * Every verified batch and routing goes into the match log, and a batch is acknowledged only once
  * the append holding it has succeeded (design §9.6).
  *
- * Seams for later issues:
- * - #64 reconnects: a batch sent again is acknowledged again (`receive`), snapshots of the engines,
- *   and the attacks a player came back without (`IncomingGarbage.unreceived`).
+ * A player coming back mid-match gets the snapshot, the outs and the attacks sent to them that
+ * they hadn't received (`snapshot`, `outs`, `unreceivedGarbage`), and the batches they send again
+ * are acknowledged again once logged (design §8.6, §10.2).
  */
 export class Match {
   readonly matchId: string;
@@ -191,6 +191,44 @@ export class Match {
       playerId: id,
       frame,
       hash: engine.hash(),
+    }));
+  }
+
+  /**
+   * Every player's game at their own last verified frame (design §8.6): what someone joining or
+   * coming back mid-match restores, then plays each player's relays on from.
+   */
+  snapshot(): ServerMessage {
+    return {
+      event: 'snapshot',
+      data: {
+        players: [...this.#players.values()].map(({ id, frame, engine }) => ({
+          playerId: id,
+          frame,
+          state: engine.serialize(),
+        })),
+      },
+    };
+  }
+
+  /** A `playerOut` for each player already out, for someone joining or coming back (§8.6). */
+  outs(): ServerMessage[] {
+    return [...this.#players.values()].flatMap(({ id, out }) =>
+      out ? [{ event: 'playerOut' as const, data: { playerId: id, ...out } }] : [],
+    );
+  }
+
+  /**
+   * The attacks sent to `playerId` that none of their verified batches has received yet, oldest
+   * first, as the `garbageQueued` sent again when they come back mid-match: one sent while they
+   * were away must still reach them (design §8.5, §8.6). Their client ignores any it already has.
+   */
+  unreceivedGarbage(playerId: string): ServerMessage[] {
+    const player = this.#players.get(playerId);
+    if (!player || player.out) return [];
+    return player.incoming.unreceived().map(({ id, from, lines, holeSeed }) => ({
+      event: 'garbageQueued' as const,
+      data: { id, from, to: playerId, lines, holeSeed },
     }));
   }
 

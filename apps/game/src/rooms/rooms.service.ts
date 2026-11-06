@@ -22,7 +22,10 @@ import type {
   LeaveRoomDto,
   ReadyDto,
   RematchDto,
+  SetNicknameDto,
+  SpectateDto,
   StartMatchDto,
+  TakeSeatDto,
 } from './rooms.dto';
 
 /**
@@ -117,16 +120,29 @@ export class RoomsService implements OnApplicationShutdown {
     room.attach(message.sessionId, message.nickname, message.kind, binding.deliver);
   }
 
-  /** The session's socket closed on its gateway. */
+  /** The session's socket closed on its gateway: the room holds its place (design §10.2). */
   detach(link: WebSocket, message: DetachDto): void {
     const binding = this.#bind(link, message);
-    binding?.sessions.delete(message.sessionId);
-    this.#room(link, message)?.detach(message.sessionId);
+    if (!binding) return;
+    binding.sessions.delete(message.sessionId);
+    this.#rooms.get(message.roomCode)?.detach(message.sessionId, binding.deliver);
   }
 
   leaveRoom(link: WebSocket, message: LeaveRoomDto): void {
     this.#bind(link, message)?.sessions.delete(message.sessionId);
     this.#room(link, message)?.leave(message.sessionId);
+  }
+
+  setNickname(link: WebSocket, message: SetNicknameDto): void {
+    this.#room(link, message)?.setNickname(message.sessionId, message);
+  }
+
+  spectate(link: WebSocket, message: SpectateDto): void {
+    this.#room(link, message)?.spectate(message.sessionId);
+  }
+
+  takeSeat(link: WebSocket, message: TakeSeatDto): void {
+    this.#room(link, message)?.takeSeat(message.sessionId);
   }
 
   ready(link: WebSocket, message: ReadyDto): void {
@@ -152,7 +168,7 @@ export class RoomsService implements OnApplicationShutdown {
     if (!binding) return;
     this.#links.delete(link);
     const room = this.#rooms.get(binding.code);
-    for (const sessionId of binding.sessions) room?.detach(sessionId);
+    for (const sessionId of binding.sessions) room?.detach(sessionId, binding.deliver);
   }
 
   onApplicationShutdown(): void {

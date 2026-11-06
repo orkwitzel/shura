@@ -6,6 +6,7 @@ import {
   ROOM_TICK_MS,
   type RoomMode,
   type RoomPhase,
+  SEAT_HOLD_MS,
   SEATS,
   type ServerData,
   type ServerMessage,
@@ -16,6 +17,7 @@ import type { Clock } from '../clock';
 import { Match, type NewMatch, type VerifiedGame } from '../match';
 import { MATCH_LOG_APPEND_MS } from '../match-log';
 import { REFUSALS } from './refusals';
+import { type Placed, Seating } from './seating';
 
 /**
  * How long a quick-match room waits for its second player (design §9.4). A player paired with
@@ -26,16 +28,29 @@ export const QUICK_MATCH_ARRIVAL_MS = 10_000;
 /** Where a room's messages to one session go: the gateway link it attached through. */
 export type Deliver = (sessionId: string, message: ServerMessage) => void;
 
-/** A session in the room: seated, or a spectator (`seat: null`). */
-interface Member {
+/**
+ * A member whose connection closed, their place held (design §10.2). `held` cancels the timer that
+ * frees it: `null` while they're a player in the running match, whose hold starts once it ends.
+ */
+interface Away {
+  held: (() => void) | null;
+  /** They were away when the last match ended, so they haven't had its `matchEnd`. */
+  missedEnd: boolean;
+}
+
+/**
+ * A member's connection: the link they last attached through (a reconnect through another gateway
+ * changes it), or away.
+ */
+type Link = { readonly deliver: Deliver } | Away;
+
+/** A session in the room: seated or spectating (its `place`), connected or away (its `link`). */
+interface Member extends Placed {
   readonly id: string;
   nickname: string;
   readonly kind: PlayerKind;
-  seat: number | null;
-  ready: boolean;
   lastPlace?: number;
-  /** Where its messages go. A reconnect through another gateway (#64) changes it. */
-  deliver: Deliver;
+  link: Link;
 }
 
 /** What the registry keeps of a room (design §9.5), as the room reports it after each change. */
@@ -73,31 +88,37 @@ export interface RoomOptions {
 /**
  * A room on its game pod (design §10.1): its members, seated or spectating, in the order they
  * came, the host and ready, the countdown and the match. At the match's end the room goes straight
- * back to the lobby, readies reset and each player's place kept: the results are a client screen
- * over `matchEnd`.
+ * back to the lobby, readies reset and each player's place kept, and the spectators waiting for a
+ * seat take the free ones: the results are a client screen over `matchEnd`.
+ *
+ * A member whose connection closes keeps their place (design §10.2): in the lobby, or as a
+ * spectator, for `SEAT_HOLD_MS`; as a player in a match, until it ends and then for
+ * `SEAT_HOLD_MS`. Coming back, or joining, mid-match brings the countdown, the outs so far and a
+ * snapshot, so the client can show every game from there (§8.6).
  *
  * A quick-match room (`kind: 'quick'`, design §9.4) has no host and no lobby to ready in: its
  * first match starts as soon as both seats are taken, the next once both players `rematch`, and
- * when a player leaves it breaks up (after the match, if one is running): everyone still in it
- * gets `opponentLeft` and is out of it.
- *
- * Seams for later issues:
- * - #64: `detach` holds the seat (30 s in the lobby, the 3 s window in a match) instead of
- *   leaving, `attach` of a known session restores it with a snapshot, and `spectate`/`takeSeat`
- *   move seats.
+ * when a player leaves (or their hold runs out) it breaks up, after the match if one is running:
+ * everyone still in it gets `opponentLeft` and is out of it.
  */
 export class Room {
   readonly code: string;
   readonly epoch: number;
   readonly mode: RoomMode;
   readonly kind: 'hosted' | 'quick';
+  /** A hosted room's host: `undefined` in a quick-match room, and in a hosted one while empty. */
   #hostId: string | undefined;
   #phase: RoomPhase = 'lobby';
   /** In the order they joined: the first is the longest there. */
   readonly #members = new Map<string, Member>();
+  readonly #seating: Seating<Member>;
   #match: Match | null = null;
+  /** The current match's `countdown`, sent again to whoever joins or comes back during it. */
+  #countdown: ServerMessage | null = null;
   /** The last match, kept after it ends for the server/client hash check. */
   #lastMatch: Match | null = null;
+  /** The last match's countdown and result, for a member who comes back having missed its end. */
+  #last: { readonly countdown: ServerMessage; readonly result: ServerMessage } | null = null;
   #stopTimers: (() => void)[] = [];
   /** In a quick-match room: a player left mid-match, so the room breaks up once it ends. */
   #opponentGone = false;
@@ -113,9 +134,10 @@ export class Room {
     this.mode = options.mode;
     this.kind = options.kind;
     this.#hostId = options.hostId;
+    this.#seating = new Seating(SEATS[options.mode], this.#members);
     if (this.kind === 'quick') {
       this.#stopArrival = options.clock.after(QUICK_MATCH_ARRIVAL_MS, () => {
-        if (!this.empty && this.#seated().length < SEATS[this.mode]) this.#breakUp();
+        if (!this.empty && this.#seating.seated().length < SEATS[this.mode]) this.#breakUp();
       });
     }
   }
@@ -130,22 +152,22 @@ export class Room {
   }
 
   /**
-   * A session joins (design §10.1): a free seat in the lobby, otherwise a spectator, unless the
-   * spectators are full. A nickname already in the room gets `#2`, `#3`…
+   * A session joins (design §10.1): a free seat in the lobby, otherwise a spectator waiting for
+   * one, unless the spectators are full. A nickname already in the room gets `#2`, `#3`… A session
+   * already here comes back to its place (design §10.2) through the link it came by.
    */
   attach(sessionId: string, nickname: string, kind: PlayerKind, deliver: Deliver): void {
     const known = this.#members.get(sessionId);
     if (known) {
-      known.deliver = deliver;
-      this.#broadcastState();
+      this.#comeBack(known, deliver);
       return;
     }
     if (this.#brokenUp) {
       deliver(sessionId, { event: 'opponentLeft', data: {} });
       return;
     }
-    const seat = this.#phase === 'lobby' ? this.#freeSeat() : null;
-    if (seat === null && this.#spectators().length >= this.#options.maxSpectators) {
+    const place = this.#seating.arrival(this.#phase === 'lobby');
+    if (place.seat === null && this.#seating.spectators().length >= this.#options.maxSpectators) {
       deliver(sessionId, exception(REFUSALS.full));
       return;
     }
@@ -153,32 +175,46 @@ export class Room {
       id: sessionId,
       nickname: this.#uniqueNickname(nickname),
       kind,
-      seat,
-      ready: false,
-      deliver,
+      place,
+      link: { deliver },
     };
     this.#members.set(sessionId, member);
-    this.#options.logger.info({ sessionId, seat }, 'joined room');
+    this.#options.logger.info({ sessionId, seat: place.seat }, 'joined room');
+    // A hosted room that emptied lost its host: whoever joins it before it's deleted is the host.
+    if (this.kind === 'hosted' && this.#hostId === undefined) this.#hostId = sessionId;
     this.#broadcastState();
-    const seated = this.#seated();
+    this.#catchUp(member);
+    const seated = this.#seating.seated();
     if (this.kind === 'quick' && seated.length === SEATS[this.mode] && !this.#lastMatch) {
       this.#stopArrival();
       this.#launch(seated);
     }
   }
 
-  /** The session's connection closed. Until #64 holds its seat, that's leaving. */
-  detach(sessionId: string): void {
-    this.leave(sessionId);
+  /**
+   * The session's connection, through the link `deliver` stands for, closed: its place is held
+   * (design §10.2). A link it has since come back through another one from changes nothing.
+   */
+  detach(sessionId: string, deliver: Deliver): void {
+    const member = this.#members.get(sessionId);
+    if (!member || !('deliver' in member.link) || member.link.deliver !== deliver) return;
+    const away: Away = { held: null, missedEnd: false };
+    member.link = away;
+    this.#options.logger.info({ sessionId }, 'disconnected from room');
+    // A player's seat is held until the match ends; the hold starts then (`#ended`).
+    if (!this.#match?.has(sessionId)) this.#hold(member, away);
   }
 
   /**
    * A member leaves: out of the match at their last verified frame if they were playing, and a new
-   * host if they were the host, the longest-seated player (or member) left. A quick-match room
-   * breaks up instead, once any match running has ended.
+   * host if they were the host, the one there longest of those still connected. A quick-match
+   * room breaks up instead, once any match running has ended.
    */
   leave(sessionId: string): void {
-    if (!this.#members.delete(sessionId)) return;
+    const member = this.#members.get(sessionId);
+    if (!member) return;
+    if ('held' in member.link) member.link.held?.();
+    this.#members.delete(sessionId);
     this.#options.logger.info({ sessionId }, 'left room');
     if (this.kind === 'quick' && !this.empty) {
       if (!this.#match) {
@@ -193,7 +229,7 @@ export class Room {
     this.#match?.leave(sessionId);
     if (this.#hostId === sessionId) {
       const members = [...this.#members.values()];
-      this.#hostId = (members.find(({ seat }) => seat !== null) ?? members[0])?.id;
+      this.#hostId = (members.find(({ link }) => 'deliver' in link) ?? members[0])?.id;
     }
     if (this.empty) {
       this.#stopMatch();
@@ -217,11 +253,41 @@ export class Room {
       this.#refuse(member, REFUSALS.notInLobby);
       return;
     }
-    if (member.seat === null) {
+    if (member.place.seat === null) {
       this.#refuse(member, REFUSALS.notSeated);
       return;
     }
-    member.ready = ready;
+    member.place.ready = ready;
+    this.#broadcastState();
+  }
+
+  /** Steps out of a seat to watch, in the lobby (design §10.1). They don't wait for another. */
+  spectate(sessionId: string): void {
+    const member = this.#seatMover(sessionId);
+    if (!member) return;
+    this.#seating.free(member);
+    this.#broadcastState();
+  }
+
+  /** Takes the lowest free seat, in the lobby (design §10.1). */
+  takeSeat(sessionId: string): void {
+    const member = this.#seatMover(sessionId);
+    if (!member) return;
+    if (!this.#seating.take(member)) {
+      this.#refuse(member, REFUSALS.noFreeSeat);
+      return;
+    }
+    this.#broadcastState();
+  }
+
+  /**
+   * A new nickname, in the lobby only (design §10.2), as the gateway normalised it, with `#2`…
+   * if another member has it.
+   */
+  setNickname(sessionId: string, { nickname }: Pick<ClientData<'setNickname'>, 'nickname'>): void {
+    const member = this.#lobbyMember(sessionId, REFUSALS.nicknameInLobby);
+    if (!member) return;
+    member.nickname = this.#uniqueNickname(nickname, member);
     this.#broadcastState();
   }
 
@@ -244,7 +310,9 @@ export class Room {
       this.#refuse(member, REFUSALS.notInLobby);
       return;
     }
-    const players = this.#seated().filter(({ id, ready }) => ready || id === this.#hostId);
+    const players = this.#seating
+      .seated()
+      .filter(({ id, place }) => place.ready || id === this.#hostId);
     if (players.length < 2) {
       this.#refuse(member, REFUSALS.nobodyReady);
       return;
@@ -263,15 +331,15 @@ export class Room {
       this.kind !== 'quick' ||
       this.#phase !== 'lobby' ||
       !this.#lastMatch ||
-      member.seat === null
+      member.place.seat === null
     ) {
       this.#refuse(member, REFUSALS.noRematch);
       return;
     }
-    member.ready = true;
+    member.place.ready = true;
     this.#broadcastState();
-    const seated = this.#seated();
-    if (seated.length === SEATS[this.mode] && seated.every(({ ready }) => ready)) {
+    const seated = this.#seating.seated();
+    if (seated.length === SEATS[this.mode] && seated.every(({ place }) => place.ready)) {
       this.#launch(seated);
     }
   }
@@ -301,12 +369,14 @@ export class Room {
       },
     });
     this.#match = match;
+    this.#last = null;
     this.#setPhase('countdown');
     logger.info({ matchId, players: players.length }, 'match counting down');
-    this.#broadcast({
+    this.#countdown = {
       event: 'countdown',
       data: { startAt, seed, matchId, players: match.players },
-    });
+    };
+    this.#broadcast(this.#countdown);
     this.#broadcastState();
     this.#stopTimers.push(
       clock.after(COUNTDOWN_MS, () => {
@@ -328,22 +398,85 @@ export class Room {
   close(): void {
     this.#stopArrival();
     this.#stopMatch();
+    this.#stopHolds();
   }
 
-  /** The match has ended: places for the lobby, every ready reset, and back to the lobby. */
-  #ended({ placements }: ServerData<'matchEnd'>): void {
+  /**
+   * A member comes back (design §10.2): through `deliver` from now on, their hold cancelled, and
+   * caught up on the match they missed part or the end of.
+   */
+  #comeBack(member: Member, deliver: Deliver): void {
+    const { link } = member;
+    member.link = { deliver };
+    if ('held' in link) link.held?.();
+    this.#options.logger.info({ sessionId: member.id }, 'came back to room');
+    this.#broadcastState();
+    if (this.#match) this.#catchUp(member);
+    else if ('missedEnd' in link && link.missedEnd) this.#catchUpEnded(member);
+  }
+
+  /** Frees an away member's place once `SEAT_HOLD_MS` has passed without them back. */
+  #hold(member: Member, away: Away): void {
+    away.held?.();
+    away.held = this.#options.clock.after(SEAT_HOLD_MS, () => {
+      away.held = null;
+      this.#options.logger.info({ sessionId: member.id }, 'seat hold ended');
+      this.leave(member.id);
+    });
+  }
+
+  /**
+   * Brings someone joining or coming back mid-match up to date (design §8.6): the countdown to set
+   * the match up, who is out already, every game at its last verified frame, and for a player
+   * still in, the attacks sent to them that their game may not have received yet (§8.5).
+   */
+  #catchUp(member: Member): void {
+    if (!this.#match || !this.#countdown) return;
+    this.#to(member, this.#countdown);
+    for (const out of this.#match.outs()) this.#to(member, out);
+    this.#to(member, this.#match.snapshot());
+    for (const attack of this.#match.unreceivedGarbage(member.id)) this.#to(member, attack);
+  }
+
+  /**
+   * Brings a member who was away when the last match ended up to date: as `#catchUp` would have
+   * during it, then its `matchEnd`, so the client shows the result over the final boards.
+   */
+  #catchUpEnded(member: Member): void {
+    if (!this.#lastMatch || !this.#last) return;
+    this.#to(member, this.#last.countdown);
+    for (const out of this.#lastMatch.outs()) this.#to(member, out);
+    this.#to(member, this.#lastMatch.snapshot());
+    this.#to(member, this.#last.result);
+  }
+
+  /**
+   * The match has ended: places for the lobby, every ready reset, back to the lobby, and the
+   * spectators waiting for a seat in the free ones. Players still away are held from now.
+   */
+  #ended(result: ServerData<'matchEnd'>): void {
     this.#options.logger.info({ matchId: this.#match?.matchId }, 'match ended');
-    for (const { playerId, place } of placements) {
+    if (this.#countdown) {
+      this.#last = { countdown: this.#countdown, result: { event: 'matchEnd', data: result } };
+    }
+    for (const { playerId, place } of result.placements) {
       const member = this.#members.get(playerId);
       if (member) member.lastPlace = place;
     }
-    for (const member of this.#members.values()) member.ready = false;
+    this.#seating.unready();
+    for (const member of this.#members.values()) {
+      const { link } = member;
+      if ('deliver' in link) continue;
+      link.missedEnd = true;
+      if (!link.held) this.#hold(member, link);
+    }
     this.#stopMatch();
     this.#setPhase('lobby');
     if (this.#opponentGone) {
       this.#breakUp();
       return;
     }
+    this.#seating.fillWaiting();
     this.#broadcastState();
   }
 
@@ -355,6 +488,7 @@ export class Room {
   #breakUp(): void {
     this.#brokenUp = true;
     this.#stopArrival();
+    this.#stopHolds();
     this.#stopMatch();
     this.#setPhase('lobby');
     for (const member of [...this.#members.values()]) {
@@ -366,6 +500,14 @@ export class Room {
     this.#options.emptied();
   }
 
+  #stopHolds(): void {
+    for (const { link } of this.#members.values()) {
+      if (!('held' in link)) continue;
+      link.held?.();
+      link.held = null;
+    }
+  }
+
   #stopMatch(): void {
     for (const stop of this.#stopTimers) stop();
     this.#stopTimers = [];
@@ -373,30 +515,39 @@ export class Room {
     this.#match?.stop();
     if (this.#match) this.#lastMatch = this.#match;
     this.#match = null;
+    this.#countdown = null;
   }
 
   #setPhase(phase: RoomPhase): void {
     this.#phase = phase;
   }
 
-  #seated(): Member[] {
-    return [...this.#members.values()]
-      .filter((member) => member.seat !== null)
-      .sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+  /** The member, if they may move seats: in a hosted room's lobby (design §10.1). */
+  #seatMover(sessionId: string): Member | undefined {
+    const member = this.#members.get(sessionId);
+    if (member && this.kind === 'quick') {
+      this.#refuse(member, REFUSALS.seatsInLobby);
+      return undefined;
+    }
+    return this.#lobbyMember(sessionId, REFUSALS.seatsInLobby);
   }
 
-  #spectators(): Member[] {
-    return [...this.#members.values()].filter((member) => member.seat === null);
+  /** The member, if the room is in its lobby; otherwise they're refused with `refusal`. */
+  #lobbyMember(sessionId: string, refusal: ErrorBody): Member | undefined {
+    const member = this.#members.get(sessionId);
+    if (!member) return undefined;
+    if (this.#phase !== 'lobby') {
+      this.#refuse(member, refusal);
+      return undefined;
+    }
+    return member;
   }
 
-  #freeSeat(): number | null {
-    const taken = new Set(this.#seated().map(({ seat }) => seat));
-    for (let seat = 0; seat < SEATS[this.mode]; seat++) if (!taken.has(seat)) return seat;
-    return null;
-  }
-
-  #uniqueNickname(nickname: string): string {
-    const names = new Set([...this.#members.values()].map((member) => member.nickname));
+  /** `nickname`, or with `#2`, `#3`… if another member (than `self`) has it. */
+  #uniqueNickname(nickname: string, self?: Member): string {
+    const names = new Set(
+      [...this.#members.values()].filter((other) => other !== self).map((other) => other.nickname),
+    );
     if (!names.has(nickname)) return nickname;
     let suffix = 2;
     while (names.has(`${nickname}#${suffix}`)) suffix++;
@@ -410,15 +561,18 @@ export class Room {
       ...(this.#hostId !== undefined && { hostId: this.#hostId }),
       ...(this.kind === 'quick' && { quickMatch: true as const }),
       phase: this.#phase,
-      players: this.#seated().map(({ id, nickname, kind, seat, ready, lastPlace }) => ({
+      players: this.#seating.seated().map(({ id, nickname, kind, place, lastPlace }) => ({
         id,
         nickname,
         kind,
-        seat: seat ?? 0,
-        ready,
+        seat: place.seat,
+        ready: place.ready,
         ...(lastPlace !== undefined && { lastPlace }),
       })),
-      spectators: this.#spectators().map(({ id, nickname, kind }) => ({ id, nickname, kind })),
+      // In the order they came (design §10.1), which is the order they take free seats in.
+      spectators: this.#seating
+        .spectators()
+        .map(({ id, nickname, kind }) => ({ id, nickname, kind })),
     };
   }
 
@@ -427,8 +581,8 @@ export class Room {
     this.#options.changed({
       phase: this.#phase,
       hostId: this.#hostId ?? null,
-      seated: this.#seated().length,
-      spectators: this.#spectators().length,
+      seated: this.#seating.seated().length,
+      spectators: this.#seating.spectators().length,
     });
   }
 
@@ -446,8 +600,9 @@ export class Room {
     if (member) this.#to(member, message);
   }
 
-  #to(member: Member, message: ServerMessage): void {
-    member.deliver(member.id, message);
+  /** To a member's client, unless they're away: a snapshot catches them up when they're back. */
+  #to({ id, link }: Member, message: ServerMessage): void {
+    if ('deliver' in link) link.deliver(id, message);
   }
 
   #refuse(member: Member, refusal: ErrorBody): void {

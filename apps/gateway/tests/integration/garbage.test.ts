@@ -1,14 +1,9 @@
 import type { Connect, OnlineSession } from '@shura/client-core';
 import { ActionType, type GarbageReceivedAction, type PieceAction } from '@shura/engine';
-import {
-  type ClientMessage,
-  COUNTDOWN_MS,
-  type ServerData,
-  type ServerMessage,
-} from '@shura/protocol';
+import { type ClientMessage, COUNTDOWN_MS, type ServerData } from '@shura/protocol';
 import type { MatchLogRecord } from '@shura/valkey';
 import { afterEach, expect, test, vi } from 'vitest';
-import { faultySocket } from '../support/faulty-socket';
+import { faultySocket, type LineMessage } from '../support/faulty-socket';
 import { replayMatchLog } from '../support/match-log-replay';
 import { eventually, expectVerified, openRoom, ownGame, STEP_MS } from '../support/online-games';
 import { type ClientOptions, type OnlineWorld, onlineWorld } from '../support/online-world';
@@ -152,7 +147,7 @@ test('the victim clears lines between the server sending an attack and its clien
   const { ada, bo, code } = await scriptedMatch(receipts.through);
   const boId = () => bo.getState().sessionId;
   const isQueued = (
-    message: ServerMessage,
+    message: LineMessage,
   ): message is { event: 'garbageQueued'; data: ServerData<'garbageQueued'> } =>
     message.event === 'garbageQueued';
   const heldFromBo = () =>

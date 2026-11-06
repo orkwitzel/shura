@@ -58,6 +58,8 @@ export {
   type OnlineSessionState,
   PING_EVERY_MS,
   type QuickMatchStatus,
+  RECONNECT_BACKOFF_MS,
+  RECONNECT_QUICK_MS,
   type RoutingListener,
 } from './online/online-session';
 export {

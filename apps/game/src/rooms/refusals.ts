@@ -12,5 +12,8 @@ export const REFUSALS = {
   notHost: errorBody('not_host', 'Only the host starts the match.'),
   nobodyReady: errorBody('wrong_phase', 'Waiting for another player to be ready.'),
   full: errorBody('room_full', 'That room is full.'),
+  seatsInLobby: errorBody('wrong_phase', 'Seats move in the lobby.'),
+  noFreeSeat: errorBody('no_free_seat', 'Every seat is taken.'),
+  nicknameInLobby: errorBody('wrong_phase', 'Nicknames change in the lobby.'),
   noRoom: errorBody('room_not_found', 'There is no room with that code.'),
 } as const satisfies Record<string, ErrorBody>;

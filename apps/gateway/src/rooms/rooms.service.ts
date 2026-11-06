@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   type ClientData,
+  errorBody,
   type GatewayToGameData,
   parseRoomCode,
   type RoomInfo,
@@ -12,23 +13,36 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { WebSocket } from 'ws';
 import { type GatewayLimits, LIMITS } from '../config';
 import { RoomLinksService, type RoomMember, type RoomPlace } from '../room-links';
-import { type Connection, type ConnectionSession, ConnectionsService } from '../sessions';
+import {
+  type Connection,
+  type ConnectionSession,
+  ConnectionsService,
+  SessionsService,
+} from '../sessions';
 import { STORES } from '../valkey';
 import { claimRoomCode, createRoomMessage, placeRoom } from './placement';
 import { REFUSE, roomNotFound } from './refusals';
 import type { CreateRoomDto, JoinRoomDto } from './rooms.dto';
 
 /** The room messages a client sends on to its room's pod as they are. */
-type RoomEvent = 'leaveRoom' | 'ready' | 'startMatch' | 'rematch' | 'inputBatch';
+type RoomEvent =
+  | 'setNickname'
+  | 'leaveRoom'
+  | 'ready'
+  | 'startMatch'
+  | 'spectate'
+  | 'takeSeat'
+  | 'rematch'
+  | 'inputBatch';
 
 /** Runs as a connection enters a room, by any way, in its turn. */
 export type EnterListener = (connection: Connection) => Promise<void> | void;
 
 /**
  * Rooms on the gateway (design §9.1, §10.1): creating one on the least-loaded game pod (§9.2),
- * joining one by code, leaving, and forwarding the room's messages both ways through its link
- * (`RoomLinksService`). The pod decides everything about the room itself. Every change runs in
- * the connection's turn (`ConnectionsService.inTurn`).
+ * joining one by code, coming back to one after a reconnect (§10.2), leaving, and forwarding the
+ * room's messages both ways through its link (`RoomLinksService`). The pod decides everything
+ * about the room itself. Every change runs in the connection's turn (`ConnectionsService.inTurn`).
  */
 @Injectable()
 export class RoomsService {
@@ -40,10 +54,14 @@ export class RoomsService {
     @Inject(STORES) private readonly stores: Stores,
     @Inject(LIMITS) private readonly limits: GatewayLimits,
     private readonly connections: ConnectionsService,
+    private readonly sessions: SessionsService,
     private readonly links: RoomLinksService,
     @InjectPinoLogger(RoomsService.name) private readonly logger: PinoLogger,
   ) {
     connections.onClose((connection) => this.#disconnected(connection));
+    connections.onWelcome(async (connection, { roomCode }) => {
+      if (roomCode) await this.#reenter(connection, roomCode);
+    });
   }
 
   /** `GET /api/rooms/:code` (design §8.7): the room's mode and how full it is. */
@@ -119,6 +137,27 @@ export class RoomsService {
     return this.forward(socket, { event: 'startMatch', data: {} });
   }
 
+  spectate(socket: WebSocket): Promise<void> {
+    return this.forward(socket, { event: 'spectate', data: {} });
+  }
+
+  takeSeat(socket: WebSocket): Promise<void> {
+    return this.forward(socket, { event: 'takeSeat', data: {} });
+  }
+
+  /**
+   * A new nickname (design §10.2), in a room: the session's, as the server normalises it, then on
+   * to the room's pod, which takes it in the lobby only and adds `#2` for a duplicate.
+   */
+  setNickname(socket: WebSocket, { nickname }: ClientData<'setNickname'>): Promise<void> {
+    return this.connections.inTurn(socket, async (connection) => {
+      const session = this.#session(connection);
+      if (!connection.roomCode) throw REFUSE.notInRoom();
+      const normalised = await this.sessions.rename(session, nickname);
+      this.#forward(connection, { event: 'setNickname', data: { nickname: normalised } });
+    });
+  }
+
   /**
    * Puts the connection in the room `code` at `place`: `createRoom` first if `create` says so (a
    * pod ignores it for a room it has), then `attach`. Only in the connection's turn: for features
@@ -182,6 +221,25 @@ export class RoomsService {
     await this.stores.sessions.update(session.token, { roomCode: code });
   }
 
+  /**
+   * Back as a session that was in a room (design §10.2), just welcomed: into its place again,
+   * before the batches it sends again are forwarded. A room that's gone is out of the session's
+   * record, and the client is told.
+   */
+  async #reenter(connection: Connection, code: string): Promise<void> {
+    if (connection.roomCode) return;
+    const room = await this.stores.registry.get(code);
+    if (room) {
+      await this.#enter(connection, code, room);
+      return;
+    }
+    await this.stores.sessions.update(this.#session(connection).token, { roomCode: null });
+    this.connections.send(connection, {
+      event: 'exception',
+      data: { ...errorBody('room_not_found', 'Your room is gone.') },
+    });
+  }
+
   /** Out of the room: off its link (with a `detach` if the socket closed), and out of the session. */
   async #exit(connection: Connection, { detach }: { readonly detach: boolean }): Promise<void> {
     const code = connection.roomCode;
@@ -189,7 +247,7 @@ export class RoomsService {
     if (!code || !member || !connection.session) return;
     connection.roomCode = null;
     this.links.exit(code, member, { detach });
-    // A closed socket keeps its room in the session: the seat is held for a reconnect (#64).
+    // A closed socket keeps its room in the session: the seat is held for a reconnect (§10.2).
     if (!detach) await this.stores.sessions.update(connection.session.token, { roomCode: null });
   }
 

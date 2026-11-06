@@ -11,6 +11,7 @@ import {
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
+  restoreEngine,
 } from '@shura/engine';
 import {
   BATCH_FRAMES,
@@ -130,7 +131,8 @@ const NO_WAKE = (): void => {};
 interface Game {
   readonly playerId: string;
   readonly index: number;
-  readonly engine: Engine;
+  /** Replaced by a snapshot's copy when one restores it. */
+  engine: Engine;
   out: PlayerOut | null;
   linesSent: number;
 }
@@ -147,8 +149,8 @@ interface Game {
  * action at your next frame, before its other actions, and your engine accepts garbage as a
  * client does, its `garbageAccepted` actions going out in the batches (design §8.5).
  *
- * Seams for later issues: `unacknowledged` is what a reconnect sends again, and a snapshot
- * restores the games (#64).
+ * After a reconnect the session sends `unacknowledged` again, and `restore` takes the games from
+ * the server's snapshot (design §8.6, §10.2).
  */
 export class OnlineMatch {
   readonly #options: OnlineMatchOptions;
@@ -253,15 +255,34 @@ export class OnlineMatch {
    * `garbageQueued`: an attack aimed at you is received at your next frame (design §8.5, step 3,
    * ADR 0013), never the current one. Attacks between other players are only for drawing. Coming
    * back mid-match, the server sends again every attack it hasn't seen you receive, and the ones
-   * you already have are ignored.
+   * you already have are ignored. Says whether the attack is news: `false` only for one aimed at
+   * you that you already have.
    */
-  receiveGarbage({ to, id, lines, holeSeed }: ServerData<'garbageQueued'>): void {
-    if (to !== this.#me?.playerId || this.#over()) return;
+  receiveGarbage({ to, id, lines, holeSeed }: ServerData<'garbageQueued'>): boolean {
+    if (to !== this.#me?.playerId || this.#over()) return true;
     const had =
       this.#me.engine.state.receivedGarbageIds.includes(id) ||
       this.#incoming.some((action) => action.id === id);
-    if (had) return;
+    if (had) return false;
     this.#incoming.push({ frame: 0, type: ActionType.GarbageReceived, id, lines, holeSeed });
+    return true;
+  }
+
+  /**
+   * `snapshot`, on joining or coming back mid-match (design §8.6): each game restored at its
+   * player's last verified frame, for relays to carry on from. Your own game, while you're still
+   * in, is ahead of the server's copy and stays as it is; once you're out, it's the server's copy.
+   */
+  restore({ players }: ServerData<'snapshot'>): void {
+    for (const { playerId, state } of players) {
+      const game = this.#games.find((other) => other.playerId === playerId);
+      if (!game || (game === this.#me && !game.out)) continue;
+      game.engine = restoreEngine(state);
+    }
+    if (this.#phase === 'countdown' && players.some(({ frame }) => frame > 0)) {
+      this.#phase = 'playing';
+    }
+    this.#changed();
   }
 
   /**

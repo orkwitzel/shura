@@ -13,7 +13,7 @@ import { WsProtocol } from './errors';
 import { ConnectionLimits, ConnectionLimitsService, INVALID_MESSAGE, RateLimit } from './limits';
 import { InputBatchDto, PlayService } from './play';
 import { QuickMatchService } from './quick-match';
-import { CreateRoomDto, JoinRoomDto, ReadyDto, RoomsService } from './rooms';
+import { CreateRoomDto, JoinRoomDto, ReadyDto, RoomsService, SetNicknameDto } from './rooms';
 import { ConnectionsService, HelloDto, PingDto, SessionGuard, SessionsService } from './sessions';
 
 /**
@@ -64,6 +64,12 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.sessions.ping(socket, message);
   }
 
+  @SubscribeMessage('setNickname')
+  @UseGuards(SessionGuard)
+  setNickname(@ConnectedSocket() socket: WebSocket, @MessageBody() message: SetNicknameDto) {
+    return this.rooms.setNickname(socket, message);
+  }
+
   @SubscribeMessage('createRoom')
   @RateLimit('rooms')
   @UseGuards(SessionGuard)
@@ -94,6 +100,18 @@ export class ClientGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @UseGuards(SessionGuard)
   startMatch(@ConnectedSocket() socket: WebSocket) {
     return this.rooms.startMatch(socket);
+  }
+
+  @SubscribeMessage('spectate')
+  @UseGuards(SessionGuard)
+  spectate(@ConnectedSocket() socket: WebSocket) {
+    return this.rooms.spectate(socket);
+  }
+
+  @SubscribeMessage('takeSeat')
+  @UseGuards(SessionGuard)
+  takeSeat(@ConnectedSocket() socket: WebSocket) {
+    return this.rooms.takeSeat(socket);
   }
 
   @SubscribeMessage('quickMatch')
