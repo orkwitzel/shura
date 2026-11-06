@@ -14,7 +14,7 @@ catalog:
   "@nestjs/terminus": 11.1.1
   "@nestjs/testing": 11.2.8
   "@nestjs/websockets": 11.2.8
-  "@swc/cli": 0.7.10
+  "@swc/cli": 0.8.2
   "@swc/core": 1.16.21
   "@types/node": 26.6.6
   "@types/react": 19.3.0
@@ -32,11 +32,11 @@ catalog:
   react-dom: 19.3.1
   reflect-metadata: 0.2.2
   rxjs: 7.8.2
-  tsdown: 0.23.1
+  tsdown: 0.23.5
   tsx: 4.23.15
   typescript: 7.0.2
   unplugin-swc: 2.0.0
-  vitest: 5.0.5
+  vitest: 5.1.0
   ws: 8.22.1
   zod: 4.6.7
   zustand: 5.0.16
