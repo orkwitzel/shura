@@ -15,5 +15,6 @@ export const REFUSALS = {
   seatsInLobby: errorBody('wrong_phase', 'Seats move in the lobby.'),
   noFreeSeat: errorBody('no_free_seat', 'Every seat is taken.'),
   nicknameInLobby: errorBody('wrong_phase', 'Nicknames change in the lobby.'),
-  noRoom: errorBody('room_not_found', 'There is no room with that code.'),
+  // In the words of `ERRORS`, as the gateway says it too.
+  noRoom: errorBody('room_not_found'),
 } as const satisfies Record<string, ErrorBody>;

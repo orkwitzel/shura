@@ -56,6 +56,7 @@ export {
   roomPhaseSchema,
 } from './messages/fields';
 export {
+  type ClientBound,
   type GameToGateway,
   type GameToGatewayData,
   type GameToGatewayEvent,
@@ -70,6 +71,7 @@ export {
   gatewayToGameSchema,
   type LinkScope,
   linkScopeSchema,
+  unscoped,
 } from './messages/internal';
 export {
   type ServerData,

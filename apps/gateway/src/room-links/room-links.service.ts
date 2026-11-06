@@ -4,6 +4,8 @@ import {
   type GatewayToGameData,
   gameToGatewaySchema,
   type PlayerKind,
+  type ServerMessage,
+  unscoped,
 } from '@shura/protocol';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { WebSocket } from 'ws';
@@ -12,7 +14,7 @@ import { WebSocket } from 'ws';
 export interface RoomMember {
   readonly sessionId: string;
   /** A message from the room's game pod for this session, without the link's scope. */
-  deliver(event: string, data: Record<string, unknown>): void;
+  deliver(message: ServerMessage): void;
   /** The link to the room's pod closed under it: the pod is gone (design §9.7). */
   lost(roomCode: string): void;
 }
@@ -143,8 +145,8 @@ export class RoomLinksService implements OnModuleDestroy {
     }
     // Draining (design §9.7) changes nothing for the rooms already on the pod.
     if (message.data.event === 'drain') return;
-    const { roomCode: _, epoch: __, sessionId, ...data } = message.data.data;
-    link.members.get(sessionId)?.deliver(message.data.event, data);
+    const { scope, message: forClient } = unscoped(message.data);
+    link.members.get(scope.sessionId)?.deliver(forClient);
   }
 
   #send(link: Link, message: GatewayToGame): void {

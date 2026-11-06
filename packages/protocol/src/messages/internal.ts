@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { clientMessages } from './client';
 import { data, envelopes, noData } from './envelope';
 import { countSchema, idSchema, playerKindSchema, roomModeSchema } from './fields';
-import { serverMessages } from './server';
+import { type ServerMessage, serverMessages } from './server';
 
 // The messages between the gateway and a game pod (design §8.7, §9.1), over the link the gateway
 // keeps per room. They're `{ event, data }` too, and the rules for changing them are the client
@@ -94,3 +94,20 @@ export type GameToGatewayOf<Event extends GameToGatewayEvent> = Extract<
 >;
 /** The `data` of the game → gateway message of one event. */
 export type GameToGatewayData<Event extends GameToGatewayEvent> = GameToGatewayOf<Event>['data'];
+
+/** A game → gateway message for one session's client: every one but `drain`. */
+export type ClientBound = Exclude<GameToGateway, { event: 'drain' }>;
+
+/**
+ * A pod's message for one session's client, split into the link's scope and the server message
+ * the client gets: the same event, its `data` without the scope (design §8.7).
+ */
+export function unscoped(message: ClientBound): { scope: LinkScope; message: ServerMessage } {
+  const { roomCode, epoch, sessionId, ...data } = message.data;
+  // Each client-bound link message is `scoped(serverMessages[event])`, so without the scope its
+  // `data` is that server message's.
+  return {
+    scope: { roomCode, epoch, sessionId },
+    message: { event: message.event, data } as ServerMessage,
+  };
+}
