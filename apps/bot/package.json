@@ -1,0 +1,39 @@
+{
+  "name": "@shura/bot",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "Testing tool only: headless bot players for local play and load tests. Never deployed.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "serve": "NODE_ENV=${NODE_ENV:-development} tsx watch src/main.ts",
+    "bot": "tsx src/command/cli.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node26 --sourcemap --banner:js='import { createRequire } from \"node:module\"; const require = createRequire(import.meta.url);' --outfile=dist/main.js",
+    "typecheck": "tsc",
+    "test": "vitest run --fsModuleCachePath node_modules/.vitest-cache"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@hono/zod-validator": "0.9.1",
+    "@shura/client-core": "workspace:*",
+    "@shura/engine": "workspace:*",
+    "@shura/protocol": "workspace:*",
+    "close-with-grace": "2.5.0",
+    "commander": "15.0.0",
+    "hono": "4.13.14",
+    "pino": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@shura/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "esbuild": "catalog:",
+    "pino-pretty": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
