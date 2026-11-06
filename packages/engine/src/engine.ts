@@ -22,7 +22,7 @@ import { HARD_DROP_POINTS, type LockClear, SOFT_DROP_POINTS, scoreLock } from '.
 import { detectTSpin, TSpin, type Turn } from './t-spin';
 
 /** Pieces spawn with the top row of their box in row 22 in design numbering. */
-const SPAWN_ROW = 21;
+export const SPAWN_ROW = 21;
 
 /** An atomic engine instruction at a frame (design §7.1, ADR 0002). */
 export type Action = PieceAction | GarbageReceivedAction | GarbageAcceptedAction;
@@ -709,7 +709,7 @@ function spawn(s: EngineState, kind: PieceKind): void {
 }
 
 /** A new piece, centred in the board's columns and rounded left (design §3). */
-function atSpawn(kind: PieceKind): ActivePiece {
+export function atSpawn(kind: PieceKind): ActivePiece {
   // Every piece's box is as wide as its cells in rotation state 0.
   const width = srs.cellOffsets(kind, 0).reduce((widest, [col]) => Math.max(widest, col + 1), 0);
   return { kind, col: (BOARD_WIDTH - width) >> 1, row: SPAWN_ROW, rotation: 0 };

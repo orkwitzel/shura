@@ -10,6 +10,7 @@ export {
 export {
   type Action,
   ActionType,
+  atSpawn,
   canMove,
   createEngine,
   currentGravity,
@@ -22,6 +23,7 @@ export {
   type ReadonlyEngineState,
   restoreEngine,
   type SentGarbage,
+  SPAWN_ROW,
   type StepOptions,
   type StepResult,
 } from './engine';
@@ -57,6 +59,7 @@ export { type ActivePiece, type Cell, PIECE_KINDS, type PieceKind, pieceCells } 
 export {
   type HoleSeedsState,
   holeSeeds,
+  nextRandom,
   type Randomizer,
   type SevenBagState,
   sevenBag,
