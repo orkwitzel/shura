@@ -1,5 +1,13 @@
-import { placeAmong } from '@shura/protocol';
+import { type OutReason, placeAmong } from '@shura/protocol';
 import type { OnlineMatchState, PlayerOut } from '../online/online-match';
+
+/** How a player went out, in words, as both UIs show it over their board (design §13.2). */
+export const OUT_WORDS: Readonly<Record<OutReason, string>> = {
+  toppedOut: 'topped out',
+  laggedOut: 'lagged out',
+  removed: 'removed',
+  left: 'left',
+};
 
 /** What `placeOf` needs of a match: each player's out, and the result once it has ended. */
 export interface PlacedMatch {

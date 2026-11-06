@@ -1,5 +1,16 @@
 import { describe, expect, test } from 'vitest';
-import { ordinal, placeOf } from '../../src/index';
+import { OUT_WORDS, ordinal, placeOf } from '../../src/index';
+
+describe('how a player went out, in words (design §13.2)', () => {
+  test('is the same in both UIs', () => {
+    expect(OUT_WORDS).toEqual({
+      toppedOut: 'topped out',
+      laggedOut: 'lagged out',
+      removed: 'removed',
+      left: 'left',
+    });
+  });
+});
 
 const out = (frame: number) => ({ reason: 'toppedOut' as const, frame });
 

@@ -1,0 +1,44 @@
+/* Over the greyed well: a dark wash, the place big with a hard shadow, and why under it. */
+.out {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: calc(var(--cell-size, 32px) * 0.4);
+  background: rgb(10 4 20 / 0.55);
+  pointer-events: none;
+  animation: land 400ms var(--ease-bounce) both;
+}
+
+.place {
+  font-family: var(--font-display);
+  font-size: max(20px, calc(var(--cell-size, 32px) * 3));
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  text-shadow:
+    3px 3px 0 var(--color-piece-z),
+    6px 6px 0 var(--color-shadow);
+}
+
+.reason {
+  font-family: var(--font-label);
+  font-size: max(10px, calc(var(--cell-size, 32px) * 0.6));
+  text-transform: uppercase;
+  color: var(--color-muted);
+  text-shadow: 2px 2px 0 var(--color-shadow);
+}
+
+@keyframes land {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .out {
+    animation: none;
+  }
+}

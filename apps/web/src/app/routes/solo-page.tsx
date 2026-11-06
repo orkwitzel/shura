@@ -1,4 +1,5 @@
-import { SOLO_MODES, type SoloMode } from '@shura/client-core';
+import { countdownLabel, SOLO_MODES, type SoloMode } from '@shura/client-core';
+import { useSession } from '@shura/client-core/react';
 import { useState } from 'react';
 import { Redirect, useLocation, useParams } from 'wouter';
 import { MODE_NAMES } from '@/config/modes';
@@ -27,6 +28,7 @@ function SoloGame({ mode }: { mode: SoloMode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { session, personalBest, start } = useSoloSession(mode, { acceptKeys: !settingsOpen });
   useSound(session);
+  const countdown = useSession(session, countdownLabel);
   const toMainMenu = () => navigate(ROUTES.mainMenu);
   const closeSettings = () => setSettingsOpen(false);
   return (
@@ -38,10 +40,10 @@ function SoloGame({ mode }: { mode: SoloMode }) {
         aside={
           <>
             <Hud session={session} />
-            <Callouts session={session} />
+            <Callouts game={session} />
           </>
         }
-        overlay={<Countdown session={session} />}
+        overlay={<Countdown label={countdown} />}
       />
       <GameMenu
         session={session}
