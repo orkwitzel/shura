@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { WsException } from '@nestjs/websockets';
 import { ERRORS, errorBody, type Session, validateNickname } from '@shura/protocol';
 import type { Stores } from '@shura/valkey';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -7,7 +8,7 @@ import type { WebSocket } from 'ws';
 import { CLOCK, type Clock } from '../clock';
 import { STORES } from '../valkey';
 import { versionsMatch } from '../versions';
-import { ConnectionsService } from './connections.service';
+import { type ConnectionSession, ConnectionsService } from './connections.service';
 import type { CreateSessionDto, HelloDto, PingDto } from './sessions.dto';
 
 /**
@@ -56,7 +57,8 @@ export class SessionsService {
   /**
    * The socket's `hello` (design §8.3): the versions must be the server's and the token a live
    * session's, or the socket gets `version_mismatch` or `session_required` and is closed. Then
-   * `welcome`.
+   * `welcome`, and in the same turn whatever the features do for a session that's back (a room
+   * it was in, design §10.2), before any message after the `hello` is handled.
    */
   hello(socket: WebSocket, hello: HelloDto): Promise<void> {
     return this.connections.inTurn(socket, async (connection) => {
@@ -88,7 +90,24 @@ export class SessionsService {
         event: 'welcome',
         data: { sessionId: record.sessionId, serverTime: this.clock.now() },
       });
+      await this.connections.welcomed(connection, record);
     });
+  }
+
+  /**
+   * A new nickname for the session (design §10.2), as the server normalises it (`nickname_invalid`
+   * if it can't be used): kept in its record for the rooms it enters from now on. Returns it.
+   */
+  async rename(session: ConnectionSession, typed: string): Promise<string> {
+    const checked = validateNickname(typed);
+    if (!checked.ok) {
+      throw new WsException(
+        errorBody('nickname_invalid', `That nickname can't be used (${checked.reason}).`),
+      );
+    }
+    session.nickname = checked.nickname;
+    await this.stores.sessions.update(session.token, { nickname: checked.nickname });
+    return checked.nickname;
   }
 
   /** `ping`: `pong` with the server's time, for the client's clock offset (design §8.4). */

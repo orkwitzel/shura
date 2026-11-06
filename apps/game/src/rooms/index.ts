@@ -7,7 +7,10 @@ export {
   LeaveRoomDto,
   ReadyDto,
   RematchDto,
+  SetNicknameDto,
+  SpectateDto,
   StartMatchDto,
+  TakeSeatDto,
 } from './rooms.dto';
 export { RoomsModule } from './rooms.module';
 export { RoomsService } from './rooms.service';

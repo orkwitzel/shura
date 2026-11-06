@@ -9,6 +9,7 @@ import {
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
+  restoreEngine,
 } from '@shura/engine';
 import {
   BATCH_FRAMES,
@@ -128,7 +129,8 @@ const NO_WAKE = (): void => {};
 interface Game {
   readonly playerId: string;
   readonly index: number;
-  readonly engine: Engine;
+  /** Replaced by a snapshot's copy when one restores it. */
+  engine: Engine;
   out: PlayerOut | null;
   linesSent: number;
 }
@@ -141,8 +143,11 @@ interface Game {
  * The loop never pauses (design §8.4): a late wake steps every frame it missed, as the server's
  * clock kept running, and it stops only once your game is over or the match has ended.
  *
+ * After a reconnect the session sends `unacknowledged` again, and `restore` takes the games from
+ * the server's snapshot (design §8.6, §10.2).
+ *
  * Seams for later issues: garbage aimed at you enters `#playFrame` as `garbageReceived` actions
- * (#62); `unacknowledged` is what a reconnect sends again, and a snapshot restores the games (#64).
+ * (#62).
  */
 export class OnlineMatch {
   readonly #options: OnlineMatchOptions;
@@ -239,6 +244,23 @@ export class OnlineMatch {
     game.linesSent += totalLines(sent);
     this.#dirty = true;
     this.#schedule();
+  }
+
+  /**
+   * `snapshot`, on joining or coming back mid-match (design §8.6): each game restored at its
+   * player's last verified frame, for relays to carry on from. Your own game, while you're still
+   * in, is ahead of the server's copy and stays as it is; once you're out, it's the server's copy.
+   */
+  restore({ players }: ServerData<'snapshot'>): void {
+    for (const { playerId, state } of players) {
+      const game = this.#games.find((other) => other.playerId === playerId);
+      if (!game || (game === this.#me && !game.out)) continue;
+      game.engine = restoreEngine(state);
+    }
+    if (this.#phase === 'countdown' && players.some(({ frame }) => frame > 0)) {
+      this.#phase = 'playing';
+    }
+    this.#changed();
   }
 
   /**

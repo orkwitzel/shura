@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { ActionType, ENGINE_VERSION } from '@shura/engine';
+import { ActionType, createEngine, ENGINE_VERSION, ONE_VS_ONE } from '@shura/engine';
 import { PROTOCOL_VERSION } from '@shura/protocol';
 import { describe, expect, test } from 'vitest';
 import {
@@ -7,6 +7,8 @@ import {
   createOnlineSession,
   type Fetch,
   type OnlineSessionOptions,
+  RECONNECT_BACKOFF_MS,
+  RECONNECT_QUICK_MS,
   type SocketHandlers,
   type TimerClock,
 } from '../../src/index';
@@ -19,12 +21,15 @@ interface Sent {
   readonly data: Record<string, unknown>;
 }
 
+/** An answer to `POST /api/sessions`, or `unreachable` for a request that gets none. */
+type Answer = { status: number; body: unknown } | 'unreachable';
+
 /** Lets the session's `POST /api/sessions` answer arrive. */
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /** A session whose `fetch` and socket the test plays the server on. */
 async function session(
-  answer: { status: number; body: unknown } = { status: 201, body: SESSION },
+  answer: Answer = { status: 201, body: SESSION },
   options: Partial<OnlineSessionOptions> = {},
 ) {
   let server: SocketHandlers | undefined;
@@ -42,20 +47,39 @@ async function session(
     };
   };
   const posts: unknown[] = [];
+  // What the next POST gets: a test changes it as the server goes away and comes back.
+  const answers = { next: answer };
   const fetch: Fetch = async (_url, init) => {
     posts.push(init.body === undefined ? undefined : JSON.parse(init.body));
-    return new Response(JSON.stringify(answer.body), { status: answer.status });
+    const next = answers.next;
+    if (next === 'unreachable') throw new TypeError('fetch failed');
+    return new Response(JSON.stringify(next.body), { status: next.status });
   };
   const ticking = fakeClock(10_000);
-  const timers: { at: number; callback: () => void }[] = [];
+  let timers: { at: number; callback: () => void }[] = [];
   const clock: TimerClock = {
     now: ticking.now,
     schedule: ticking.schedule,
     after: (ms, callback) => {
       const timer = { at: ticking.now() + ms, callback };
       timers.push(timer);
-      return () => timers.splice(timers.indexOf(timer), 1);
+      return () => {
+        timers = timers.filter((other) => other !== timer);
+      };
     },
+  };
+  /** Moves time on by `ms`, firing each timer due on the way and letting any POST answer. */
+  const wait = async (ms: number) => {
+    const until = ticking.now() + ms;
+    for (;;) {
+      const due = timers.filter(({ at }) => at <= until).sort((a, b) => a.at - b.at)[0];
+      if (!due) break;
+      timers = timers.filter((other) => other !== due);
+      ticking.pass(due.at - ticking.now());
+      due.callback();
+      await flush();
+    }
+    ticking.pass(until - ticking.now());
   };
   const online = createOnlineSession({
     serverUrl: 'http://localhost:8080',
@@ -76,6 +100,8 @@ async function session(
     urls,
     posts,
     ticking,
+    answers,
+    wait,
     open: () => server?.open(),
     drop: () => server?.close(),
     closed: () => closed,
@@ -377,5 +403,233 @@ describe('a match', () => {
       stats: [],
     });
     expect(online.getState().match?.roster.map(({ place }) => place)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('in the lobby (design §10.1)', () => {
+  test('spectates, takes a seat and changes nickname', async () => {
+    const { online, say, sent } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    online.spectate();
+    online.takeSeat();
+    online.setNickname('Mira');
+    expect(sent.slice(-3)).toEqual([
+      { event: 'spectate', data: {} },
+      { event: 'takeSeat', data: {} },
+      { event: 'setNickname', data: { nickname: 'Mira' } },
+    ]);
+  });
+
+  test('a rename takes the old name’s place, and your nickname is the room’s', async () => {
+    const { online, say } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    const renamed = roomState('K7QX');
+    renamed.players = renamed.players.map((player) =>
+      player.id === 'me' ? { ...player, nickname: 'Mira#2' } : player,
+    );
+    say('roomState', renamed);
+    expect(online.getState().nickname).toBe('Mira#2');
+    expect(online.getState().names.get('me')).toBe('Mira#2');
+  });
+});
+
+describe('reconnecting (design §10.2)', () => {
+  const countdown = {
+    startAt: 13_000,
+    seed: 7,
+    matchId: 'm1',
+    players: [
+      { id: 'me', index: 0 },
+      { id: 'them', index: 1 },
+    ],
+  };
+
+  test('a dropped connection resumes the session at once: POST with the token, then hello', async () => {
+    const { online, drop, posts, urls } = await welcomed();
+    drop();
+    expect(online.getState().connection).toEqual({ status: 'reconnecting' });
+    await flush();
+    expect(posts.at(-1)).toEqual({ nickname: 'Or', sessionToken: 'tok' });
+    expect(urls).toHaveLength(2);
+  });
+
+  test(`retries every ${RECONNECT_QUICK_MS} ms until 3 s after the drop, then after 1 s, then every 2 s`, async () => {
+    const { online, drop, posts, answers, wait } = await welcomed();
+    answers.next = 'unreachable';
+    drop();
+    await flush();
+    // The POSTs made by each moment after the drop, in 50 ms steps.
+    const made: number[] = [posts.length];
+    for (let ms = 0; ms < 9000; ms += 50) {
+      await wait(50);
+      made.push(posts.length);
+    }
+    const attempts = (ms: number) => (made[ms / 50] ?? 0) - 1;
+    // At once, then every 250 ms up to 3 s: 13 tries. Then at 4 s, 6 s and 8 s.
+    expect(attempts(0)).toBe(1);
+    expect(attempts(200)).toBe(1);
+    expect(attempts(250)).toBe(2);
+    expect(attempts(2950)).toBe(12);
+    expect(attempts(3000)).toBe(13);
+    expect(attempts(3950)).toBe(13);
+    expect(attempts(4000)).toBe(14);
+    expect(attempts(5950)).toBe(14);
+    expect(attempts(6000)).toBe(15);
+    expect(attempts(8000)).toBe(16);
+    expect(RECONNECT_BACKOFF_MS).toEqual([1000, 2000]);
+    expect(online.getState().connection).toEqual({ status: 'reconnecting' });
+  });
+
+  test('a socket that closes again before its welcome is retried too', async () => {
+    const { drop, urls, wait } = await welcomed();
+    drop();
+    await flush();
+    drop();
+    await wait(RECONNECT_QUICK_MS);
+    expect(urls).toHaveLength(3);
+  });
+
+  test('back as the same session, the batches not yet acknowledged go first, in order', async () => {
+    const { online, say, sent, ticking, drop, open } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3050);
+    expect(sent.filter(({ event }) => event === 'inputBatch')).toHaveLength(1);
+    drop();
+    await flush();
+    // Played on locally meanwhile: these wait.
+    ticking.advance(50);
+    ticking.advance(50);
+    online.setReady(false);
+    expect(sent.filter(({ event }) => event === 'inputBatch')).toHaveLength(1);
+    open();
+    say('welcome', { sessionId: 'me', serverTime: 0 });
+    const hello = sent.map(({ event }) => event).lastIndexOf('hello');
+    expect(
+      sent.slice(hello + 1).map(({ event, data }) => (event === 'inputBatch' ? data.seq : event)),
+    ).toEqual([0, 1, 2, 'ping', 'ready']);
+    expect(online.getState().connection).toEqual({ status: 'connected' });
+    expect(online.getState().room?.code).toBe('K7QX');
+  });
+
+  test('back as a new session (the old one expired), the room and match are gone', async () => {
+    const { online, say, ticking, drop, answers } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3050);
+    answers.next = { status: 201, body: { ...SESSION, sessionId: 'new', sessionToken: 'tok2' } };
+    drop();
+    await flush();
+    expect(online.getState()).toMatchObject({
+      sessionId: 'new',
+      sessionToken: 'tok2',
+      room: null,
+      match: null,
+    });
+  });
+
+  test('a new version while away fails the connection', async () => {
+    const { online, drop, answers } = await welcomed();
+    answers.next = { status: 426, body: { code: 'version_mismatch', message: 'Update.' } };
+    drop();
+    await flush();
+    expect(online.getState().connection).toEqual({
+      status: 'failed',
+      reason: 'version_mismatch',
+      message: 'Update.',
+    });
+  });
+
+  test('closing while reconnecting stops the retries', async () => {
+    const { online, drop, posts, answers, wait } = await welcomed();
+    answers.next = 'unreachable';
+    drop();
+    await flush();
+    online.close();
+    const before = posts.length;
+    await wait(10_000);
+    expect(posts).toHaveLength(before);
+    expect(online.getState().connection).toEqual({ status: 'closed' });
+  });
+});
+
+describe('a snapshot (design §8.6)', () => {
+  const countdown = {
+    startAt: 13_000,
+    seed: 7,
+    matchId: 'm1',
+    players: [
+      { id: 'me', index: 0 },
+      { id: 'them', index: 1 },
+    ],
+  };
+
+  /** `them`'s game at `frame`, with a hard drop at frame 1. */
+  const theirs = (frame: number) => {
+    const engine = createEngine(ONE_VS_ONE, 7, 1);
+    engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
+    engine.step(frame, []);
+    return engine;
+  };
+
+  test('a watcher joining mid-match restores every game, then plays relays on from there', async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX', { players: [], spectators: [] }));
+    say('countdown', {
+      ...countdown,
+      players: [
+        { id: 'p2', index: 0 },
+        { id: 'them', index: 1 },
+      ],
+    });
+    say('snapshot', {
+      players: [{ playerId: 'them', frame: 30, state: theirs(30).serialize() }],
+    });
+    const them = () => online.getState().match?.players.find(({ playerId }) => playerId === 'them');
+    expect(them()?.engine.frame).toBe(30);
+    expect(them()?.engine.piecesPlaced).toBe(1);
+    expect(online.getState().match?.phase).toBe('playing');
+    // A relay the snapshot already holds the start of plays only its later frames.
+    say('relay', {
+      playerId: 'them',
+      frames: [
+        { frame: 29, actions: [] },
+        { frame: 30, actions: [] },
+        { frame: 31, actions: [] },
+      ],
+    });
+    ticking.advance(16);
+    expect(them()?.engine.frame).toBe(31);
+  });
+
+  test('your own game still in plays on as it is; the countdown again changes nothing', async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3100);
+    const mine = () => online.getState().match?.me?.engine.frame;
+    const frame = mine();
+    expect(frame).toBeGreaterThan(0);
+    say('countdown', countdown);
+    say('snapshot', {
+      players: [
+        { playerId: 'me', frame: 0, state: createEngine(ONE_VS_ONE, 7, 0).serialize() },
+        { playerId: 'them', frame: 30, state: theirs(30).serialize() },
+      ],
+    });
+    expect(mine()).toBe(frame);
+  });
+
+  test('your own game once out is the server’s copy', async () => {
+    const { online, say, ticking } = await welcomed();
+    say('roomState', roomState('K7QX'));
+    say('countdown', countdown);
+    ticking.advance(3100);
+    say('playerOut', { playerId: 'me', reason: 'laggedOut', frame: 2 });
+    const server = createEngine(ONE_VS_ONE, 7, 0);
+    server.step(2, []);
+    say('snapshot', { players: [{ playerId: 'me', frame: 2, state: server.serialize() }] });
+    expect(online.getState().match?.me?.engine.frame).toBe(2);
+    expect(online.getState().match?.me?.out).toEqual({ reason: 'laggedOut', frame: 2 });
   });
 });

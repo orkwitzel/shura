@@ -5,6 +5,7 @@ export {
   JoinRoomDto,
   LeaveRoomDto,
   ReadyDto,
+  SetNicknameDto,
   StartMatchDto,
 } from './rooms.dto';
 export { RoomsModule } from './rooms.module';

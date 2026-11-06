@@ -17,7 +17,10 @@ import {
   ReadyDto,
   RematchDto,
   RoomsService,
+  SetNicknameDto,
+  SpectateDto,
   StartMatchDto,
+  TakeSeatDto,
 } from './rooms';
 
 /**
@@ -57,6 +60,21 @@ export class RoomLinkGateway implements OnGatewayDisconnect {
   @SubscribeMessage('leaveRoom')
   leaveRoom(@ConnectedSocket() link: WebSocket, @MessageBody() message: LeaveRoomDto) {
     return this.rooms.leaveRoom(link, message);
+  }
+
+  @SubscribeMessage('setNickname')
+  setNickname(@ConnectedSocket() link: WebSocket, @MessageBody() message: SetNicknameDto) {
+    return this.rooms.setNickname(link, message);
+  }
+
+  @SubscribeMessage('spectate')
+  spectate(@ConnectedSocket() link: WebSocket, @MessageBody() message: SpectateDto) {
+    return this.rooms.spectate(link, message);
+  }
+
+  @SubscribeMessage('takeSeat')
+  takeSeat(@ConnectedSocket() link: WebSocket, @MessageBody() message: TakeSeatDto) {
+    return this.rooms.takeSeat(link, message);
   }
 
   @SubscribeMessage('ready')
