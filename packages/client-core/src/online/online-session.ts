@@ -67,6 +67,18 @@ export type OnlineConnection =
   | { readonly status: 'closed' };
 
 /**
+ * A garbage routing (design §8.5): the server sent an attack of `lines` from `from` to `to`. Only
+ * its target's game takes it in; every client draws it (the attack streak, design §13.2).
+ */
+export type GarbageRouting = Pick<
+  ServerData<'garbageQueued'>,
+  'id' | 'from' | 'to' | 'lines' | 'holeSeed'
+>;
+
+/** Hears each garbage routing of the current match. */
+export type RoutingListener = (routing: GarbageRouting) => void;
+
+/**
  * Quick-match (design §9.4), while you're in no room: not asking, waiting in the queue for a
  * partner, or back from a quick-match room whose other player left, free to queue again.
  */
@@ -167,6 +179,11 @@ export interface OnlineSession extends Store<OnlineSessionState> {
   onEvents(listener: SessionEventListener): () => void;
   /** Adds a listener for the actions your game applies. Returns its removal. */
   onActions(listener: AppliedActionsListener): () => void;
+  /**
+   * Adds a listener for the current match's garbage routings, whoever they're aimed at (the attack
+   * streak, design §13.2). Returns its removal.
+   */
+  onRoutings(listener: RoutingListener): () => void;
   /** Leaves your room, then closes the connection, as the player leaves online play. */
   close(): void;
 }
@@ -219,6 +236,7 @@ class Session implements OnlineSession {
   readonly #listeners = createNanoEvents<{
     events: SessionEventListener;
     actions: AppliedActionsListener;
+    routings: RoutingListener;
   }>();
 
   constructor(options: OnlineSessionOptions) {
@@ -270,6 +288,8 @@ class Session implements OnlineSession {
     this.#listeners.on('events', (events) => listener(events));
   onActions = (listener: AppliedActionsListener): (() => void) =>
     this.#listeners.on('actions', (actions) => listener(actions));
+  onRoutings = (listener: RoutingListener): (() => void) =>
+    this.#listeners.on('routings', (routing) => listener(routing));
 
   close = (): void => {
     const { connection, room } = this.getState();
@@ -447,6 +467,13 @@ class Session implements OnlineSession {
       case 'relay':
         this.#match?.relay(message.data);
         return;
+      case 'garbageQueued': {
+        // An attack sent again after a reconnect, already in your game, is no new routing.
+        if (!this.#match?.receiveGarbage(message.data)) return;
+        const { id, from, to, lines, holeSeed } = message.data;
+        this.#listeners.emit('routings', { id, from, to, lines, holeSeed });
+        return;
+      }
       case 'playerOut':
         this.#match?.playerOut(message.data);
         return;
@@ -457,7 +484,6 @@ class Session implements OnlineSession {
         this.#match?.restore(message.data);
         return;
       default:
-        // garbageQueued comes with #62.
         return;
     }
   }

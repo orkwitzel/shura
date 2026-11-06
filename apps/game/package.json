@@ -8,6 +8,7 @@
     "./configure-app": "./src/configure-app.ts",
     "./clock": "./src/clock/index.ts",
     "./match": "./src/match/index.ts",
+    "./match-log": "./src/match-log/index.ts",
     "./rooms": "./src/rooms/index.ts",
     "./valkey": "./src/valkey/index.ts"
   },
