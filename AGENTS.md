@@ -10,7 +10,10 @@ An online multiplayer falling-block puzzle game (guideline rules) with a web cli
 - `apps/web/AGENTS.md`: where code and tests go in the web client. Read it before adding or moving a web file.
 - `CONTRIBUTING.md`: branch, PR and release rules. Follow them exactly.
 - `apps/cli/AGENTS.md`: where code and tests go in the terminal client. Read it before adding or moving a CLI file.
+- `apps/bot/AGENTS.md`: where code and tests go in the bot testing tool. Read it before adding or moving a bot file.
+- `packages/protocol/AGENTS.md`: where messages, constants and their tests go, and how the shape test guards `PROTOCOL_VERSION`. Read it before changing a message.
 - `docs/agents/nest.md`, `apps/gateway/AGENTS.md` and `apps/game/AGENTS.md`: the NestJS conventions of the two services and where their code and tests go. Read them before adding or moving a server file.
+- `packages/valkey/AGENTS.md`: where a store's interface, versions and tests go. Read it before changing the shared state.
 
 ## Determinism (packages/engine)
 
@@ -21,7 +24,7 @@ The server re-runs the engine to verify every match, and clients must match it b
 - game rules use integer arithmetic only (fixed-point for gravity);
 - `Math.random`, `Date.now`, `performance.now`, timers and floats in rule logic are never used.
 
-If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the expected hashes of the recorded matches in the same PR (until M1 closes, only the re-record: see `docs/design.md` §5.3). If the replay-hash suite fails, treat that as a real outcome change, never as a flaky test.
+If a change alters game outcomes, bump `ENGINE_VERSION` and re-record the expected hashes of the recorded matches in the same PR (`docs/design.md` §5.3). If the replay-hash suite fails, treat that as a real outcome change, never as a flaky test.
 
 ## Protocol (packages/protocol)
 

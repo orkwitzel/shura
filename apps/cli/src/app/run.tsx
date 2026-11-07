@@ -2,11 +2,15 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { type Instance, type KittyFlagName, type RenderOptions, render } from 'ink';
 import type { ReactElement } from 'react';
+import pkg from '../../package.json' with { type: 'json' };
+import { serverUrl, webUrl } from '../addresses/server-url';
 import { terminalClock } from '../platform/clock';
 import { fileStorage, storagePaths } from '../platform/file-storage';
 import { captureHeader, createCaptureFile } from '../platform/input/capture';
 import type { InputChoice } from '../platform/input/input-adapter';
 import { detectColorMode } from '../platform/terminal/color-mode';
+import { nodeConnect } from '../platform/web-socket';
+import type { OnlineNetwork } from '../screens/online/online-screen';
 import { App } from './app';
 import type { PlayOptions } from './commands';
 import { exitMessages, openStores } from './stores';
@@ -53,6 +57,24 @@ export function startTerminalApp(
   });
 }
 
+/**
+ * Where online play connects (design §13.3: `--server` > `SHURA_SERVER` > `config.json` > the
+ * default), and `--name`, the nickname for this run only.
+ */
+export function onlineNetwork(
+  options: Pick<PlayOptions, 'server' | 'name'>,
+  configServer: string | undefined,
+  env: NodeJS.ProcessEnv,
+): Pick<OnlineNetwork, 'server' | 'web' | 'clientVersion' | 'name'> {
+  const server = serverUrl({ flag: options.server, env: env.SHURA_SERVER, config: configServer });
+  return {
+    server,
+    web: webUrl({ env: env.SHURA_WEB, server }),
+    clientVersion: pkg.version,
+    ...(options.name !== undefined && { name: options.name }),
+  };
+}
+
 /** Where `--debug-input` writes its capture: a new file in the current directory. */
 export function captureFileName(now: Date): string {
   return `shura-input-${now.toISOString().replace(/[:.]/g, '-')}.jsonl`;
@@ -80,10 +102,18 @@ export async function runApp(options: PlayOptions): Promise<number> {
       )
     : undefined;
   const input = { choice: options.input, ...(capture && { debug: { capture } }) };
+  const clock = terminalClock();
+  const online = onlineNetwork(options, stores.settings.getState().server, process.env);
+  let exit = { code: 0, message: '' };
   const app = startTerminalApp(
     <App
       {...(options.mode && { mode: options.mode })}
-      clock={terminalClock()}
+      online={{ ...online, connect: nodeConnect, clock }}
+      {...(options.online && { start: options.online })}
+      onExit={(code, message) => {
+        exit = { code, message };
+      }}
+      clock={clock}
       colors={colors}
       input={input}
       {...stores}
@@ -95,5 +125,6 @@ export async function runApp(options: PlayOptions): Promise<number> {
   if (capture) console.log(`Input capture written to ${capture.path}`);
   // The game drew on the alternate screen, so the full messages go where they stay readable.
   for (const message of exitMessages(stores)) console.error(message);
-  return 0;
+  if (exit.message) console.error(exit.message);
+  return exit.code;
 }

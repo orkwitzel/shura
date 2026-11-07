@@ -62,3 +62,40 @@ What the web client's automated tests can't see (design §13.2, Tests): real bro
 - [ ] Particles can fly past the well's edge, where the canvas clips them. Check that this looks fine.
 - [ ] Effects keep animating behind the in-game menu, because they are time-based. It's harmless, but check it isn't distracting.
 - [ ] **Particle performance on a slow machine.** A big-combo back-to-back Tetris draws up to about 1,280 particle rectangles for 0.75 s. On a slow machine, or with Chrome's DevTools CPU throttling at 4× or 6×, it shouldn't drop frames enough to make the game stall or pause.
+
+## Online: Play online and the lobby (M4)
+
+Run `pnpm dev` (Valkey, the gateway, the game service and the web), and `pnpm dev:bot` for bots. A second browser tab is the second player.
+
+- [ ] **Play online** in the main menu opens `/online`. The first time (clear storage), the nickname prompt comes first, prefilled with `PlayerNNNN`. Enter accepts it, a name like `no!pe` is refused as it's typed, and the name shows in the settings' *Online* section afterwards.
+- [ ] With the gateway stopped, *Play online* says "Can't reach the server". Start it again and *Retry* (Enter) connects.
+- [ ] **Two tabs, one room.** Tab 1: *Create room* → *1v1*. The address becomes `/r/XXXX`. *Copy link*, paste it into tab 2's address bar: tab 2 joins after its nickname prompt (if needed), and both tabs show both players in the lobby, with a "joined" notice in tab 1.
+- [ ] *Copy link* puts the room's full link on the clipboard (in Safari too), and says "Link copied".
+- [ ] **Ready and Start.** In tab 2, R (or Enter) toggles ready. In tab 1 (host, with the crown), Enter starts only once tab 2 is ready; until then the hint says what it waits for.
+- [ ] S steps out to watch (the spectator count shows) and S again takes the seat back. N changes the nickname: both tabs show the new name, and the settings have it.
+- [ ] Esc in the lobby leaves for `/online`, and the other tab gets a "left" notice (and "… is now host" if the host left). The browser's Back from a room leaves it too.
+- [ ] **Reload in the lobby.** Reloading a tab in a room comes back in the same seat, without a "Leave your room first" notice.
+- [ ] Opening `/r/ZZZZ` (no such room) says "No room with that code" and goes to `/online`, before any nickname prompt. DevTools' network tab shows one `GET /api/rooms/ZZZZ`, and no second one from Strict Mode.
+- [ ] **Quick match.** *Quick match* in both tabs pairs them (the waiting screen counts the time waited; Esc cancels). With a bot (`pnpm bot quick`, see `apps/bot/README.md`), one tab is enough.
+- [ ] The ping chip in the lobby's corner is green on localhost. With Chrome's DevTools network throttling, it turns yellow, then red.
+- [ ] Nicknames in Hebrew (`שירה`) display correctly in the seats and in notices.
+- [ ] Going back to the main menu closes the connection: the gateway logs the session leaving, and the other tab sees a "left" notice. In development (Strict Mode), entering *Play online* makes one `POST /api/sessions`, not two.
+
+## Online: the match (M4)
+
+- [ ] **A tab and 2 bots play an FFA.** *Create room* → *FFA*, then `pnpm bot join XXXX --count 2`, and start. "Match starting…" shows for a moment while the match screen loads, then the countdown (3, 2, 1, GO, a second each). Your board is on the left with its HUD (Sent, PPS, Alive 3/3, the ping chip); the bots' small boards are on the right, with their names over them and no hold or preview.
+- [ ] Clearing lines sends garbage: a streak of pixels flies from your well to a bot's meter and bursts there, and Sent counts up. A bot's attack lands in your meter as a segment that blinks red for 0.6 s. With Effects *Off* no streak flies and no segment blinks; under *Reduced* the streaks still fly.
+- [ ] A bot that tops out greys, with its place and "topped out". Topping out yourself greys your board, and a banner says "You topped out · watching the rest" with *Leave* (Esc).
+- [ ] Esc or P opens the menu ("The match goes on"); the bots' boards keep moving under it, and so does your piece. Clicking outside the window opens it too. *Leave match* (Q) goes back to *Play online*, and the bots' boards show you as left.
+- [ ] **A hidden tab.** Mid-match, switch to another tab for 5 s, then come back: your board kept playing (your piece fell and locked under gravity), the server didn't lag you out, and the menu is open.
+- [ ] **A 1v1 at 1600×900** (DevTools' device toolbar): both full boards at 32 px cells; at 1280×720, both at 24 px.
+- [ ] With DevTools' offline mode for a moment mid-match, "Reconnecting…" shows over the HUD (not across the top), and the match plays on once back.
+
+## Online: spectating and results (M4)
+
+As above. `pnpm bot quick` adds a bot that waits for a quick match and asks for every rematch.
+
+- [ ] **A third tab joins a running FFA and watches it to the results.** With a tab and 3 bots playing an FFA (`pnpm bot join XXXX --count 3`), open the room's link (*Copy link*) in another window. It shows every player's board at the same size in one row (no board of its own), drawn from the snapshot, under a banner "Spectating · you take a seat at the next lobby". Out boards grey with their place. When the match ends, a *Results* overlay lists every player by place with Sent, APM and PPS; Enter goes back to the lobby, where the spectator now has a seat.
+- [ ] **Results in a room by code.** The player who played sees their place as the title ("4th place") and their row in gold with a `you` tag. Players out at the same frame share a place. *Back to lobby* counts down from 10 s and goes back by itself.
+- [ ] **Quick-match results.** Quick match against the bot and top out: "2nd place" with *Rematch* and *Leave* (Esc), and no countdown. Enter shows "Waiting for …" until the bot's rematch starts the next countdown. Esc instead leaves for `/online`.
+- [ ] **Lagged out.** In an FFA with 2 or more others, cut the connection for 5 s mid-match (DevTools' *Offline* if it closes the WebSocket in your browser, or stop the gateway's port another way). Back, the banner says "You lagged out · watching the rest", your board greys with *lagged out*, and the banner covers no name. In a 1v1, the lag-out ends the match and the results show instead.

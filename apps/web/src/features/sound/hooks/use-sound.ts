@@ -1,4 +1,8 @@
 import type { SoloSession } from '@shura/client-core';
+
+/** A game whose engine events make the sounds: a single-player session, or an online one. */
+export type SoundSource = Pick<SoloSession, 'onEvents'>;
+
 import { useSettings } from '@shura/client-core/react';
 import { useEffect } from 'react';
 import {
@@ -27,10 +31,11 @@ const sharedPlayer = (): SoundPlayer => {
 };
 
 /**
- * Plays `session`'s engine events as sounds (design §13.2, Sound), at the settings' volume. Audio
- * starts at the first key press, as browsers require.
+ * Plays `session`'s engine events as sounds (design §13.2, Sound), at the settings' volume: a
+ * single-player session's, or your own game's in an online match (opponents' locks make none).
+ * Audio starts at the first key press, as browsers require.
  */
-export function useSound(session: SoloSession, player: SoundPlayer = sharedPlayer()): void {
+export function useSound(session: SoundSource, player: SoundPlayer = sharedPlayer()): void {
   const volume = useSettings((settings) => settings.volume);
   useEffect(() => player.setVolume(volume), [player, volume]);
 

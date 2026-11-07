@@ -245,6 +245,29 @@ describe('the display rows', () => {
   it('stop the cursor at the last row', async () => {
     const screen = await settingsScreen();
     await screen.type(...down(20));
-    expect(screen.line('Skin')).toMatch(/^› Skin/);
+    expect(screen.line('Nickname')).toMatch(/^› Nickname/);
+  });
+});
+
+describe('the nickname', () => {
+  it('shows that none is set, and Enter asks for one, prefilled with a suggestion', async () => {
+    const screen = await settingsScreen();
+    await screen.type(...down(14));
+    expect(screen.line('Nickname')).toBe('› Nickname (not set)');
+    await screen.type(KEY.enter);
+    expect(screen.frame()).toContain('NICKNAME');
+    expect(screen.frame()).toMatch(/Player\d{4}/);
+  });
+
+  it('changes it, checked as typed, and saves it', async () => {
+    const screen = await settingsScreen({ version: 1, nickname: 'Ada' });
+    await screen.type(...down(14), KEY.enter, '\x7f', '\x7f', '\x1b[109u', KEY.enter);
+    expect(screen.line('Nickname')).toBe('› Nickname Am');
+    expect(screen.saved().nickname).toBe('Am');
+  });
+
+  it('fits in 80×24 with its section', async () => {
+    const screen = await settingsScreen();
+    expect(screen.frame().split('\n').length).toBeLessThanOrEqual(24);
   });
 });

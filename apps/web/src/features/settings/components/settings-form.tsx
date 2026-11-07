@@ -26,7 +26,9 @@ import { Toggle } from '@/components/ui/toggle';
 import { DEFAULT_BINDINGS } from '@/config/default-bindings';
 import { useEffects } from '@/hooks/use-effects';
 import { keyLabel } from '@/lib/keyboard/key-labels';
+import { useScreenHotkeys } from '@/lib/keyboard/use-screen-hotkeys';
 import { ctrlWarning } from '../utils/ctrl-warning';
+import { NicknameSetting } from './nickname-setting';
 import styles from './settings-form.module.css';
 import { SkinPreview } from './skin-preview';
 
@@ -133,10 +135,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /**
  * The settings (design §13.2): handling, each action's keys with the swap rule, the ghost, the
- * theme (applied at once), the skin, the effects and the volume. Every change goes to the settings
- * store and is saved at once. Esc or Back leaves. It reads the stores from `ClientCoreProvider`, so
- * it stands on its own: the settings page shows it, and the solo page shows it over the paused
- * game.
+ * theme (applied at once), the skin, the effects, the volume and, under *Online*, the nickname.
+ * Every change goes to the settings store and is saved at once. Esc or Back leaves. It reads the
+ * stores from `ClientCoreProvider`, so it stands on its own: the settings page shows it, and the
+ * solo page shows it over the paused game.
  */
 export function SettingsForm({ onClose }: SettingsFormProps) {
   const settings = useSettings();
@@ -144,8 +146,6 @@ export function SettingsForm({ onClose }: SettingsFormProps) {
   const effects = useEffects();
   const [message, setMessage] = useState('');
   const first = useRef<HTMLDivElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
 
   // Focus the first control on mount, so the keys work at once.
   useEffect(() => {
@@ -153,15 +153,12 @@ export function SettingsForm({ onClose }: SettingsFormProps) {
   }, []);
 
   // Esc leaves, from anywhere on the page. A key capture that's waiting keeps its Esc to itself.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      close.current();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  useScreenHotkeys(
+    'escape',
+    () => onClose(),
+    // Held, the key repeat leaves too.
+    { ignoreEventWhen: (event) => event.defaultPrevented },
+  );
 
   const change = (next: SettingsChange, said = '') => {
     store.update(next);
@@ -294,6 +291,12 @@ export function SettingsForm({ onClose }: SettingsFormProps) {
               value={stepIndex(VOLUME_STEPS, settings.volume)}
               valueText={settings.volume === 0 ? 'off' : String(settings.volume)}
               onChange={(index) => change({ volume: VOLUME_STEPS[index] })}
+            />
+          </Section>
+          <Section title="Online">
+            <NicknameSetting
+              nickname={settings.nickname}
+              onChange={(nickname) => change({ nickname })}
             />
           </Section>
         </div>

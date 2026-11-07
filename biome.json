@@ -49,6 +49,11 @@
     },
     {
       "includes": ["apps/gateway/src/*.ts", "apps/game/src/*.ts"],
+      "javascript": {
+        "parser": {
+          "unsafeParameterDecoratorsEnabled": true
+        }
+      },
       "linter": {
         "rules": {
           "style": {
@@ -69,6 +74,11 @@
     },
     {
       "includes": ["apps/gateway/src/*/**", "apps/game/src/*/**"],
+      "javascript": {
+        "parser": {
+          "unsafeParameterDecoratorsEnabled": true
+        }
+      },
       "linter": {
         "rules": {
           "style": {

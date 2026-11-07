@@ -15,12 +15,19 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch --no-clean",
-    "typecheck": "tsc",
-    "test": "vitest run --passWithNoTests --fsModuleCachePath node_modules/.vitest-cache"
+    "typecheck": "tsc && tsc -p tsconfig.test.json",
+    "test": "vitest run --fsModuleCachePath node_modules/.vitest-cache",
+    "record-shape": "tsx scripts/record-shape.ts"
+  },
+  "dependencies": {
+    "@shura/engine": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shura/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "tsdown": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

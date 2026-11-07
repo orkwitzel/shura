@@ -8,8 +8,14 @@ The Ink terminal client. Its behaviour is in `docs/design.md` §13.3. This file 
 src/
 ├── main.ts     runs the Commander program
 ├── app/        the root: the commands, which screen shows, the providers, starting Ink, the stores
-├── screens/    one folder per screen: main-menu/, solo/, results/, settings/
-├── board/      board text drawing (rows of coloured characters), not React
+├── screens/    one folder per screen: main-menu/, solo/, results/, settings/, online/
+├── components/ React components two screens share: the nickname prompt, the menu (entries and cursor),
+│               the rows of pre-coloured text a board is drawn in
+├── addresses/  where things are: the server's URL (`--server` > `SHURA_SERVER` > config), the web
+│               client's (`SHURA_WEB`), a room's link
+├── board/      board text drawing (rows of coloured characters), not React, opponents' boards (how many
+│               fit, a stack's height), and text-width: padding and cutting in terminal columns
+│               (string-width, cli-truncate), never `.length`
 └── platform/   anything that touches the terminal itself: input/, terminal/, the clock, file storage
 ```
 
@@ -22,3 +28,4 @@ src/
 - A file is named after its main export, in kebab-case. Import each file by its path: no `index.ts` barrels.
 - A screen is `<Name>Screen` in `<name>-screen.tsx` (`SoloScreen` in `screens/solo/solo-screen.tsx`).
 - `tests/` mirrors `src/` (`tests/screens/solo/…`, `tests/platform/input/…`). Tests that drive the whole app go in `tests/app/`, and test-only helpers in `tests/support/`.
+- Screen tests drive an online screen over `fakeOnlineSession()` (`tests/support/fake-online-session.tsx`), whose methods must stay those of client-core's `OnlineSession`. App tests go online through `fakeServer()` (`tests/support/fake-server.ts`: `/api/sessions` and `/ws` in memory). Only `tests/app/join.test.tsx` boots the real gateway and a game pod (`tests/support/online-servers.ts`, through the `@shura/gateway` and `@shura/game` dev dependencies): `src/` never imports another app.

@@ -7,17 +7,29 @@ The React web client. `docs/design.md` §13.2 describes how it behaves; this fil
 ```text
 src/
 ├── main.tsx       mounts React
-├── app/           app.tsx, provider.tsx (the stores into <ClientCoreProvider>), router.tsx
-│   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page
+├── app/           app.tsx, provider.tsx (the stores and the API client into
+│   │              <ClientCoreProvider>), router.tsx, online-routes.tsx (online play's routes
+│   │              over one online session)
+│   └── routes/    the pages, one per route: main-menu-page, solo-page, settings-page,
+│                  online-page, room-page (with room-match, its match screen, loaded apart:
+│                  playing, spectating and the results)
 ├── features/      one folder per capability: board/ (with effects/), callouts/, hud/, countdown/,
-│                  game-menu/, results/, personal-bests/, settings/, sound/
+│                  game-menu/, results/ (single-player's and a match's), personal-bests/,
+│                  settings/, sound/, connection/, online-menu/, nickname/, lobby/, match/
+│                  (the online menu, names, out labels, the spectating banner)
 ├── components/    React components shared by features or pages: ui/ (the primitives), the
-│                  backdrop, the "needs a keyboard" screen
-├── hooks/         shared hooks: use-solo-session, use-theme, use-reduced-motion
-├── lib/           browser APIs and libraries set up for Shura: keyboard/, pixi/, audio/,
-│                  raf-clock, local-storage
+│                  backdrop, the "needs a keyboard" screen, the ping chip, the stat (a HUD chip or
+│                  a results row)
+├── hooks/         shared hooks: use-solo-session, use-game-keys (a game's keys from the window),
+│                  use-session-handling, use-theme, use-reduced-motion, use-effects; online/
+│                  (use-online-session, use-room-link, use-room-address)
+├── lib/           browser APIs and libraries set up for Shura: keyboard/ (with use-screen-hotkeys,
+│                  how screens' own keys listen through react-hotkeys-hook), pixi/, audio/,
+│                  raf-clock, online/ (online-clock: worker-timers in a hidden tab;
+│                  open-online-session: fetch and the WebSocket; server-api: the API client;
+│                  session-token: sessionStorage), clipboard, notices (Sonner's toasts), local-storage
 ├── stores/        the app's Zustand stores: settings-store, records-store
-├── config/        fixed values: default-bindings, routes
+├── config/        fixed values: default-bindings, routes, online
 ├── utils/         small pure helpers, created when one is needed
 ├── styles/        tokens.css, the reset, the font imports
 └── assets/        static files bundled with the app
@@ -57,12 +69,13 @@ Pixi code is kept thin and isn't unit-tested (design §13.2). Logic goes in `uti
 
 ```text
 features/board/
-├── components/board-canvas.tsx
-├── utils/layout-board.ts, cell-size.ts
-├── pixi/board-painter.ts
+├── components/board-canvas.tsx, match-canvas.tsx
+├── utils/layout-board.ts, cell-size.ts, layout-opponents.ts, meter-flash.ts,
+│         match-frame.ts (a match's frame: which boards to paint again, and what)
+├── pixi/board-painter.ts, match-painter.ts
 └── effects/
-    ├── utils/effects-for-events.ts, effect-frame.ts
-    └── pixi/effects-painter.ts
+    ├── utils/effects-for-events.ts, effect-frame.ts, streaks-for-routings.ts, streak-frame.ts
+    └── pixi/effects-painter.ts, streak-painter.ts
 ```
 
 ## Where shared code goes
@@ -72,7 +85,7 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
 - **It touches a browser API or a library:** `lib/`. For example, the keyboard adapter, the `requestAnimationFrame` clock, client-core's `Storage` over `localStorage`, and the Pixi setup plus `draw-cell.ts`, which the board and the settings screen's skin previews share, and `draw-shapes.ts`, which the board and effects painters share.
 - **It's a constant:** `config/`.
 - **It's pure logic, with no browser API and no library:** `utils/`.
-- **It's a React component that more than one feature or page uses:** `components/`. `components/ui/` holds the primitives (`Button`, `MenuList`, `Dialog`, `Slider`, `Toggle`, `RadioGroup`, `KeyCapture`), built on native HTML elements.
+- **It's a React component that more than one feature or page uses:** `components/`. `components/ui/` holds the primitives (`Button`, `MenuList`, `Dialog`, `Slider`, `Toggle`, `RadioGroup`, `KeyCapture`, `TextField`), built on native HTML elements.
 
 ## State
 
@@ -84,6 +97,12 @@ Code that only one feature uses stays in that feature. Shared code goes by what 
   - `hooks/use-solo-session.ts` creates it on mount. It brings the `requestAnimationFrame` clock, the saved settings and the keyboard, and writes the records when a game ends.
   - The hook disposes of it on unmount.
   - The page passes it to features as a prop, and they read it with `useSession(session, selector)`. Features never create sessions or stores.
+- **The online session.** One belongs to the app's stay in online play, across `/online` and every `/r/:code`.
+  - `app/online-routes.tsx` makes it with `hooks/online/use-online-session.ts` once there's a nickname, and closes it as the player leaves those routes. Its token goes to `sessionStorage` through `lib/online/session-token`.
+  - `hooks/online/use-room-link.ts` checks a room's route with client-core's `useRoomLookup` (over `lib/online/server-api`, which `app/provider.tsx` gives `<ClientCoreProvider>`), and sends an unknown code to `/online`.
+  - `hooks/online/use-room-address.ts` keeps the address on the room: a room entered takes the player to its route, a room left back to `/online`, and a room's route joins its room once the lookup has found it.
+  - Pages pass the session to features as a prop, and they read it with Zustand's `useStore(session, selector)`. Every server error shown goes through client-core's `errorText`.
+  - Tests give the app a fake session through `OpenOnlineSessionContext` (`renderWithStores({ online })`, `tests/support/fake-online-session.ts`) and a fake server for the lookups (`renderWithStores({ api })`, `tests/support/fake-api.ts`, client-core's real API client over a fake `fetch`). Match tests use a real session over a server the test plays (`tests/support/scripted-server.ts`, on the online clock over the fake browser of `fake-browser.ts`).
 - **UI state.** State that only one feature uses goes in that feature's `stores/`.
 
 ## Names

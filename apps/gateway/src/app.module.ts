@@ -1,12 +1,20 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { ClientGateway } from './client.gateway';
 import { ClockModule } from './clock';
 import { type Env, validateEnv } from './config';
 import { ValidationPipe } from './errors';
 import { HealthModule } from './health';
+import { LimitsModule } from './limits';
+import { PlayModule } from './play';
+import { QuickMatchModule } from './quick-match';
+import { RoomLinksModule } from './room-links';
+import { RoomsModule } from './rooms';
+import { SessionsModule } from './sessions';
+import { ValkeyModule } from './valkey';
+import { VersionGuard } from './versions';
 
 @Module({
   imports: [
@@ -26,8 +34,19 @@ import { HealthModule } from './health';
       }),
     }),
     ClockModule,
+    LimitsModule,
+    ValkeyModule,
     HealthModule,
+    SessionsModule,
+    RoomLinksModule,
+    RoomsModule,
+    PlayModule,
+    QuickMatchModule,
   ],
-  providers: [{ provide: APP_PIPE, useClass: ValidationPipe }, ClientGateway],
+  providers: [
+    { provide: APP_PIPE, useClass: ValidationPipe },
+    { provide: APP_GUARD, useClass: VersionGuard },
+    ClientGateway,
+  ],
 })
 export class AppModule {}

@@ -6,6 +6,8 @@ import type { InputOptions } from '../platform/input/use-terminal-input';
 import type { ColorMode } from '../platform/terminal/color-mode';
 import { EnlargeMessage, useTerminalSize } from '../platform/terminal/terminal-size';
 import { MainMenuScreen, type MenuReturn } from '../screens/main-menu/main-menu-screen';
+import { type OnlineNetwork, OnlineScreen } from '../screens/online/online-screen';
+import type { OnlineStart } from '../screens/online/online-start';
 import { SettingsScreen } from '../screens/settings/settings-screen';
 import { SoloScreen } from '../screens/solo/solo-screen';
 import type { CliStores } from './stores';
@@ -19,13 +21,20 @@ export interface AppProps extends CliStores {
   readonly colors: ColorMode;
   /** How keys are read (`--input`, `--debug-input`). */
   readonly input?: InputOptions;
+  /** Where and how online play connects. */
+  readonly online: OnlineNetwork;
+  /** `shura quick`, `create` or `join`: the app opens on *Play online*, doing that. */
+  readonly start?: OnlineStart;
+  /** Quit with an exit code and a message to print once the terminal is back (a version mismatch). */
+  readonly onExit?: (code: number, message: string) => void;
 }
 
 /** The screen the app shows. The menu opens where the player left it, if they did. */
 type Screen =
   | { kind: 'menu'; from?: MenuReturn }
   | { kind: 'settings' }
-  | { kind: 'solo'; mode: SoloMode };
+  | { kind: 'solo'; mode: SoloMode }
+  | { kind: 'online'; start?: OnlineStart };
 
 /**
  * The CLI's root: the main menu, the settings screen or a game, centred, or the enlarge message
@@ -38,16 +47,24 @@ export function App({
   seed,
   colors,
   input = { choice: 'auto' },
+  online,
+  start,
+  onExit,
   settings,
   records,
   notices,
 }: AppProps) {
   const size = useTerminalSize();
   const { exit } = useApp();
-  const [screen, setScreen] = useState<Screen>(mode ? { kind: 'solo', mode } : { kind: 'menu' });
+  const [screen, setScreen] = useState<Screen>(
+    start ? { kind: 'online', start } : mode ? { kind: 'solo', mode } : { kind: 'menu' },
+  );
   // Back to the menu, which opens where it was left: on Settings, or on the mode played.
   const toMenu = () =>
-    setScreen({ kind: 'menu', from: screen.kind === 'solo' ? screen.mode : 'settings' });
+    setScreen({
+      kind: 'menu',
+      from: screen.kind === 'solo' ? screen.mode : screen.kind === 'online' ? 'online' : 'settings',
+    });
   // The adapter asked for, until the first game chooses one for every game after it: the terminal
   // doesn't change.
   const [choice, setChoice] = useState(input.choice);
@@ -61,6 +78,7 @@ export function App({
             <MainMenuScreen
               onPlay={(played) => setScreen({ kind: 'solo', mode: played })}
               onSettings={() => setScreen({ kind: 'settings' })}
+              onOnline={() => setScreen({ kind: 'online' })}
               onQuit={() => exit()}
               active={size.bigEnough}
               from={screen.from}
@@ -69,6 +87,21 @@ export function App({
           )}
           {screen.kind === 'settings' && (
             <SettingsScreen onClose={toMenu} active={size.bigEnough} clock={clock} />
+          )}
+          {screen.kind === 'online' && (
+            <OnlineScreen
+              network={online}
+              start={screen.start}
+              colors={colors}
+              input={{ ...input, choice }}
+              visible={size.bigEnough}
+              onLeave={toMenu}
+              onInputChosen={setChoice}
+              onExit={(code, message) => {
+                onExit?.(code, message);
+                exit();
+              }}
+            />
           )}
           {screen.kind === 'solo' && (
             <SoloScreen

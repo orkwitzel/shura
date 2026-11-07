@@ -12,10 +12,22 @@ export function resize(app: Rendered, columns: number, rows: number): void {
   app.stdout.emit('resize');
 }
 
-/** Lets effects, input handlers and re-renders run. */
-export function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+/**
+ * Lets effects, input handlers and re-renders run. Ink's root is a legacy one, so a render is
+ * synchronous but its effects (`useInput` turning on and off, a screen's subscriptions) wait for
+ * React's scheduler, which runs them in a `setImmediate`. A timer alone can fire before that under
+ * load; an immediate queued after the scheduler's runs after it, every time. Each round also lets
+ * the effects that the last one's renders scheduled run.
+ */
+export async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (let round = 0; round < SETTLE_ROUNDS; round++) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 }
+
+/** How many rounds of effects `settle` waits out: more than any screen chains. */
+const SETTLE_ROUNDS = 3;
 
 /**
  * A frame's visible board rows, top (row 19) first, split at the walls: what lies left of the board

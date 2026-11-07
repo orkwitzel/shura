@@ -1,6 +1,6 @@
 {
   "description": "No hard drops: 17 pieces moved while falling at 1 row/s, each locked by the lock delay where gravity lands it, ending in a block out.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 424242,
   "mode": "sprint",
   "settings": {
@@ -9,7 +9,7 @@
   "lastFrame": 14070,
   "players": [
     {
-      "expectedHash": "b1898586a0d2c717",
+      "expectedHash": "a2c25c1665d90cad",
       "actions": [
         { "frame": 47, "type": "moveLeft" },
         { "frame": 86, "type": "moveLeft" },

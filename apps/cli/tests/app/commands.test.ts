@@ -58,8 +58,8 @@ describe('help and version', () => {
     expect(HELP).not.toContain('--debug-input');
   });
 
-  test("the help says the online parts aren't available yet", () => {
-    expect(HELP).toMatch(/online play isn't available yet/i);
+  test("the help no longer says online play isn't available", () => {
+    expect(HELP).not.toMatch(/isn't available/i);
   });
 
   test('shura solo --help lists every mode', async () => {
@@ -104,22 +104,34 @@ describe('mistakes', () => {
   });
 });
 
-describe('the online commands, until online play exists (M4)', () => {
+describe('the online commands', () => {
   test.each([
-    ['quick'],
-    ['create'],
-    ['create', '--mode', 'ffa'],
-    ['create', '--mode=1v1'],
-    ['--mode', 'ffa', 'create'],
-    ['join', 'K7QX'],
-    ['join', 'k7qx', '--server', 'wss://example.org', '--name', 'Or'],
-    ['join', 'K7QXRT'],
-  ])('shura %s says so and exits with 1', async (...argv) => {
-    const run = await shura(...argv);
-    expect(run.code).toBe(1);
-    expect(run.err).toBe("online play isn't available yet\n");
-    expect(run.out).toBe('');
-    expect(run.played).toEqual([]);
+    [['create'], { action: 'create', mode: '1v1' }],
+    [['create', '--mode', 'ffa'], { action: 'create', mode: 'ffa' }],
+    [['create', '--mode=1v1'], { action: 'create', mode: '1v1' }],
+    [['--mode', 'ffa', 'create'], { action: 'create', mode: 'ffa' }],
+    [['join', 'K7QX'], { action: 'join', code: 'K7QX' }],
+    [['join', 'k7qx'], { action: 'join', code: 'K7QX' }],
+    [['join', ' k7qx '], { action: 'join', code: 'K7QX' }],
+  ] as const)('shura %j opens on that room', async (argv, online) => {
+    expect(await shura(...argv)).toMatchObject({ code: 0, played: [{ ...DEFAULTS, online }] });
+  });
+
+  test('--server and --name go to the room', async () => {
+    const run = await shura('join', 'K7QX', '--server', 'wss://example.org', '--name', 'Or');
+    expect(run.played).toEqual([
+      {
+        ...DEFAULTS,
+        server: 'wss://example.org',
+        name: 'Or',
+        online: { action: 'join', code: 'K7QX' },
+      },
+    ]);
+  });
+
+  test('shura quick opens on the quick-match waiting screen', async () => {
+    const run = await shura('quick');
+    expect(run).toMatchObject({ code: 0, played: [{ ...DEFAULTS, online: { action: 'quick' } }] });
   });
 
   test('quick takes nothing more', async () => {
@@ -139,22 +151,30 @@ describe('the online commands, until online play exists (M4)', () => {
   });
 
   test('join without exactly one valid code is a mistake (design §10.3)', async () => {
-    for (const argv of [[], ['K7QX', 'K7QX'], ['K7Q'], ['K7QXR'], ['K0QX'], ['KLQX']]) {
+    for (const argv of [[], ['K7QX', 'K7QX'], ['K7Q'], ['K7QXR'], ['K7QXRT'], ['K0QX'], ['KLQX']]) {
       // 0, O, 1, I and L are left out of codes, as easy to mistake.
       expect((await shura('join', ...argv)).code, argv.join(' ')).toBe(2);
     }
-    expect((await shura('join', 'K7Q')).err).toMatch(/4 or 6 letters and digits, like K7QX/);
+    expect((await shura('join', 'K7Q')).err).toMatch(/4 letters and digits, like K7QX/);
   });
 });
 
 describe('global flags', () => {
   test.each([
-    [['--server', 'wss://example.org', '--name', 'Or'], DEFAULTS],
+    [
+      ['--server', 'wss://example.org', '--name', 'Or'],
+      { ...DEFAULTS, server: 'wss://example.org', name: 'Or' },
+    ],
     [['--input', 'basic', '--no-color'], { ...DEFAULTS, input: 'basic', noColor: true }],
   ] as const)('%j go with every command, before or after it', async (flags, options) => {
-    for (const argv of [['quick'], ['create'], ['join', 'K7QX']]) {
-      expect((await shura(...argv, ...flags)).code).toBe(1);
-      expect((await shura(...flags, ...argv)).code).toBe(1);
+    const rooms = [
+      [['quick'], { action: 'quick' }],
+      [['create'], { action: 'create', mode: '1v1' }],
+      [['join', 'K7QX'], { action: 'join', code: 'K7QX' }],
+    ] as const;
+    for (const [argv, online] of rooms) {
+      expect((await shura(...argv, ...flags)).played).toEqual([{ ...options, online }]);
+      expect((await shura(...flags, ...argv)).played).toEqual([{ ...options, online }]);
     }
     expect((await shura(...flags)).played).toEqual([options]);
     expect((await shura('solo', 'sprint', ...flags)).played).toEqual([

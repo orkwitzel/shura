@@ -1,20 +1,24 @@
 // The React hooks both UIs share (design §13.1, ADR 0012): `@shura/client-core/react`. The root
 // entry has no React in it; only this one does.
 import type { ReadonlyEngineState } from '@shura/engine';
+import type { RoomInfo } from '@shura/protocol';
 import {
   createContext,
   createElement,
   type ReactNode,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import { personalBestLine } from './personal-best';
-import type { Records, RecordsStore } from './records';
-import type { Settings, SettingsStore } from './settings';
-import type { SoloSession, SoloSessionState } from './solo-session';
-import type { AppStores } from './store';
+import type { Api } from './online/api';
+import { isOnlineError, OnlineError, UNREACHABLE_TEXT } from './online/online-error';
+import type { Settings, SettingsStore } from './settings/settings';
+import type { AppStores } from './shared/store';
+import { personalBestLine } from './solo/personal-best';
+import type { Records, RecordsStore } from './solo/records';
+import type { SoloSession, SoloSessionState } from './solo/solo-session';
 
 /**
  * A session's whole state, re-rendering after each change: the board's view, which changes every
@@ -35,18 +39,25 @@ export function useSession(
 }
 
 const StoresContext = createContext<AppStores | null>(null);
+const ApiContext = createContext<Api | null>(null);
 
 export interface ClientCoreProviderProps extends AppStores {
+  /** The API client of the app's server, which `useRoomLookup` reads through. */
+  readonly api?: Api;
   readonly children?: ReactNode;
 }
 
 /**
  * Gives the components under it the app's settings and records stores, which `useSettings` and
- * `useRecords` find. A session belongs to one game, so `useSession` takes it as an argument
- * instead (design §13.1, State).
+ * `useRecords` find, and the server's API client, which `useRoomLookup` finds. A session belongs
+ * to one game, so `useSession` takes it as an argument instead (design §13.1, State).
  */
-export function ClientCoreProvider({ settings, records, children }: ClientCoreProviderProps) {
-  return createElement(StoresContext.Provider, { value: { settings, records } }, children);
+export function ClientCoreProvider({ settings, records, api, children }: ClientCoreProviderProps) {
+  return createElement(
+    StoresContext.Provider,
+    { value: { settings, records } },
+    createElement(ApiContext.Provider, { value: api ?? null }, children),
+  );
 }
 
 function useStores(hook: string): AppStores {
@@ -98,4 +109,54 @@ export function useSoloRecord(session: SoloSession): string | undefined {
     setVerdict({ game: state.engine, line: personalBestLine(state.mode, records.submit(state)) });
   }, [ended, game, verdict, records, session]);
   return verdict?.game === game ? verdict.line : undefined;
+}
+
+/** What `useRoomLookup` knows of a room: nothing asked, asking, the room, or why not. */
+export type RoomLookup =
+  | { readonly status: 'idle' }
+  | { readonly status: 'loading' }
+  | { readonly status: 'found'; readonly room: RoomInfo }
+  | { readonly status: 'failed'; readonly error: OnlineError };
+
+const IDLE: RoomLookup = { status: 'idle' };
+const LOADING: RoomLookup = { status: 'loading' };
+
+/**
+ * The room with `code` as the server describes it (`GET /api/rooms/:code`, design §13.1, API
+ * client), through the provider's API client: loading, then found, or failed with an
+ * `OnlineError` (`room_not_found` for a code no room has). `null` asks nothing. It asks once per
+ * code, even when Strict Mode mounts it twice, and never polls: lookups that miss count against
+ * the failed-join limit (§11).
+ */
+export function useRoomLookup(code: string | null): RoomLookup {
+  const api = useContext(ApiContext);
+  if (!api) throw new Error('useRoomLookup needs a <ClientCoreProvider api={…}> above it');
+  const [answered, setAnswered] = useState<{ code: string; lookup: RoomLookup } | null>(null);
+  /** The code asked about last, and its answer to come: kept across Strict Mode's remount. */
+  const asked = useRef<{ code: string; answer: Promise<RoomLookup> } | null>(null);
+  useEffect(() => {
+    if (code === null) {
+      asked.current = null;
+      return;
+    }
+    if (asked.current?.code !== code) {
+      const answer = api.lookupRoom(code).then(
+        (room): RoomLookup => ({ status: 'found', room }),
+        (error: unknown): RoomLookup => ({
+          status: 'failed',
+          error: isOnlineError(error) ? error : new OnlineError('unreachable', UNREACHABLE_TEXT),
+        }),
+      );
+      asked.current = { code, answer };
+    }
+    let current = true;
+    void asked.current.answer.then((lookup) => {
+      if (current) setAnswered({ code, lookup });
+    });
+    return () => {
+      current = false;
+    };
+  }, [api, code]);
+  if (code === null) return IDLE;
+  return answered?.code === code ? answered.lookup : LOADING;
 }

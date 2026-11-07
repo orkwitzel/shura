@@ -2,14 +2,17 @@
 /// <reference lib="dom" />
 
 import { ActionType, createEngine, type PieceActionType, SPRINT } from '@shura/engine';
+import type { RoomInfo } from '@shura/protocol';
 import type { ReactNode } from 'react';
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
+  type Api,
   createRecordsStore,
   createSettingsStore,
   createSoloSession,
+  OnlineError,
   type RecordsStore,
   type SettingsStore,
   type SoloSession,
@@ -17,8 +20,10 @@ import {
 } from '../src/index';
 import {
   ClientCoreProvider,
+  type RoomLookup,
   useRecords,
   useRecordsStore,
+  useRoomLookup,
   useSession,
   useSettings,
   useSettingsStore,
@@ -269,5 +274,127 @@ describe('useSoloRecord', () => {
     act(() => session.pause());
     expect(lines.at(-1)).toBeUndefined();
     expect(submit).not.toHaveBeenCalled();
+  });
+});
+
+describe('useRoomLookup (design §13.1, API client)', () => {
+  let root: Root;
+  /** Each lookup asked for, with its answer to settle. */
+  let asked: {
+    code: string;
+    resolve: (room: RoomInfo) => void;
+    reject: (error: unknown) => void;
+  }[];
+  let api: Api;
+  let seen: RoomLookup[];
+
+  beforeEach(() => {
+    root = createRoot(document.createElement('div'));
+    asked = [];
+    seen = [];
+    api = {
+      createSession: () => Promise.reject(new Error('not used')),
+      lookupRoom: (code) =>
+        new Promise((resolve, reject) => {
+          asked.push({ code, resolve, reject });
+        }),
+    };
+  });
+
+  afterEach(() => act(() => root.unmount()));
+
+  function Probe({ code }: { code: string | null }) {
+    seen.push(useRoomLookup(code));
+    return null;
+  }
+
+  function renderLookup(code: string | null, strict = false) {
+    const storage = memoryStorage();
+    const bindings = Object.fromEntries(
+      Object.values(ActionType).map((action) => [action, [action]]),
+    ) as unknown as Parameters<typeof createSettingsStore>[0]['bindings'];
+    const tree = (
+      <ClientCoreProvider
+        settings={createSettingsStore({ storage, bindings })}
+        records={createRecordsStore({ storage })}
+        api={api}
+      >
+        <Probe code={code} />
+      </ClientCoreProvider>
+    );
+    act(() => root.render(strict ? <StrictMode>{tree}</StrictMode> : tree));
+  }
+
+  const k7qx: RoomInfo = { code: 'K7QX', mode: '1v1', seats: 2, seated: 1, spectators: 0 };
+
+  test('loads, then gives the room the server describes', async () => {
+    renderLookup('K7QX');
+    expect(seen.at(-1)).toEqual({ status: 'loading' });
+    expect(asked.map(({ code }) => code)).toEqual(['K7QX']);
+    await act(async () => asked[0]?.resolve(k7qx));
+    expect(seen.at(-1)).toEqual({ status: 'found', room: k7qx });
+  });
+
+  test('gives the error of a room that is not there', async () => {
+    renderLookup('ZZZZ');
+    const error = new OnlineError('room_not_found', 'There is no room with that code.', 404);
+    await act(async () => asked[0]?.reject(error));
+    expect(seen.at(-1)).toEqual({ status: 'failed', error });
+  });
+
+  test('turns any other failure into an unreachable server', async () => {
+    renderLookup('K7QX');
+    await act(async () => asked[0]?.reject(new TypeError('Failed to fetch')));
+    const last = seen.at(-1);
+    expect(last?.status === 'failed' && last.error.code).toBe('unreachable');
+  });
+
+  test('asks nothing without a code', () => {
+    renderLookup(null);
+    expect(seen.at(-1)).toEqual({ status: 'idle' });
+    expect(asked).toEqual([]);
+  });
+
+  test('asks once per code, even when Strict Mode mounts it twice, and again for a new code', async () => {
+    renderLookup('K7QX', true);
+    expect(asked.map(({ code }) => code)).toEqual(['K7QX']);
+    await act(async () => asked[0]?.resolve(k7qx));
+    expect(seen.at(-1)).toEqual({ status: 'found', room: k7qx });
+    renderLookup('ABCD', true);
+    expect(seen.at(-1)).toEqual({ status: 'loading' });
+    expect(asked.map(({ code }) => code)).toEqual(['K7QX', 'ABCD']);
+  });
+
+  test('ignores the answer for a code it no longer shows', async () => {
+    renderLookup('K7QX');
+    renderLookup('ABCD');
+    await act(async () => asked[0]?.resolve(k7qx));
+    expect(seen.at(-1)).toEqual({ status: 'loading' });
+  });
+
+  test('throws without an API in the provider, saying what is missing', () => {
+    api = undefined as unknown as Api;
+    const storage = memoryStorage();
+    const bindings = Object.fromEntries(
+      Object.values(ActionType).map((action) => [action, [action]]),
+    ) as unknown as Parameters<typeof createSettingsStore>[0]['bindings'];
+    const error = console.error;
+    console.error = () => {};
+    try {
+      expect(() =>
+        act(() =>
+          root.render(
+            <ClientCoreProvider
+              settings={createSettingsStore({ storage, bindings })}
+              records={createRecordsStore({ storage })}
+            >
+              <Probe code="K7QX" />
+            </ClientCoreProvider>,
+          ),
+        ),
+      ).toThrow(/api/);
+    } finally {
+      console.error = error;
+    }
   });
 });

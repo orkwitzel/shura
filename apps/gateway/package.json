@@ -3,11 +3,18 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "exports": {
+    "./app.module": "./src/app.module.ts",
+    "./clock": "./src/clock/index.ts",
+    "./config": "./src/config/index.ts",
+    "./configure-app": "./src/configure-app.ts",
+    "./valkey": "./src/valkey/index.ts"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "dev": "nest build && concurrently --kill-others --names build,run \"nest build --watch --preserveWatchOutput\" \"NODE_ENV=${NODE_ENV:-development} node --watch --enable-source-maps dist/main.js\"",
+    "dev": "nest build && concurrently --kill-others --names build,run \"nest build --watch --preserveWatchOutput\" \"NODE_ENV=${NODE_ENV:-development} LIMITS_EXEMPT_IPS=${LIMITS_EXEMPT_IPS-127.0.0.1,::1} node --watch --enable-source-maps dist/main.js\"",
     "build": "nest build",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc",
@@ -21,11 +28,17 @@
     "@nestjs/platform-ws": "catalog:",
     "@nestjs/terminus": "catalog:",
     "@nestjs/websockets": "catalog:",
+    "@shura/engine": "workspace:*",
     "@shura/protocol": "workspace:*",
+    "@shura/valkey": "workspace:*",
+    "bufferutil": "4.1.0",
+    "ipaddr.js": "1.9.1",
     "nestjs-pino": "catalog:",
     "nestjs-zod": "catalog:",
+    "p-queue": "10.0.0",
     "pino": "catalog:",
     "pino-http": "catalog:",
+    "proxy-addr": "2.0.8",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "ws": "catalog:",
@@ -35,15 +48,20 @@
     "@nestjs/cli": "catalog:",
     "@nestjs/schematics": "catalog:",
     "@nestjs/testing": "catalog:",
+    "@shura/bot": "workspace:*",
+    "@shura/client-core": "workspace:*",
+    "@shura/game": "workspace:*",
     "@shura/tsconfig": "workspace:*",
     "@swc/cli": "catalog:",
     "@swc/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/proxy-addr": "2.0.3",
     "@types/ws": "catalog:",
     "concurrently": "catalog:",
     "pino-pretty": "catalog:",
     "typescript": "catalog:nest",
     "unplugin-swc": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zustand": "catalog:"
   }
 }

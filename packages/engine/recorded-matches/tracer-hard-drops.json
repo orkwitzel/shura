@@ -1,6 +1,6 @@
 {
   "description": "51 pieces placed by a greedy column bot with moves and hard drops (6 line clears), with waits that let gravity pull pieces down and land 3 of them, ending in a block out.",
-  "engineVersion": 1,
+  "engineVersion": 2,
   "seed": 77,
   "mode": "sprint",
   "settings": {
@@ -9,7 +9,7 @@
   "lastFrame": 1584,
   "players": [
     {
-      "expectedHash": "b881ac1e4c9cfc21",
+      "expectedHash": "8bfb33e0f7bcab91",
       "actions": [
         { "frame": 1, "type": "moveRight" },
         { "frame": 3, "type": "moveRight" },
