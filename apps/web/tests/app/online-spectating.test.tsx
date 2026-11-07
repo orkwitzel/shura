@@ -1,6 +1,5 @@
-import { MATCH_SETTINGS } from '@shura/client-core';
 import { ActionType, createEngine } from '@shura/engine';
-import type { RoomMode, ServerData } from '@shura/protocol';
+import { MATCH_SETTINGS, type RoomMode, type ServerData } from '@shura/protocol';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';

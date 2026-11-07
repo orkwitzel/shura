@@ -4,10 +4,7 @@ import {
   createEngine,
   type Engine,
   type EngineEvent,
-  FFA,
   type GarbageReceivedAction,
-  type ModeSettings,
-  ONE_VS_ONE,
   type PieceAction,
   type PieceActionType,
   type ReadonlyEngineState,
@@ -16,6 +13,7 @@ import {
 import {
   BATCH_FRAMES,
   frameAt,
+  MATCH_SETTINGS,
   type OutReason,
   type RoomMode,
   type ServerData,
@@ -23,12 +21,6 @@ import {
 import type { InputEngine, KeyEvent } from '../input/input-engine';
 import type { Clock } from '../shared/clock';
 import { placeOf } from '../view/places';
-
-/** The engine settings of each room mode (design §4): an FFA plays by 1v1's rules. */
-export const MATCH_SETTINGS: Readonly<Record<RoomMode, ModeSettings>> = {
-  '1v1': ONE_VS_ONE,
-  ffa: FFA,
-};
 
 /**
  * The lines of garbage attacks hold together: a step's attacks sent, or those waiting in a garbage

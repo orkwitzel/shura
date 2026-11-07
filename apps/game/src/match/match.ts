@@ -2,17 +2,15 @@ import {
   type Action,
   createEngine,
   type Engine,
-  FFA,
   type HoleSeedsState,
   holeSeeds,
-  type ModeSettings,
-  ONE_VS_ONE,
   type SentGarbage,
 } from '@shura/engine';
 import {
   type ClientData,
   type FrameActions,
   GARBAGE_ACK_TIMEOUT,
+  MATCH_SETTINGS,
   type OutReason,
   type RoomMode,
   type ServerData,
@@ -26,12 +24,6 @@ import { IncomingGarbage } from './incoming-garbage';
 import { MatchClock } from './match-clock';
 import { type MatchPlayer, placements, statsOf } from './results';
 import { chooseTarget, createMatchRng, type MatchRng } from './targeting';
-
-/** The engine settings of each room mode (design §4): an FFA plays by 1v1's rules. */
-export const MATCH_SETTINGS: Readonly<Record<RoomMode, ModeSettings>> = {
-  '1v1': ONE_VS_ONE,
-  ffa: FFA,
-};
 
 /** Where a match's messages go: the room decides who is in it. */
 export interface MatchOutput {

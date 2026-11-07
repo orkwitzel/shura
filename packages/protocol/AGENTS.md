@@ -17,14 +17,15 @@ src/
 │   ├── server.ts         gateway → client (serverMessages)
 │   └── internal.ts       gateway ⇄ game pod, over the per-room link
 ├── http/                 the /api bodies and the version header names
-├── match/                rules the server and the clients both work out: placeAmong (places by frame)
+├── match/                rules the server and the clients both work out: placeAmong (places by frame),
+│                         MATCH_SETTINGS (each room mode's engine settings)
 └── names/                what players type: nicknames (with the blocklist file) and room codes
 scripts/record-shape.ts   re-records tests/support/protocol-shape.json
 ```
 
 ## Rules
 
-- It imports only `@shura/engine` (its action and state types, and `ActionType`) and `zod`. `src/` typechecks with no Node or DOM types: the schemas run the same in browsers and Node.
+- It imports only `@shura/engine` (its action and state types, `ActionType`, and the mode settings `ONE_VS_ONE` and `FFA`) and `zod`. `src/` typechecks with no Node or DOM types: the schemas run the same in browsers and Node.
 - A message is one entry in its group's record (`clientMessages.hello`), built with `data({ … })` so unknown fields pass through. The services make DTOs from these entries (`createZodDto(clientMessages.hello)`); never define a message's shape anywhere else.
 - A room-scoped message that also travels on the gateway ⇄ game link is listed in `internal.ts` with `scoped(…)`, which adds `{ roomCode, epoch, sessionId }`.
 - A new error code goes in `ERRORS`, with its text and HTTP status.
