@@ -114,10 +114,13 @@ export class RoomsService implements OnApplicationShutdown {
       binding.deliver(message.sessionId, exception(REFUSALS.noRoom));
       return;
     }
-    this.#deletions.get(room.code)?.();
-    this.#deletions.delete(room.code);
     binding.sessions.add(message.sessionId);
     room.attach(message.sessionId, message.nickname, message.kind, binding.deliver);
+    // A room that sent the session away (full, or a quick-match room that broke up) stays empty,
+    // so its pending deletion stands.
+    if (room.empty) return;
+    this.#deletions.get(room.code)?.();
+    this.#deletions.delete(room.code);
   }
 
   /** The session's socket closed on its gateway: the room holds its place (design §10.2). */
