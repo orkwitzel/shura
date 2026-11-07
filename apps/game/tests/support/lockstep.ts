@@ -6,18 +6,19 @@ import {
   type GarbageReceivedAction,
   type PieceAction,
 } from '@shura/engine';
-import type {
-  ClientData,
-  FrameActions,
-  RoomMode,
-  ServerData,
-  ServerEvent,
-  ServerMessage,
-  ServerMessageOf,
+import {
+  type ClientData,
+  type FrameActions,
+  MATCH_SETTINGS,
+  type RoomMode,
+  type ServerData,
+  type ServerEvent,
+  type ServerMessage,
+  type ServerMessageOf,
 } from '@shura/protocol';
 import { createMemoryStores, type MatchLog } from '@shura/valkey';
 import { pino } from 'pino';
-import { MATCH_SETTINGS, Match } from '../../src/match/match';
+import { Match } from '../../src/match/match';
 import { fakeClock } from './fake-clock';
 import { RECORDED_PIECE_ACTIONS, RECORDED_SEED } from './recorded-1v1';
 import { START_AT, STARTED, settle, timeOf } from './test-match';

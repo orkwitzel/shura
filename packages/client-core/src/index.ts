@@ -38,7 +38,6 @@ export { isOnlineError, OnlineError } from './online/online-error';
 export {
   type BatchFrame,
   type InputBatch,
-  MATCH_SETTINGS,
   type OnlineMatchPhase,
   type OnlineMatchState,
   type OnlinePlayerGame,

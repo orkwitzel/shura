@@ -93,15 +93,11 @@ export class RoomsService implements OnApplicationShutdown {
           this.logger.error({ err: error, roomCode: code }, 'registry update failed');
         });
       },
-      emptied: () => {
-        this.#deletions.get(code)?.();
-        this.#deletions.set(
-          code,
-          this.clock.after(EMPTY_ROOM_MS, () => this.#delete(room)),
-        );
-      },
+      emptied: () => this.#deleteLater(room),
     });
     this.#rooms.set(code, room);
+    // A room starts empty: it's deleted unless someone attaches before then.
+    this.#deleteLater(room);
     this.logger.info({ roomCode: code, mode }, 'room created');
   }
 
@@ -114,10 +110,13 @@ export class RoomsService implements OnApplicationShutdown {
       binding.deliver(message.sessionId, exception(REFUSALS.noRoom));
       return;
     }
-    this.#deletions.get(room.code)?.();
-    this.#deletions.delete(room.code);
     binding.sessions.add(message.sessionId);
     room.attach(message.sessionId, message.nickname, message.kind, binding.deliver);
+    // A room that sent the session away (full, or a quick-match room that broke up) stays empty,
+    // so its pending deletion stands.
+    if (room.empty) return;
+    this.#deletions.get(room.code)?.();
+    this.#deletions.delete(room.code);
   }
 
   /** The session's socket closed on its gateway: the room holds its place (design §10.2). */
@@ -210,6 +209,15 @@ export class RoomsService implements OnApplicationShutdown {
       const routed = { event: message.event, data: { ...message.data, ...scope } } as GameToGateway;
       link.send(JSON.stringify(routed));
     };
+  }
+
+  /** Deletes the empty `room` after `EMPTY_ROOM_MS`, unless someone joins it before then. */
+  #deleteLater(room: Room): void {
+    this.#deletions.get(room.code)?.();
+    this.#deletions.set(
+      room.code,
+      this.clock.after(EMPTY_ROOM_MS, () => this.#delete(room)),
+    );
   }
 
   #delete(room: Room): void {

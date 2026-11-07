@@ -30,6 +30,7 @@ export {
 } from './http/sessions';
 export { ENGINE_VERSION_HEADER, PROTOCOL_VERSION_HEADER } from './http/version-headers';
 export { placeAmong } from './match/places';
+export { MATCH_SETTINGS } from './match/settings';
 export {
   actionSchema,
   type BatchAction,
