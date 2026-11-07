@@ -257,7 +257,8 @@ test('a failed queue step gives the room code back', async () => {
   );
   bo.quickMatch();
   await eventually(world, () => bo.getState().error !== null, 'Bo was refused');
-  const [[code = '']] = codes.mock.calls;
+  expect(codes).toHaveBeenCalledOnce();
+  const code = codes.mock.calls[0]?.[0] ?? '';
   expect(await world.stores.registry.get(code)).toBeUndefined();
 });
 
@@ -268,7 +269,8 @@ test('a queued player gets no record to keep: the room code goes back', async ()
   ada.quickMatch();
   await world.time.settle();
   expect(ada.getState().quickMatch).toBe('queued');
-  const [[code = '']] = codes.mock.calls;
+  expect(codes).toHaveBeenCalledOnce();
+  const code = codes.mock.calls[0]?.[0] ?? '';
   expect(await world.stores.registry.get(code)).toBeUndefined();
 });
 
