@@ -15,6 +15,17 @@ const coolingDown = (retryAfterMs: number) =>
     errorBody('rate_limited', `Wait ${Math.ceil(retryAfterMs / 1000)} s before queueing again.`),
   );
 
+/** The registry record of a new quick-match room on the pod at `podAddress`: 1v1, no host. */
+const quickMatchRoom = (podAddress: string): RoomRecord => ({
+  podAddress,
+  epoch: 0,
+  mode: '1v1',
+  phase: 'lobby',
+  quickMatch: true,
+  seated: 0,
+  spectators: 0,
+});
+
 /**
  * The 1v1 quick-match queue on the gateway (design §9.4). `quickMatch` pairs the session with
  * whoever has waited longest, creating their room (no host) on the least-loaded pod and entering
@@ -44,29 +55,39 @@ export class QuickMatchService {
     return this.connections.inTurn(socket, async (connection) => {
       const session = sessionOf(connection);
       if (connection.roomCode) throw REFUSE.inARoom();
-      // A pod is chosen before the queue is touched, so a partner is never popped with nowhere to go.
+      // The pod and the room code are settled before the queue is touched, so a partner is never
+      // popped with nowhere to go. The code goes back unless a partner was popped for it.
       const pod = await placeRoom(this.stores.podHealth);
       if (!pod) throw REFUSE.noPod();
-      const { matchQueue } = this.stores;
-      // Listening starts before queueing, so a pairing that follows at once is heard.
-      connection.stopWaiting ??= await matchQueue.onMatched(session.id, (notice) => {
-        this.connections
-          .inTurn(socket, (current) => this.#matched(current, notice))
-          .catch((error: unknown) => this.logger.warn({ err: error }, 'quick-match notice'));
-      });
-      const result = await matchQueue.quickMatch(session.id);
-      switch (result.status) {
-        case 'queued':
-        case 'alreadyQueued':
-          this.connections.send(connection, { event: 'quickMatchQueued', data: {} });
-          return;
-        case 'coolingDown':
-          await this.#stopListening(connection);
-          throw coolingDown(result.retryAfterMs);
-        case 'matched':
-          await this.#stopListening(connection);
-          await this.#pair(connection, result.partnerId, pod.address);
-          return;
+      const { matchQueue, registry } = this.stores;
+      const room = quickMatchRoom(pod.address);
+      const code = await claimRoomCode(registry, room);
+      if (code === undefined) throw REFUSE.noRoomCode();
+      let paired = false;
+      try {
+        // Listening starts before queueing, so a pairing that follows at once is heard.
+        connection.stopWaiting ??= await matchQueue.onMatched(session.id, (notice) => {
+          this.connections
+            .inTurn(socket, (current) => this.#matched(current, notice))
+            .catch((error: unknown) => this.logger.warn({ err: error }, 'quick-match notice'));
+        });
+        const result = await matchQueue.quickMatch(session.id);
+        switch (result.status) {
+          case 'queued':
+          case 'alreadyQueued':
+            this.connections.send(connection, { event: 'quickMatchQueued', data: {} });
+            return;
+          case 'coolingDown':
+            await this.#stopListening(connection);
+            throw coolingDown(result.retryAfterMs);
+          case 'matched':
+            paired = true;
+            await this.#stopListening(connection);
+            await this.#pair(connection, result.partnerId, code, room);
+            return;
+        }
+      } finally {
+        if (!paired) await registry.delete(code);
       }
     });
   }
@@ -85,28 +106,28 @@ export class QuickMatchService {
   }
 
   /**
-   * Paired with `partnerId`: their room, with no host, on the pod at `podAddress`, entered first by
-   * this session; then the partner's gateway, wherever it is, is told.
+   * Paired with `partnerId` in the room `code`: the partner's gateway, wherever it is, is told
+   * first, then this session enters. Whichever of the two gets there, it creates the room on its
+   * pod, and a room whose second player never arrives breaks up by itself (design §9.4), so a
+   * failure on either side still leaves the other an outcome and the pod deletes the room's record.
    */
-  async #pair(connection: Connection, partnerId: string, podAddress: string): Promise<void> {
-    const room: RoomRecord = {
-      podAddress,
-      epoch: 0,
-      mode: '1v1',
-      phase: 'lobby',
-      quickMatch: true,
-      seated: 0,
-      spectators: 0,
-    };
-    const code = await claimRoomCode(this.stores.registry, room);
-    // The partner is out of the queue; their room never comes, and both can ask again.
-    if (code === undefined) throw REFUSE.noRoomCode();
+  async #pair(
+    connection: Connection,
+    partnerId: string,
+    code: string,
+    room: RoomRecord,
+  ): Promise<void> {
+    try {
+      await this.stores.matchQueue.notifyMatched({
+        sessionId: partnerId,
+        partnerId: sessionOf(connection).id,
+        roomCode: code,
+      });
+    } catch (error) {
+      // As if the partner's gateway went away: this session's room breaks up without them.
+      this.logger.warn({ err: error, partnerId, roomCode: code }, 'quick-match notice not sent');
+    }
     await this.#enter(connection, partnerId, code, room, '1v1');
-    await this.stores.matchQueue.notifyMatched({
-      sessionId: partnerId,
-      partnerId: sessionOf(connection).id,
-      roomCode: code,
-    });
   }
 
   /**
@@ -121,7 +142,11 @@ export class QuickMatchService {
     if (connection.closed || connection.roomCode || !connection.session) return;
     const room = await this.stores.registry.get(roomCode);
     const mode = roomModeSchema.safeParse(room?.mode);
-    if (!room || !mode.success) return;
+    if (!room || !mode.success) {
+      // Gone before this session got there: as for a late arrival at a broken-up room.
+      this.connections.send(connection, { event: 'opponentLeft', data: {} });
+      return;
+    }
     await this.#enter(connection, partnerId, roomCode, room, mode.data);
   }
 
