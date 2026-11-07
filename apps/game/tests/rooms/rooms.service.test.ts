@@ -27,7 +27,11 @@ const nextFor = (link: WebSocket, sessionId: string) =>
     link.on('message', listener);
   });
 
-test('a quick-match room that broke up is still deleted after a late arrival is sent away', async () => {
+/**
+ * A game service on a fake clock, with a gateway's link that has created quick-match room `CODE`
+ * (and the registry record the gateway claimed for it).
+ */
+async function podWithQuickRoom() {
   const clock = fakeClock(START);
   const stores = createMemoryStores();
   const booted = await boot({
@@ -46,6 +50,28 @@ test('a quick-match room that broke up is still deleted after a late arrival is 
   });
   const link = await connect(`${booted.ws}/room-links`);
   send(link, 'createRoom', { mode: '1v1', quickMatch: true });
+  await expect.poll(() => rooms.roomCount).toBe(1);
+  const close = async () => {
+    link.close();
+    await booted.app.close();
+  };
+  return { clock, stores, rooms, link, close };
+}
+
+test('a room nobody attaches to is deleted once it has been empty for EMPTY_ROOM_MS', async () => {
+  const { clock, stores, rooms, close } = await podWithQuickRoom();
+
+  clock.advanceTo(START + EMPTY_ROOM_MS - 1);
+  expect(rooms.roomCount).toBe(1);
+  clock.advanceTo(START + EMPTY_ROOM_MS);
+  expect(rooms.roomCount).toBe(0);
+  await expect.poll(() => stores.registry.get(CODE)).toBeUndefined();
+
+  await close();
+});
+
+test('a quick-match room that broke up is still deleted after a late arrival is sent away', async () => {
+  const { clock, stores, rooms, link, close } = await podWithQuickRoom();
   const joined = nextFor(link, 'a');
   send(link, 'attach', { sessionId: 'a', nickname: 'Ada', kind: 'guest' });
   await joined;
@@ -64,6 +90,5 @@ test('a quick-match room that broke up is still deleted after a late arrival is 
   expect(rooms.roomCount).toBe(0);
   await expect.poll(() => stores.registry.get(CODE)).toBeUndefined();
 
-  link.close();
-  await booted.app.close();
+  await close();
 });
