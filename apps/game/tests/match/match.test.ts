@@ -224,3 +224,18 @@ describe('placements by frame (design §10.1)', () => {
     expect(game.outcomes()).toHaveLength(1);
   });
 });
+
+describe('snapshots (design §8.6)', () => {
+  test("each player's game is at their last verified frame, with the seq their next batch needs", () => {
+    const game = testMatch(['ada', 'bo']);
+    playOnTime(game, { ada: { until: 15 }, bo: {} }, 30);
+    const snapshot = game.match.snapshot();
+    expect(
+      snapshot.event === 'snapshot' &&
+        snapshot.data.players.map(({ playerId, frame, nextSeq }) => ({ playerId, frame, nextSeq })),
+    ).toEqual([
+      { playerId: 'ada', frame: 15, nextSeq: 5 },
+      { playerId: 'bo', frame: 30, nextSeq: 10 },
+    ]);
+  });
+});

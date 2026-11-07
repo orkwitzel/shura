@@ -166,10 +166,14 @@ export const SERVER_EXAMPLES: Record<string, Examples> = {
     ],
   },
   snapshot: {
-    valid: [{ players: [{ playerId: 'p1', frame: 120, state: { frame: 120, board: [] } }] }],
+    valid: [
+      { players: [{ playerId: 'p1', frame: 120, state: { frame: 120, board: [] } }] },
+      { players: [{ playerId: 'p1', frame: 120, state: { frame: 120, board: [] }, nextSeq: 40 }] },
+    ],
     invalid: [
       {},
       { players: [{ playerId: 'p1', frame: 120 }] },
+      { players: [{ playerId: 'p1', frame: 120, state: {}, nextSeq: -1 }] },
       { players: [{ playerId: 'p1', frame: -1, state: {} }] },
       { players: [{ playerId: 'p1', frame: 1, state: 'x' }] },
     ],

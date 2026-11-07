@@ -188,16 +188,18 @@ export class Match {
 
   /**
    * Every player's game at their own last verified frame (design §8.6): what someone joining or
-   * coming back mid-match restores, then plays each player's relays on from.
+   * coming back mid-match restores, then plays each player's relays on from. Each says the `seq`
+   * its player's next batch must have, for a new page of theirs to carry on from (a reload).
    */
   snapshot(): ServerMessage {
     return {
       event: 'snapshot',
       data: {
-        players: [...this.#players.values()].map(({ id, frame, engine }) => ({
+        players: [...this.#players.values()].map(({ id, frame, engine, nextSeq }) => ({
           playerId: id,
           frame,
           state: engine.serialize(),
+          nextSeq,
         })),
       },
     };

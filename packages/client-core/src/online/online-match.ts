@@ -168,6 +168,11 @@ export class OnlineMatch {
   /** Batches sent and not yet acknowledged, oldest first. */
   #unacknowledged: InputBatch[] = [];
   #nextSeq = 0;
+  /**
+   * A match joined after its frame 0 (a new page, back after a reload): your own game waits for
+   * the snapshot's copy to carry on from, as the server has it (design §8.6, §10.2).
+   */
+  #awaitingSnapshot: boolean;
   #unheardEvents: EngineEvent[] = [];
   #unheardActions: PieceAction[] = [];
 
@@ -185,8 +190,11 @@ export class OnlineMatch {
       }));
     this.#me = this.#games.find((game) => game.playerId === playerId);
     this.#roster = this.#rosterNow();
-    // A countdown that arrived late starts at the frame its time has reached.
-    this.#frame = Math.min(frameAt(clock.now() - options.start), 0);
+    // A countdown that arrived late starts at the frame its time has reached. One that comes once
+    // play has started is a session back in the match: your game carries on from the snapshot.
+    const reached = frameAt(clock.now() - options.start);
+    this.#frame = Math.min(reached, 0);
+    this.#awaitingSnapshot = this.#me !== undefined && reached > 0;
     this.#phase = this.#frame < 0 ? 'countdown' : 'playing';
     if (this.#me) this.#schedule();
   }
@@ -264,11 +272,21 @@ export class OnlineMatch {
    * `snapshot`, on joining or coming back mid-match (design §8.6): each game restored at its
    * player's last verified frame, for relays to carry on from. Your own game, while you're still
    * in, is ahead of the server's copy and stays as it is; once you're out, it's the server's copy.
+   * A match joined after its frame 0 (a new page, back after a reload) has no game of yours yet:
+   * it takes the server's copy and carries on from its frame, its batches numbered on from the
+   * server's `nextSeq`.
    */
   restore({ players }: ServerData<'snapshot'>): void {
-    for (const { playerId, state } of players) {
+    for (const { playerId, frame, state, nextSeq } of players) {
       const game = this.#games.find((other) => other.playerId === playerId);
-      if (!game || (game === this.#me && !game.out)) continue;
+      if (!game) continue;
+      if (game === this.#me && this.#awaitingSnapshot) {
+        this.#frame = frame;
+        this.#nextSeq = nextSeq ?? 0;
+        this.#awaitingSnapshot = false;
+      } else if (game === this.#me && !game.out) {
+        continue;
+      }
       game.engine = restoreEngine(state);
     }
     if (this.#phase === 'countdown' && players.some(({ frame }) => frame > 0)) {
@@ -356,7 +374,9 @@ export class OnlineMatch {
     this.#cancelWake = NO_WAKE;
     const before = this.#frame;
     const now = frameAt(this.#options.clock.now() - this.#options.start);
-    while (this.#frame < now && !this.#over()) this.#playFrame(this.#frame + 1);
+    while (!this.#awaitingSnapshot && this.#frame < now && !this.#over()) {
+      this.#playFrame(this.#frame + 1);
+    }
     if (this.#unsent.length >= BATCH_FRAMES || (this.#over() && this.#unsent.length > 0)) {
       this.#sendBatch();
     }

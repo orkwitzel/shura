@@ -73,7 +73,15 @@ export const serverMessages = {
   }),
   /** Each player's game at their own last verified frame, on joining or reconnecting (§8.6). */
   snapshot: data({
-    players: z.array(data({ playerId: idSchema, frame: gameFrameSchema, state: engineState })),
+    players: z.array(
+      data({
+        playerId: idSchema,
+        frame: gameFrameSchema,
+        state: engineState,
+        /** The `seq` the player's next input batch must have: a new page carries on from it. */
+        nextSeq: countSchema.optional(),
+      }),
+    ),
   }),
   /** The input batch `seq` is verified and in the match log. */
   batchAck: data({ seq: countSchema }),
