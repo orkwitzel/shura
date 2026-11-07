@@ -1,8 +1,9 @@
 import type { OnlineSession } from '@shura/client-core';
 import { ActionType } from '@shura/engine';
 import { QUICK_MATCH_ARRIVAL_MS } from '@shura/game/rooms';
-import { LIMIT_DEFAULTS } from '@shura/protocol';
-import { afterEach, expect, test } from 'vitest';
+import { EMPTY_ROOM_MS, LIMIT_DEFAULTS } from '@shura/protocol';
+import { afterEach, expect, test, vi } from 'vitest';
+import { RoomLinksService } from '../../src/room-links';
 import { connected, eventually, expectVerified, STEP_MS } from '../support/online-games';
 import { type OnlineWorld, onlineWorld } from '../support/online-world';
 
@@ -191,4 +192,110 @@ test('quick match is refused from inside a room, and a quick-match room has no r
     code: 'wrong_phase',
     message: 'Quick-match rooms start by themselves.',
   });
+});
+
+/** Ada waits in the queue, and Bo is about to ask for a quick match. */
+async function adaWaiting() {
+  const ada = world.client('Ada');
+  const bo = world.client('Bo');
+  await connected(world, ada, bo);
+  ada.quickMatch();
+  await eventually(world, () => ada.getState().quickMatch === 'queued', 'Ada queued');
+  return { ada, bo };
+}
+
+test('a pairing with no room code for it leaves the waiting player waiting', async () => {
+  world = await onlineWorld();
+  const { ada, bo } = await adaWaiting();
+  const create = vi.spyOn(world.stores.registry, 'create').mockResolvedValue(false);
+  bo.quickMatch();
+  await eventually(world, () => bo.getState().error !== null, 'Bo was refused');
+  expect(bo.getState().error?.code).toBe('unavailable');
+  // Ada was never taken out of the queue, so the next player is paired with her.
+  expect(ada.getState().quickMatch).toBe('queued');
+  expect(await world.stores.matchQueue.length()).toBe(1);
+  create.mockRestore();
+  const cy = world.client('Cy');
+  await connected(world, cy);
+  cy.quickMatch();
+  await eventually(world, () => seated(ada)?.length === 2, 'Ada and Cy are paired');
+  expect(seated(ada)).toEqual(['Ada', 'Cy']);
+});
+
+test('a pairing player who fails to enter leaves the other a room that breaks up, then goes', async () => {
+  world = await onlineWorld();
+  const { ada, bo } = await adaWaiting();
+  const codes = vi.spyOn(world.stores.registry, 'create');
+  const links = world.gateway.get(RoomLinksService);
+  const enter = links.enter.bind(links);
+  const failing = vi.spyOn(links, 'enter').mockImplementation((code, place, member, ...rest) => {
+    if (member.sessionId === bo.getState().sessionId) throw new Error('the pod is unreachable');
+    enter(code, place, member, ...rest);
+  });
+  bo.quickMatch();
+  await eventually(world, () => seated(ada)?.length === 1, 'Ada is in the room');
+  const code = ada.getState().room?.code ?? '';
+  expect(codes.mock.calls.map(([claimed]) => claimed)).toEqual([code]);
+  await world.time.advance(QUICK_MATCH_ARRIVAL_MS);
+  await eventually(world, () => ada.getState().quickMatch === 'opponentLeft', 'Ada was sent back');
+  await world.time.advance(EMPTY_ROOM_MS);
+  await world.time.settle();
+  expect(await world.stores.registry.get(code)).toBeUndefined();
+
+  // Bo never got into the room, so he is free to queue again.
+  failing.mockRestore();
+  bo.quickMatch();
+  await eventually(world, () => bo.getState().quickMatch === 'queued', 'Bo queued');
+});
+
+test('a failed queue step gives the room code back', async () => {
+  world = await onlineWorld();
+  const { bo } = await adaWaiting();
+  const codes = vi.spyOn(world.stores.registry, 'create');
+  vi.spyOn(world.stores.matchQueue, 'quickMatch').mockRejectedValueOnce(
+    new Error('Valkey is down'),
+  );
+  bo.quickMatch();
+  await eventually(world, () => bo.getState().error !== null, 'Bo was refused');
+  const [[code = '']] = codes.mock.calls;
+  expect(await world.stores.registry.get(code)).toBeUndefined();
+});
+
+test('a queued player gets no record to keep: the room code goes back', async () => {
+  world = await onlineWorld();
+  const { ada } = await adaWaiting();
+  const codes = vi.spyOn(world.stores.registry, 'create');
+  ada.quickMatch();
+  await world.time.settle();
+  expect(ada.getState().quickMatch).toBe('queued');
+  const [[code = '']] = codes.mock.calls;
+  expect(await world.stores.registry.get(code)).toBeUndefined();
+});
+
+test('a pairing whose notice is lost still enters, and the room breaks up without the other', async () => {
+  world = await onlineWorld();
+  const { bo } = await adaWaiting();
+  vi.spyOn(world.stores.matchQueue, 'notifyMatched').mockRejectedValueOnce(new Error('lost'));
+  bo.quickMatch();
+  await eventually(world, () => seated(bo)?.length === 1, 'Bo is in the room');
+  const code = bo.getState().room?.code ?? '';
+  await world.time.advance(QUICK_MATCH_ARRIVAL_MS);
+  await eventually(world, () => bo.getState().quickMatch === 'opponentLeft', 'Bo was sent back');
+  await world.time.advance(EMPTY_ROOM_MS);
+  await world.time.settle();
+  expect(await world.stores.registry.get(code)).toBeUndefined();
+});
+
+test('a notice for a room that is gone sends the waiting player back to the waiting screen', async () => {
+  world = await onlineWorld();
+  const { ada } = await adaWaiting();
+  const sessionId = ada.getState().sessionId ?? '';
+  // Popped by a pairing whose room broke up before Ada's gateway heard of it.
+  expect(await world.stores.matchQueue.quickMatch('gone')).toEqual({
+    status: 'matched',
+    partnerId: sessionId,
+  });
+  await world.stores.matchQueue.notifyMatched({ sessionId, partnerId: 'gone', roomCode: 'GONE' });
+  await eventually(world, () => ada.getState().quickMatch === 'opponentLeft', 'Ada was sent back');
+  expect(ada.getState().room).toBeNull();
 });

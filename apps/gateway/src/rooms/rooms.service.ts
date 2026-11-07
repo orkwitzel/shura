@@ -208,7 +208,6 @@ export class RoomsService {
     const session = sessionOf(connection);
     for (const listener of this.#enterListeners) await listener(connection);
     const member = this.#memberOf(connection, session);
-    connection.roomCode = code;
     this.links.enter(
       code,
       place,
@@ -216,6 +215,8 @@ export class RoomsService {
       { nickname: session.nickname, kind: session.kind },
       create,
     );
+    // In the room only once its link took the session: a failed enter leaves it where it was.
+    connection.roomCode = code;
     await this.stores.sessions.update(session.token, { roomCode: code });
   }
 
