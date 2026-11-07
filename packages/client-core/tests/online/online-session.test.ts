@@ -113,7 +113,7 @@ async function session(
 async function welcomed() {
   const world = await session();
   world.open();
-  world.say('welcome', { sessionId: 'me', serverTime: 0 });
+  world.say('welcome', { sessionId: 'me', serverTime: world.ticking.now() });
   return world;
 }
 
@@ -202,7 +202,7 @@ describe('connecting (design §13.1)', () => {
     online.createRoom('1v1');
     open();
     expect(sent.map(({ event }) => event)).toEqual(['hello']);
-    say('welcome', { sessionId: 'me', serverTime: 0 });
+    say('welcome', { sessionId: 'me', serverTime: 10_000 });
     expect(sent.map(({ event }) => event)).toEqual(['hello', 'ping', 'createRoom']);
   });
 });
@@ -313,6 +313,18 @@ describe('a match', () => {
       { id: 'them', index: 1 },
     ],
   };
+
+  test('the welcome’s serverTime is the first clock sample: a countdown before any pong counts down to startAt', async () => {
+    // A client clock 1e9 ms behind the server's, as `performance.now()` is behind `Date.now()`.
+    const { online, open, say, ticking } = await session();
+    open();
+    say('welcome', { sessionId: 'me', serverTime: 1_000_010_000 });
+    say('roomState', roomState('K7QX'));
+    say('countdown', { ...countdown, startAt: 1_000_013_000 });
+    expect(online.getState().match).toMatchObject({ phase: 'countdown', countdown: 180 });
+    ticking.advance(3000);
+    expect(online.getState().match?.phase).toBe('playing');
+  });
 
   test('counts down from startAt, then sends input batches every 3 frames', async () => {
     const { online, say, sent, ticking } = await welcomed();
@@ -594,7 +606,7 @@ describe('reconnecting (design §10.2)', () => {
     online.setReady(false);
     expect(sent.filter(({ event }) => event === 'inputBatch')).toHaveLength(1);
     open();
-    say('welcome', { sessionId: 'me', serverTime: 0 });
+    say('welcome', { sessionId: 'me', serverTime: ticking.now() });
     const hello = sent.map(({ event }) => event).lastIndexOf('hello');
     expect(
       sent.slice(hello + 1).map(({ event, data }) => (event === 'inputBatch' ? data.seq : event)),
@@ -709,6 +721,68 @@ describe('a snapshot (design §8.6)', () => {
       ],
     });
     expect(mine()).toBe(frame);
+  });
+
+  /** A new page's session (a reload) back in its room 3.5 s after `startAt`: frame 30. */
+  async function reloadedMidMatch() {
+    const world = await welcomed();
+    world.say('roomState', roomState('K7QX', { phase: 'playing' }));
+    world.ticking.pass(3500);
+    world.say('countdown', countdown);
+    return world;
+  }
+
+  /** Your game as the server verified it, at frame 20, with a hard drop at frame 1. */
+  const yours = () => {
+    const engine = createEngine(ONE_VS_ONE, 7, 0);
+    engine.step(1, [{ frame: 1, type: ActionType.HardDrop }]);
+    engine.step(20, []);
+    return engine;
+  };
+
+  /** The server's snapshot of a match where your next batch is `seq` 7. */
+  const snapshotWithYours = () => ({
+    players: [
+      { playerId: 'me', frame: 20, state: yours().serialize(), nextSeq: 7 },
+      { playerId: 'them', frame: 30, state: theirs(30).serialize(), nextSeq: 10 },
+    ],
+  });
+
+  test('a new session back mid-match (a reload) carries on from the server’s copy of your game', async () => {
+    const { online, say, sent, ticking } = await reloadedMidMatch();
+    // It waits for the snapshot: nothing is played from frame 0.
+    ticking.advance(16);
+    expect(sent.filter(({ event }) => event === 'inputBatch')).toEqual([]);
+    say('snapshot', snapshotWithYours());
+    expect(online.getState().match?.me?.engine.piecesPlaced).toBe(1);
+    ticking.advance(1);
+    expect(online.getState().match?.me?.engine.frame).toBe(31);
+    // The frames it missed since the server's last, played with no input.
+    const frames = sent.find(({ event }) => event === 'inputBatch')?.data.frames as
+      | { frame: number }[]
+      | undefined;
+    expect(frames?.map(({ frame }) => frame)).toEqual(
+      Array.from({ length: 11 }, (_, at) => 21 + at),
+    );
+  });
+
+  test('a new session back mid-match numbers its batches on from the server’s next seq', async () => {
+    const { say, sent, ticking } = await reloadedMidMatch();
+    say('snapshot', snapshotWithYours());
+    ticking.advance(17);
+    ticking.advance(50);
+    expect(sent.filter(({ event }) => event === 'inputBatch').map(({ data }) => data.seq)).toEqual([
+      7, 8,
+    ]);
+  });
+
+  test('a snapshot without your next seq numbers your batches on from 0', async () => {
+    const { say, sent, ticking } = await reloadedMidMatch();
+    say('snapshot', {
+      players: [{ playerId: 'me', frame: 20, state: yours().serialize() }],
+    });
+    ticking.advance(16);
+    expect(sent.find(({ event }) => event === 'inputBatch')?.data.seq).toBe(0);
   });
 
   test('your own game once out is the server’s copy', async () => {

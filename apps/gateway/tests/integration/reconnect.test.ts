@@ -1,4 +1,4 @@
-import type { OnlineSession } from '@shura/client-core';
+import type { Connect, OnlineSession, TimerClock } from '@shura/client-core';
 import { ActionType } from '@shura/engine';
 import { SEAT_HOLD_MS } from '@shura/protocol';
 import { afterEach, expect, test } from 'vitest';
@@ -134,6 +134,89 @@ test.each([
     expect(hashOf(gameOf(bo, ada.getState().sessionId).engine)).toBe(
       verifiedGameOf(world, code, ada).hash,
     );
+  },
+);
+
+/** How far a client clock of another epoch runs behind the server's: about 57 years. */
+const EPOCH_GAP = 1_800_000_000_000;
+
+/** A client clock with another epoch than the server's, as the web's `performance.now()` has. */
+const otherEpoch = (clock: TimerClock): TimerClock => ({
+  now: () => clock.now() - EPOCH_GAP,
+  after: (ms, callback) => clock.after(ms, callback),
+  schedule: (callback) => clock.schedule(callback),
+});
+
+/**
+ * A line on which the pongs come only after the match's snapshot: a session put back in its match
+ * hears its `countdown` before it has any pong to set its clock by.
+ */
+const pongsAfterSnapshot =
+  (connect: Connect): Connect =>
+  (url, handlers) => {
+    let late: string[] | null = [];
+    return connect(url, {
+      ...handlers,
+      message: (text) => {
+        const { event } = JSON.parse(text) as { event: string };
+        if (late && event === 'pong') {
+          late.push(text);
+          return;
+        }
+        handlers.message(text);
+        if (late && event === 'snapshot') {
+          const due = late;
+          late = null;
+          for (const pong of due) handlers.message(pong);
+        }
+      },
+    });
+  };
+
+test.each([
+  ['the server’s', (clock: TimerClock) => clock],
+  ['another', otherEpoch],
+])(
+  'a page reloaded mid-match, its clock of %s epoch, comes back in its seat, plays on and is verified exactly',
+  async (_epoch, clockThrough) => {
+    world = await onlineWorld();
+    const line = faultySocket();
+    const page = world.client('Ada', { ...line, clockThrough });
+    const bo = world.client('Bo');
+    const code = await openRoom(world, '1v1', page, bo);
+    await startMatch(world, page, bo);
+    // 3 s of countdown, then 1 s of play.
+    let count = await play(0, 80, [
+      [page, 16],
+      [bo, 10],
+    ]);
+    const sessionId = page.getState().sessionId;
+    const verifiedBefore = verifiedGameOf(world, code, page).frame;
+
+    // The page reloads: its socket goes as the tab unloads, with no `leaveRoom`, and the new page
+    // opens a new session with the token it kept.
+    const sessionToken = page.getState().sessionToken ?? '';
+    line.drop();
+    page.close();
+    const ada = world.client('Ada', { sessionToken, clockThrough, through: pongsAfterSnapshot });
+    const drops: Drops = [
+      [ada, 16],
+      [bo, 10],
+    ];
+    count = await play(count, count + 20, drops);
+    expect(ada.getState().sessionId).toBe(sessionId);
+    expect(ada.getState().room?.code).toBe(code);
+    expect(ada.getState().match?.phase).toBe('playing');
+    expect(ownGame(ada).out).toBeNull();
+    // Her game carries on from where the server has it, and the server verifies what she plays.
+    expect(ownGame(ada).engine.frame).toBe(ownGame(bo).engine.frame);
+    expect(verifiedGameOf(world, code, ada).frame).toBeGreaterThan(verifiedBefore);
+    const frameBack = ownGame(ada).engine.frame;
+
+    await playToEnd([ada, bo], drops, count);
+    expect(ownGame(ada).engine.frame).toBeGreaterThan(frameBack);
+    expectVerified(world, code, [ada, bo]);
+    expect(hashOf(gameOf(bo, sessionId).engine)).toBe(verifiedGameOf(world, code, ada).hash);
   },
 );
 

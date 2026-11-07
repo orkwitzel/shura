@@ -183,6 +183,7 @@
         "players[].playerId": "string",
         "players[].frame": "number:safeint",
         "players[].state": "custom",
+        "players[].nextSeq": "number:safeint?",
         "roomCode": "string",
         "epoch": "number:safeint",
         "sessionId": "string"
@@ -271,7 +272,8 @@
         "players[]": "object",
         "players[].playerId": "string",
         "players[].frame": "number:safeint",
-        "players[].state": "custom"
+        "players[].state": "custom",
+        "players[].nextSeq": "number:safeint?"
       },
       "welcome": {
         "sessionId": "string",

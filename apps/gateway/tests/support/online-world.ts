@@ -75,6 +75,8 @@ export interface ClientOptions {
   readonly fetchThrough?: (fetch: Fetch) => Fetch;
   /** Wraps the client's clock: to stall its game loop (`stallableClock()`). */
   readonly clockThrough?: (clock: TimerClock) => TimerClock;
+  /** A token from an earlier client's session, to come back as it: a reloaded page (design §10.2). */
+  readonly sessionToken?: string;
 }
 
 export interface OnlineWorldOptions {
@@ -203,7 +205,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
     game,
     serverUrl,
     rooms: game.get(GameRooms),
-    client(nickname, { kind, through, fetchThrough, clockThrough } = {}) {
+    client(nickname, { kind, through, fetchThrough, clockThrough, sessionToken } = {}) {
       const session = createOnlineSession({
         serverUrl,
         connect: counted(through ? through(realConnect) : realConnect),
@@ -212,6 +214,7 @@ export async function onlineWorld(options: OnlineWorldOptions = {}): Promise<Onl
         nickname,
         clientVersion: 'test',
         ...(kind && { kind }),
+        ...(sessionToken !== undefined && { sessionToken }),
       });
       clients.push(session);
       return session;

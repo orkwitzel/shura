@@ -224,6 +224,8 @@ class Session implements OnlineSession {
   readonly #pings = new Map<number, number>();
   #nextPing = 0;
   #pingsLeft = CONNECT_PINGS;
+  /** When the current socket's `hello` was sent: the welcome's `serverTime` is its pong. */
+  #helloAt = 0;
   #cancelPing: () => void = () => {};
   /** Messages waiting for the `welcome`. */
   #outbox: Outgoing[] = [];
@@ -383,6 +385,7 @@ class Session implements OnlineSession {
   #open(): void {
     const { clientVersion, kind } = this.#options;
     const { sessionToken } = this.getState();
+    this.#helloAt = this.#options.clock.now();
     this.#write({
       event: 'hello',
       data: {
@@ -489,11 +492,18 @@ class Session implements OnlineSession {
   }
 
   /**
-   * The `welcome`, first or after a reconnect: connected. The match's batches not yet
+   * The `welcome`, first or after a reconnect: connected. Its `serverTime` is the clock's first
+   * sample, the `hello` its ping (design §8.4), so a `countdown` that comes before any `pong` (a
+   * session put back in its match) still starts on the server's clock. The match's batches not yet
    * acknowledged go again first, in order (design §10.2), then the pings start, and the messages
    * waiting go, in order.
    */
-  #welcome({ sessionId }: ServerData<'welcome'>): void {
+  #welcome({ sessionId, serverTime }: ServerData<'welcome'>): void {
+    this.#sync.add({
+      sentAt: this.#helloAt,
+      receivedAt: this.#options.clock.now(),
+      serverTime,
+    });
     this.#set({ connection: { status: 'connected' }, sessionId });
     for (const batch of this.#match?.unacknowledged ?? []) {
       this.#write({ event: 'inputBatch', data: batch as ClientData<'inputBatch'> });
