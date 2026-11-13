@@ -19,7 +19,7 @@
     "changeset": "changeset"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.6.6",
     "@changesets/cli": "3.0.3",
     "@types/node": "catalog:",
     "lefthook": "2.2.2",
